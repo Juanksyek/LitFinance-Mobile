@@ -2,9 +2,12 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import FormInput from '../components/FormInput';
 import { useThemeColors } from '../theme/useThemeColors';
+import { useNavigation, NavigationProp } from '@react-navigation/native';
+import { RootStackParamList } from '../navigation/AppNavigator';
 
 const LoginScreen: React.FC = () => {
     const colors = useThemeColors();
+    const navigation = useNavigation<NavigationProp<RootStackParamList>>();
 
     return (
         <KeyboardAvoidingView
@@ -30,8 +33,9 @@ const LoginScreen: React.FC = () => {
 
                 <Text style={[styles.signupText, { color: colors.placeholder }]}>
                     ¿Aún no tienes cuenta?{' '}
-                    <Text style={{ color: '#EF7725', fontWeight: 'bold' }}>Registrarse</Text>
-                </Text>
+                    <TouchableOpacity onPress={() => navigation.navigate('Register')}>
+                        <Text style={{ color: '#EF7725', fontWeight: 'bold' }}>Registrarse</Text>
+                    </TouchableOpacity>                </Text>
             </ScrollView>
         </KeyboardAvoidingView>
     );
