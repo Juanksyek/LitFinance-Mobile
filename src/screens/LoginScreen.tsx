@@ -22,7 +22,7 @@ const LoginScreen: React.FC = () => {
                 <View style={styles.inputContainer}>
                     <FormInput placeholder="Correo" keyboardType="email-address" autoCapitalize="none" />
                     <FormInput placeholder="Contraseña" secureTextEntry />
-                    <TouchableOpacity style={styles.forgotButton}>
+                    <TouchableOpacity onPress={() => navigation.navigate('ForgotPassword')}>
                         <Text style={[styles.forgotText, { color: colors.placeholder }]}>¿Olvidaste tu contraseña?</Text>
                     </TouchableOpacity>
                 </View>
