@@ -1,12 +1,5 @@
 import React, { useEffect, useState } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  TextInput,
-  TouchableOpacity,
-  FlatList,
-} from "react-native";
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, FlatList, Dimensions } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import Toast from "react-native-toast-message";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -32,13 +25,14 @@ const COLORS = [
 
 const EMOJIS = ["💰", "🛒", "🍽️", "🚗", "🏠", "🎉", "📌", "📈", "💡", "🎁", "📊", "🧾"];
 
+const SCREEN_HEIGHT = Dimensions.get("window").height;
+
 const ConceptsManager: React.FC<Props> = ({ onClose }) => {
   const [nuevoConcepto, setNuevoConcepto] = useState("");
   const [conceptos, setConceptos] = useState<Concepto[]>([]);
   const [busqueda, setBusqueda] = useState("");
   const [colorSeleccionado, setColorSeleccionado] = useState("#FFA726");
   const [emojiSeleccionado, setEmojiSeleccionado] = useState("📌");
-  const [showEmojiInput, setShowEmojiInput] = useState(false);
 
   const fetchConceptos = async () => {
     try {
@@ -79,14 +73,16 @@ const ConceptsManager: React.FC<Props> = ({ onClose }) => {
     }
   };
 
+  // Debounce de búsqueda
   useEffect(() => {
     const delay = setTimeout(() => {
-        fetchConceptos();
+      fetchConceptos();
     }, 500);
 
     return () => clearTimeout(delay);
   }, [busqueda]);
 
+  // Emoji aleatorio al abrir
   useEffect(() => {
     const random = EMOJIS[Math.floor(Math.random() * EMOJIS.length)];
     setEmojiSeleccionado(random);
@@ -124,29 +120,18 @@ const ConceptsManager: React.FC<Props> = ({ onClose }) => {
 
       <View style={styles.symbolRow}>
         <Text style={styles.symbolLabel}>Símbolo:</Text>
-        {showEmojiInput ? (
-          <TextInput
-            value={emojiSeleccionado}
-            onChangeText={(text) => {
-                const emojiOnly = text.replace(/[^\p{Emoji}\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, "");
-                setEmojiSeleccionado(emojiOnly);
-            }}
-            style={styles.emojiInput}
-            placeholder="💰"
-            maxLength={2}
-            autoFocus
-            keyboardType="default"
-            returnKeyType="done"
-          />
-        ) : (
-          <TouchableOpacity
-            onPress={() => setShowEmojiInput(true)}
-            style={styles.emojiButtonInline}
-          >
-            <Text style={styles.emojiInline}>{emojiSeleccionado}</Text>
-            <Ionicons name="chevron-down" size={18} color="#888" />
-          </TouchableOpacity>
-        )}
+        <TextInput
+          value={emojiSeleccionado}
+          onChangeText={(text) => {
+            const emojiOnly = text.replace(/[^\p{Emoji}\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, '');
+            setEmojiSeleccionado(emojiOnly);
+          }}
+          style={styles.emojiInput}
+          placeholder="💰"
+          maxLength={2}
+          keyboardType="default"
+          returnKeyType="done"
+        />
       </View>
 
       <Text style={styles.subLabel}>Color:</Text>
@@ -180,6 +165,7 @@ const ConceptsManager: React.FC<Props> = ({ onClose }) => {
               <Text style={styles.nombre}>{item.nombre}</Text>
             </View>
           )}
+          style={{ maxHeight: 120 }}
           contentContainerStyle={{ paddingBottom: 16 }}
         />
       )}
@@ -190,10 +176,10 @@ const ConceptsManager: React.FC<Props> = ({ onClose }) => {
 const styles = StyleSheet.create({
   container: {
     width: "100%",
-    maxHeight: "100%",
+    maxHeight: SCREEN_HEIGHT * 0.85,
     backgroundColor: "#f0f0f3",
     padding: 16,
-    borderRadius: 16,
+    borderRadius: 20,
   },
   header: {
     flexDirection: "row",
@@ -236,6 +222,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 6,
     elevation: 2,
+    borderWidth: 1,
+    borderColor: "#ddd",
   },
   subLabel: {
     fontSize: 14,

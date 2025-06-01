@@ -1,10 +1,8 @@
 import React, { useState, useRef, useEffect } from "react";
-import { View, Text, StyleSheet, Image, Dimensions, TouchableOpacity, Animated } from "react-native";
+import { View, Text, StyleSheet, Image, TouchableOpacity, Animated, Platform, StatusBar } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Toast from "react-native-toast-message";
 import { useNavigation } from "@react-navigation/native";
-
-const { width } = Dimensions.get("window");
 
 const DashboardWidget = () => {
   return (
@@ -32,7 +30,7 @@ const Header = () => {
             setNombre(parsed.nombre);
           }
         }
-      } catch (error) {
+      } catch {
         setNombre("Error al cargar nombre");
       }
     };
@@ -45,7 +43,7 @@ const Header = () => {
     setExpanded(expanding);
 
     Animated.timing(animatedHeight, {
-      toValue: expanding ? 220 : 92,
+      toValue: expanding ? 240 : 92,
       duration: 300,
       useNativeDriver: false,
     }).start();
@@ -77,7 +75,7 @@ const Header = () => {
         index: 0,
         routes: [{ name: "Login" as never }],
       });
-    } catch (error) {
+    } catch {
       Toast.show({
         type: "error",
         text1: "Error",
@@ -103,11 +101,6 @@ const Header = () => {
             {
               opacity: opacityAnim,
               transform: [{ translateY }],
-              position: "absolute",
-              top: 80,
-              left: 0,
-              right: 0,
-              alignItems: "center",
             },
           ]}
           pointerEvents={expanded ? "auto" : "none"}
@@ -138,13 +131,14 @@ const Header = () => {
 const styles = StyleSheet.create({
   container: {
     alignItems: "center",
+    width: "100%",
   },
   headerWrapper: {
-    width: width,
+    width: "100%",
     alignItems: "center",
   },
   notchBar: {
-    width: width,
+    width: "100%",
     backgroundColor: "#f0f0f3",
     borderBottomLeftRadius: 28,
     borderBottomRightRadius: 28,
@@ -156,7 +150,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.7)",
     paddingHorizontal: 20,
-    paddingTop: 24,
+    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight ?? 24 : 36,
     overflow: "hidden",
   },
   headerTop: {
@@ -166,19 +160,21 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   logo: {
-    width: 44,
-    height: 44,
+    width: 40,
+    height: 40,
     resizeMode: "contain",
     marginRight: 8,
   },
   welcomeText: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: "600",
     color: "#424242",
+    flexShrink: 1,
   },
   optionsContainer: {
     gap: 12,
     marginTop: 6,
+    alignItems: "center",
   },
   menuItem: {
     alignItems: "center",
