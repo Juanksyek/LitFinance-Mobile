@@ -1,5 +1,6 @@
 import React from "react";
-import { Modal, View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import Modal from "react-native-modal";
 
 interface Props {
   visible: boolean;
@@ -8,32 +9,39 @@ interface Props {
 
 const AccountSettingsModal: React.FC<Props> = ({ visible, onClose }) => {
   return (
-    <Modal visible={visible} transparent animationType="slide">
-      <View style={styles.overlay}>
-        <View style={styles.modal}>
-          <Text style={styles.title}>Ajustes de cuenta</Text>
+    <Modal
+      isVisible={visible}
+      onSwipeComplete={onClose}
+      swipeDirection="down"
+      backdropOpacity={0}
+      style={styles.modalWrapper}
+      onBackdropPress={onClose}
+      propagateSwipe={true}
+    >
+      <View style={styles.modal}>
+        <View style={styles.grabber} />
 
-          <TouchableOpacity style={styles.option}>
-            <Text style={styles.optionText}>Renombrar cuenta</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.option}>
-            <Text style={styles.optionText}>Cambiar moneda</Text>
-          </TouchableOpacity>
+        <Text style={styles.title}>Ajustes de cuenta</Text>
 
-          <TouchableOpacity onPress={onClose}>
-            <Text style={styles.cancelText}>Cerrar</Text>
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity style={styles.option}>
+          <Text style={styles.optionText}>Renombrar cuenta</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.option}>
+          <Text style={styles.optionText}>Cambiar moneda</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity onPress={onClose}>
+          <Text style={styles.cancelText}>Cerrar</Text>
+        </TouchableOpacity>
       </View>
     </Modal>
   );
 };
 
 const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
+  modalWrapper: {
     justifyContent: "flex-end",
-    backgroundColor: "rgba(0,0,0,0.4)",
+    margin: 0,
   },
   modal: {
     backgroundColor: "#f0f0f3",
@@ -42,6 +50,14 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 24,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.7)",
+  },
+  grabber: {
+    width: 40,
+    height: 5,
+    backgroundColor: "#ccc",
+    borderRadius: 3,
+    alignSelf: "center",
+    marginBottom: 12,
   },
   title: {
     fontSize: 18,
@@ -63,6 +79,7 @@ const styles = StyleSheet.create({
   cancelText: {
     textAlign: "center",
     marginTop: 16,
+    marginBottom: 26,
     color: "#888",
   },
 });
