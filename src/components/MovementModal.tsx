@@ -186,7 +186,7 @@ const MovementModal: React.FC<Props> = ({ visible, onClose, tipo, cuentaId, onSu
 
         <View style={styles.conceptoHeader}>
           <TextInput
-            placeholder="Buscar concepto..."
+            placeholder="Busca o escribe un concepto rápido"
             value={conceptoBusqueda}
             onChangeText={setConceptoBusqueda}
             style={[styles.input, { flex: 1 }]}
@@ -322,6 +322,7 @@ const styles = StyleSheet.create({
     height: 44,
     borderWidth: 1,
     borderColor: '#eee',
+    marginBottom: 10,
   },
   monedaText: {
     fontSize: 14,
