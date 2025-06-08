@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, TextInput, StyleSheet, TouchableOpacity, Switch, Dimensions } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import Modal from 'react-native-modal';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { API_BASE_URL } from '../constants/api';
@@ -78,11 +79,21 @@ const MovementModal: React.FC<Props> = ({ visible, onClose, tipo, cuentaId, onSu
   };
 
   const handleSend = async () => {
-    if (!monto || isNaN(Number(monto)) || Number(monto) <= 0 || !motivo || !conceptoSeleccionado) {
+    if (!monto || isNaN(Number(monto)) || Number(monto) <= 0 || !motivo.trim()) {
       return Toast.show({
         type: 'error',
         text1: 'Campos inválidos',
-        text2: 'Llena todos los campos y selecciona un concepto.',
+        text2: 'Debes ingresar un monto válido y un motivo.',
+      });
+    }
+    
+    const conceptoFinal = conceptoSeleccionado?.nombre || motivo.trim();
+    
+    if (!conceptoFinal) {
+      return Toast.show({
+        type: 'error',
+        text1: 'Concepto requerido',
+        text2: 'Debes seleccionar un concepto o escribir uno en el motivo.',
       });
     }
 
@@ -98,7 +109,7 @@ const MovementModal: React.FC<Props> = ({ visible, onClose, tipo, cuentaId, onSu
         body: JSON.stringify({
           tipo,
           monto: parseFloat(monto),
-          concepto: conceptoSeleccionado.nombre,
+          concepto: conceptoFinal,
           motivo,
           moneda,
           cuentaId,
@@ -151,7 +162,7 @@ const MovementModal: React.FC<Props> = ({ visible, onClose, tipo, cuentaId, onSu
       style={styles.modalContainer}
       backdropOpacity={0.15}
     >
-      <View style={styles.modal}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modal}>
         <View style={styles.handle} />
         <View style={styles.header}>
           <Ionicons name={icon} size={22} color={color} />
@@ -227,30 +238,50 @@ const MovementModal: React.FC<Props> = ({ visible, onClose, tipo, cuentaId, onSu
         <Modal
           isVisible={monedaModalVisible}
           onBackdropPress={() => setMonedaModalVisible(false)}
+          onBackButtonPress={() => setMonedaModalVisible(false)}
           style={{ justifyContent: 'flex-end', margin: 0 }}
+          backdropOpacity={0.5}
+          animationIn="slideInUp"
+          animationOut="slideOutDown"
+          propagateSwipe={false}
+          avoidKeyboard={false}
         >
           <View style={styles.monedaModal}>
             <Text style={styles.monedaModalTitle}>Selecciona una moneda</Text>
-            {monedas.map((m) => (
-              <TouchableOpacity
-                key={m}
-                onPress={() => {
-                  setMoneda(m);
-                  setMonedaModalVisible(false);
-                }}
-                style={styles.monedaOption}
-              >
-                <Text style={{ fontSize: 16 }}>{m}</Text>
-              </TouchableOpacity>
-            ))}
+            <ScrollView style={{ maxHeight: 300 }} showsVerticalScrollIndicator={false}>
+              {monedas.map((m) => (
+                <TouchableOpacity
+                  key={m}
+                  onPress={() => {
+                    setMoneda(m);
+                    setMonedaModalVisible(false);
+                  }}
+                  style={styles.monedaOption}
+                >
+                  <Text style={{ fontSize: 16 }}>{m}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
           </View>
         </Modal>
 
         <Modal
           isVisible={showConceptsManager}
           onBackdropPress={() => setShowConceptsManager(false)}
-          backdropOpacity={0.2}
-          style={styles.subModal}
+          backdropOpacity={0.4}
+          hasBackdrop={true}
+          animationIn="zoomIn"
+          animationOut="zoomOut"
+          backdropTransitionOutTiming={0}
+          style={{
+            justifyContent: 'center',
+            alignItems: 'center',
+            margin: 0,
+          }}
+          useNativeDriver={true}
+          hideModalContentWhileAnimating={true}
+          avoidKeyboard={false}
+          propagateSwipe={false}
         >
           <View style={styles.subModalCard}>
             <ConceptsManager onClose={() => {
@@ -259,7 +290,7 @@ const MovementModal: React.FC<Props> = ({ visible, onClose, tipo, cuentaId, onSu
             }} />
           </View>
         </Modal>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 };
@@ -323,6 +354,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#eee',
     marginBottom: 10,
+    marginTop: -10,
   },
   monedaText: {
     fontSize: 14,
@@ -393,6 +425,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     marginTop: 10,
+    marginBottom: 40,
   },
   buttonText: {
     color: '#fff',
