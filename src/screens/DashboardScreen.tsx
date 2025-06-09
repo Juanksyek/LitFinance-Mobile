@@ -6,12 +6,14 @@ import BalanceCard from "../components/BalanceCard";
 import ActionButtons from "../components/ActionButtons";
 import ExpensesChart from "../components/ExpensesChart";
 import TransactionHistory from "../components/TransactionHistory";
+import SubaccountsList from "../components/SubaccountList";
 import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { API_BASE_URL } from "../constants/api";
 
 export default function DashboardScreen() {
   const [cuentaId, setCuentaId] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
   const [reloadTrigger, setReloadTrigger] = useState(0);
 
   const fetchCuentaId = async () => {
@@ -21,6 +23,7 @@ export default function DashboardScreen() {
         headers: { Authorization: `Bearer ${token}` },
       });
       setCuentaId(res.data.id || res.data._id);
+      setUserId(res.data.userId);
     } catch (err) {
       console.error("Error obteniendo cuenta principal:", err);
     }
@@ -49,6 +52,11 @@ export default function DashboardScreen() {
         {cuentaId && (
           <ActionButtons cuentaId={cuentaId} onRefresh={handleRefresh} />
         )}
+        
+        {userId && (
+          <SubaccountsList userId={userId} />
+        )}
+
         <ExpensesChart />
         <TransactionHistory />
       </ScrollView>
