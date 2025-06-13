@@ -43,7 +43,7 @@ const Header = () => {
     setExpanded(expanding);
 
     Animated.timing(animatedHeight, {
-      toValue: expanding ? 240 : 92,
+      toValue: expanding ? 240 : 102,
       duration: 300,
       useNativeDriver: false,
     }).start();
