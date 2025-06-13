@@ -3,6 +3,7 @@ import { View, Text, TextInput, StyleSheet, FlatList, ActivityIndicator, Touchab
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { API_BASE_URL } from "../constants/api";
+import { useNavigation } from '@react-navigation/native';
 
 const { width } = Dimensions.get("window");
 
@@ -32,6 +33,7 @@ const SubaccountsList: React.FC<Props> = ({ userId, refreshKey = 0 }) => {
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [hasMore, setHasMore] = useState(true);
+  const navigation = useNavigation<any>();
 
   useEffect(() => {
     const delay = setTimeout(() => setDebouncedSearch(search), 500);
@@ -82,7 +84,10 @@ const SubaccountsList: React.FC<Props> = ({ userId, refreshKey = 0 }) => {
   };
 
   const renderItem = ({ item }: { item: Subcuenta }) => (
-    <View style={[styles.card, { borderColor: item.color }]}>
+    <TouchableOpacity
+      onPress={() => navigation.navigate('SubaccountDetail', { subcuenta: item })}
+      style={[styles.card, { borderColor: item.color }]}
+    >
       <View style={styles.cardHeader}>
         <Text style={styles.cardTitle} numberOfLines={1} ellipsizeMode="tail">
           {item.nombre}
@@ -95,7 +100,7 @@ const SubaccountsList: React.FC<Props> = ({ userId, refreshKey = 0 }) => {
         {item.simbolo}
         {item.cantidad.toLocaleString()} {item.moneda}
       </Text>
-    </View>
+    </TouchableOpacity>
   );
 
   return (
@@ -187,7 +192,7 @@ const styles = StyleSheet.create({
     height: 80,
     padding: 8,
     borderRadius: 10,
-    backgroundColor: "#fff",
+    backgroundColor: "#f3f3f3",
     borderWidth: 2,
     borderColor: "#ddd",
     shadowColor: "#000",
