@@ -45,6 +45,7 @@ const ActionButtons = ({
   };
 
   const visibleActions = actions.filter(action => {
+    if (isSubcuenta && action.label === 'Subcuenta') return false;
     if (!showSubcuentaButton && action.label === 'Subcuenta') return false;
     return true;
   });
