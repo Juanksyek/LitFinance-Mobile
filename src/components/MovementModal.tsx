@@ -112,7 +112,7 @@ const MovementModal: React.FC<Props> = ({ visible, onClose, tipo, cuentaId, onSu
         moneda,
         cuentaId,
         afectaCuenta,
-        ...(isSubcuenta && { esSubcuenta: true, subcuentaId }),
+        ...(isSubcuenta && subcuentaId ? { subCuentaId: subcuentaId } : {}),
       };
 
       console.log('🟠 Enviando movimiento:', payload);
