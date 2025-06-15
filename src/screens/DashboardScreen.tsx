@@ -10,11 +10,17 @@ import SubaccountsList from "../components/SubaccountList";
 import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { API_BASE_URL } from "../constants/api";
+import { useFocusEffect, useRoute, useNavigation, RouteProp } from '@react-navigation/native';
+import { RootStackParamList } from '../navigation/AppNavigator';
+import { CommonActions } from '@react-navigation/native';
+import Toast from "react-native-toast-message";
 
 export default function DashboardScreen() {
   const [cuentaId, setCuentaId] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [reloadTrigger, setReloadTrigger] = useState(0);
+  const route = useRoute<RouteProp<RootStackParamList, 'Dashboard'>>();
+  const navigation = useNavigation();
 
   const fetchCuentaId = async () => {
     try {
@@ -25,7 +31,11 @@ export default function DashboardScreen() {
       setCuentaId(res.data.id || res.data._id);
       setUserId(res.data.userId);
     } catch (err) {
-      console.error("Error obteniendo cuenta principal:", err);
+      Toast.show({
+        type: 'error',
+        text1: 'Error al recuperar la cuenta principal',
+        text2: 'Inicia sesión de nuevo o intentalo mas tarde',
+      });
     }
   };
 
@@ -33,9 +43,30 @@ export default function DashboardScreen() {
     fetchCuentaId();
   }, []);
 
+  useFocusEffect(
+    React.useCallback(() => {
+      if ((route.params as any)?.updated) {
+        setReloadTrigger(Date.now());
+      }
+    }, [route])
+  );
+
   const handleRefresh = () => {
     setReloadTrigger(prev => prev + 1);
   };
+
+  useFocusEffect(
+  React.useCallback(() => {
+    if (route.params?.updated) {
+      setReloadTrigger(prev => prev + 1);
+      navigation.dispatch(
+        CommonActions.setParams({
+          updated: undefined,
+        })
+      );
+    }
+  }, [route.params?.updated])
+);
 
   return (
     <View style={styles.wrapper}>
@@ -54,7 +85,7 @@ export default function DashboardScreen() {
         )}
         
         {userId && (
-          <SubaccountsList userId={userId} />
+          <SubaccountsList userId={userId} refreshKey={reloadTrigger} />
         )}
 
         <ExpensesChart />
