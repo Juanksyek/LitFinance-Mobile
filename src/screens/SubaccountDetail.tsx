@@ -1,7 +1,15 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, StatusBar, Alert, Dimensions } from 'react-native';
 import { RouteProp, useRoute, useNavigation } from '@react-navigation/native';
 import Ionicons from "react-native-vector-icons/Ionicons";
+import EditSubaccountModal from '../components/EditSubaccountModal';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { API_BASE_URL } from '../constants/api';
+import { StackNavigationProp } from '@react-navigation/stack';
+import { RootStackParamList } from '../navigation/AppNavigator';
+import Toast from "react-native-toast-message";
+import DeleteSubaccountModal from '../components/DeleteSubaccountModal';
+import ActionButtons from '../components/ActionButtons';
 
 const { width } = Dimensions.get('window');
 
@@ -25,13 +33,18 @@ type Subcuenta = {
 type RouteParams = {
   SubaccountDetail: {
     subcuenta: Subcuenta;
+    onGlobalRefresh?: () => void;
   };
 };
 
 const SubaccountDetail = () => {
   const route = useRoute<RouteProp<RouteParams, 'SubaccountDetail'>>();
-  const { subcuenta } = route.params;
-  const navigation = useNavigation();
+  const navigation = useNavigation<StackNavigationProp<RootStackParamList>>();
+  const [subcuenta, setSubcuenta] = useState<Subcuenta>(route.params.subcuenta);
+  const [editVisible, setEditVisible] = useState(false);
+  const [deleteVisible, setDeleteVisible] = useState(false);
+  const [reloadTrigger, setReloadTrigger] = useState(0);
+  const handleGlobalRefresh = route.params?.onGlobalRefresh || (() => {});
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('es-ES', {
@@ -43,12 +56,17 @@ const SubaccountDetail = () => {
     });
   };
 
-  const formatCurrency = (amount: number) => {
+  const formatCurrency = (amount?: number) => {
+    if (typeof amount !== 'number') return '—';
     return amount.toLocaleString('es-ES', {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     });
   };
+
+  useEffect(() => {
+    fetchSubcuenta();
+  }, [reloadTrigger]);
 
   const InfoCard = ({ 
     icon, 
@@ -106,77 +124,156 @@ const SubaccountDetail = () => {
   );
 
   const handleEdit = () => {
-    Alert.alert('Editar subcuenta', 'Funcionalidad de edición en desarrollo.');
+    setEditVisible(true);
   };
 
-  const handleDelete = () => {
-    Alert.alert(
-      'Eliminar subcuenta',
-      '¿Estás seguro de que deseas eliminar esta subcuenta?',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        { text: 'Eliminar', style: 'destructive', onPress: () => console.log('Eliminar subcuenta') }
-      ]
-    );
+  const fetchSubcuenta = async () => {
+    try {
+      const token = await AsyncStorage.getItem("authToken");
+      const subCuentaId = subcuenta.subCuentaId;
+      
+      const res = await fetch(`${API_BASE_URL}/subcuenta/buscar/${subcuenta?.subCuentaId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      const data = await res.json();
+      if (res.ok && data && data.subCuentaId) {
+        setSubcuenta({ ...data });
+      } else {
+        Toast.show({
+          type: 'error',
+          text1: 'Error al recuperar las subcuentas',
+          text2: 'Inicia sesión de nuevo o intentalo mas tarde',
+        });
+      }
+    } catch (err) {
+      Toast.show({
+        type: 'error',
+        text1: 'Error al recuperar las subcuentas',
+        text2: 'Inicia sesión de nuevo o intentalo mas tarde',
+      });
+    }
   };
+
+  const handleDelete = () => setDeleteVisible(true);
+
+  const confirmDelete = async () => {
+    try {
+      const token = await AsyncStorage.getItem("authToken");
+      const res = await fetch(`${API_BASE_URL}/subcuenta/${subcuenta.subCuentaId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({}));
+        throw new Error(error.message || 'Error al eliminar la subcuenta');
+      }
+
+      Toast.show({
+        type: 'success',
+        text1: 'Subcuenta eliminada',
+        text2: 'La subcuenta fue eliminada correctamente',
+      });
+
+      setDeleteVisible(false);
+      navigation.navigate('Dashboard', { updated: true });
+    } catch (err: any) {
+      Toast.show({
+        type: 'error',
+        text1: 'Error al eliminar la subcuenta',
+        text2: 'Inicia sesión de nuevo o intentalo mas tarde',
+      });
+      setDeleteVisible(false);
+    }
+  };
+
+  if (!subcuenta.cuentaId) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <Text>Subcuenta sin cuenta principal asignada.</Text>
+      </View>
+    );
+  }
+
+  if (!subcuenta) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <Text>Cargando subcuenta...</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" />
-      
-      {/* Enhanced Header */}
+
+      {/* Header */}
       <View style={styles.headerContainer}>
         <View style={styles.headerContent}>
-          <TouchableOpacity 
-            style={styles.backButton} 
+          <TouchableOpacity
+            style={styles.backButton}
             onPress={() => navigation.goBack()}
           >
             <Ionicons name="arrow-back" size={24} color="#1F2937" />
           </TouchableOpacity>
-          
-            <Text style={styles.headerTitle} numberOfLines={1} ellipsizeMode="tail">
-              {subcuenta.nombre}
-            </Text>
-            <View style={[
-              styles.statusContainer,
-              { backgroundColor: subcuenta.activa ? '#FFF3E0' : '#FFF2F2' }
+
+          <Text style={styles.headerTitle} numberOfLines={1} ellipsizeMode="tail">
+            {subcuenta.nombre || '—'}
+          </Text>
+
+          <View style={[
+            styles.statusContainer,
+            { backgroundColor: subcuenta.activa ? '#FFF3E0' : '#FFF2F2' }
+          ]}>
+            <Ionicons
+              name="checkmark-circle-outline"
+              size={16}
+              color={subcuenta.activa ? '#F59E0B' : '#6B7280'}
+            />
+            <Text style={[
+              styles.statusText,
+              { color: subcuenta.activa ? '#F59E0B' : '#6B7280' }
             ]}>
-              <Ionicons 
-                name="checkmark-circle-outline" 
-                size={16} 
-                color={subcuenta.activa ? '#F59E0B' : '#6B7280'} 
-              />
-              <Text style={[
-                styles.statusText,
-                { color: subcuenta.activa ? '#F59E0B' : '#6B7280' }
-              ]}>
-                {subcuenta.activa ? 'Activa' : 'Inactiva'}
-              </Text>
-            </View>
+              {subcuenta.activa ? 'Activa' : 'Inactiva'}
+            </Text>
+          </View>
         </View>
       </View>
 
-      <ScrollView 
-        style={styles.scrollView}
-        showsVerticalScrollIndicator={false}
-        bounces={false}
-      >
-        {/* Enhanced Balance Card */}
-        <View style={styles.balanceCard}>
+      {/* Body */}
+      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+        <View style={styles.balanceCard} key={subcuenta.updatedAt}>
           <Text style={styles.balanceLabel}>Saldo actual</Text>
           
           <View style={styles.balanceContainer}>
-            <Text style={styles.currencySymbol}>{subcuenta.simbolo}</Text>
+            <Text style={styles.currencySymbol}>{subcuenta.simbolo || '—'}</Text>
             <Text style={styles.balanceAmount}>
               {formatCurrency(subcuenta.cantidad)}
             </Text>
-            <Text style={styles.currencyCode}>{subcuenta.moneda}</Text>
+            <Text style={styles.currencyCode}>{subcuenta.moneda || ''}</Text>
           </View>
 
           <View style={styles.colorIndicator}>
-            <View style={[styles.colorDot, { backgroundColor: subcuenta.color }]} />
+            <View style={[styles.colorDot, { backgroundColor: subcuenta.color || '#ccc' }]} />
             <Text style={styles.colorText}>Color de identificación</Text>
           </View>
+        </View>
+
+        <View style={styles.actionsWrapper}>
+          <ActionButtons
+            cuentaId={subcuenta.cuentaId!}
+            isSubcuenta
+            subcuenta={{
+              cuentaPrincipalId: subcuenta.cuentaId!,
+              subCuentaId: subcuenta.subCuentaId,
+            }}
+            fetchSubcuenta={fetchSubcuenta}
+            onRefresh={() => {
+              fetchSubcuenta();
+              handleGlobalRefresh();
+            }}
+          />
         </View>
 
         {/* Enhanced Quick Info Cards */}
@@ -192,7 +289,7 @@ const SubaccountDetail = () => {
           <InfoCard
             icon={<Ionicons name="finger-print-outline" />}
             label="ID Subcuenta"
-            value={subcuenta.subCuentaId.slice(-8)}
+            value={subcuenta.subCuentaId?.slice(-8) || '—'}
             accentColor="#F59E0B"
             description="Identificador único"
           />
@@ -205,13 +302,13 @@ const SubaccountDetail = () => {
             <DetailRow
               icon={<Ionicons name="person-outline" />}
               label="Usuario"
-              value={subcuenta.userId.slice(-12)}
+              value={subcuenta.userId?.slice(-12) || '—'}
               accentColor="#F59E0B"
             />
             <DetailRow
               icon={<Ionicons name="wallet-outline" />}
               label="Cuenta principal"
-              value={subcuenta.cuentaId ? subcuenta.cuentaId.slice(-8) : 'No asignada'}
+              value={subcuenta.cuentaId?.slice(-8) || 'No asignada'}
               accentColor="#F59E0B"
             />
           </View>
@@ -224,13 +321,13 @@ const SubaccountDetail = () => {
             <DetailRow
               icon={<Ionicons name="calendar-outline" />}
               label="Fecha de creación"
-              value={formatDate(subcuenta.createdAt)}
+              value={subcuenta.createdAt ? formatDate(subcuenta.createdAt) : '—'}
               accentColor="#F59E0B"
             />
             <DetailRow
               icon={<Ionicons name="settings-outline" />}
               label="Última modificación"
-              value={formatDate(subcuenta.updatedAt)}
+              value={subcuenta.updatedAt ? formatDate(subcuenta.updatedAt) : '—'}
               accentColor="#F59E0B"
             />
           </View>
@@ -243,9 +340,7 @@ const SubaccountDetail = () => {
             onPress={handleEdit}
           >
             <Ionicons name="create-outline" size={20} color="#F59E0B" />
-            <Text style={[styles.actionButtonText, { color: '#F59E0B' }]}>
-              Editar
-            </Text>
+            <Text style={[styles.actionButtonText, { color: '#F59E0B' }]}>Editar</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -253,14 +348,31 @@ const SubaccountDetail = () => {
             onPress={handleDelete}
           >
             <Ionicons name="trash-outline" size={20} color="#EF4444" />
-            <Text style={[styles.actionButtonText, { color: '#EF4444' }]}>
-              Eliminar
-            </Text>
+            <Text style={[styles.actionButtonText, { color: '#EF4444' }]}>Eliminar</Text>
           </TouchableOpacity>
         </View>
 
         <View style={styles.bottomSpacing} />
       </ScrollView>
+
+      {/* Modal de edición */}
+      <EditSubaccountModal
+        visible={editVisible}
+        onClose={() => setEditVisible(false)}
+        subcuenta={subcuenta}
+        onSuccess={() => {
+          setEditVisible(false);
+          fetchSubcuenta();
+          navigation.navigate('Dashboard', { updated: true });
+        }}
+      />
+
+      <DeleteSubaccountModal
+        visible={deleteVisible}
+        onCancel={() => setDeleteVisible(false)}
+        onConfirm={confirmDelete}
+      />
+
     </View>
   );
 };
@@ -341,6 +453,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'baseline',
     marginBottom: 24,
+  },
+  actionsWrapper: {
+    marginTop: 34,
+    paddingHorizontal: 25,
   },
   currencySymbol: {
     fontSize: 32,

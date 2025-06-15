@@ -85,7 +85,10 @@ const SubaccountsList: React.FC<Props> = ({ userId, refreshKey = 0 }) => {
 
   const renderItem = ({ item }: { item: Subcuenta }) => (
     <TouchableOpacity
-      onPress={() => navigation.navigate('SubaccountDetail', { subcuenta: item })}
+      onPress={() => navigation.navigate('SubaccountDetail', {
+        subcuenta: item,
+        onGlobalRefresh: () => {}
+      })}
       style={[styles.card, { borderColor: item.color }]}
     >
       <View style={styles.cardHeader}>
