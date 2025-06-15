@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, StatusBar, Alert, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, StatusBar, TextInput, Dimensions } from 'react-native';
 import { RouteProp, useRoute, useNavigation } from '@react-navigation/native';
-import Ionicons from "react-native-vector-icons/Ionicons";
+import { Ionicons } from '@expo/vector-icons';
 import EditSubaccountModal from '../components/EditSubaccountModal';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_BASE_URL } from '../constants/api';
@@ -44,6 +44,13 @@ const SubaccountDetail = () => {
   const [editVisible, setEditVisible] = useState(false);
   const [deleteVisible, setDeleteVisible] = useState(false);
   const [reloadTrigger, setReloadTrigger] = useState(0);
+  const [historial, setHistorial] = useState<any[]>([]);
+  const [pagina, setPagina] = useState(1);
+  const [limite] = useState(5);
+  const [busqueda, setBusqueda] = useState('');
+  const [totalPaginas, setTotalPaginas] = useState(1);
+  const [desde, setDesde] = useState('2024-01-01');
+  const [hasta, setHasta] = useState('2026-01-01');
   const handleGlobalRefresh = route.params?.onGlobalRefresh || (() => {});
 
   const formatDate = (dateString: string) => {
@@ -188,25 +195,75 @@ const SubaccountDetail = () => {
     }
   };
 
+  const fetchHistorial = async () => {
+    try {
+      const token = await AsyncStorage.getItem("authToken");
+
+      const queryParams = new URLSearchParams({
+        desde,
+        hasta,
+        limite: String(limite),
+        pagina: String(pagina),
+      });
+
+      if (busqueda.trim()) {
+        queryParams.append('descripcion', busqueda.trim());
+      }
+
+      const res = await fetch(`${API_BASE_URL}/subcuenta/${subcuenta.subCuentaId}/historial?${queryParams.toString()}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      const data = await res.json();
+
+      if (Array.isArray(data)) {
+        const inicio = (pagina - 1) * limite;
+        const fin = inicio + limite;
+        setHistorial(data.slice(inicio, fin));
+        setTotalPaginas(Math.ceil(data.length / limite));
+      } else if (Array.isArray(data.resultados)) {
+        setHistorial(data.resultados);
+        setTotalPaginas(data.totalPaginas || 1);
+      } else {
+        throw new Error('Respuesta inválida');
+      }
+
+    } catch (err) {
+      Toast.show({
+        type: 'error',
+        text1: 'Error al cargar historial',
+        text2: 'No se pudo cargar el historial de movimientos',
+      });
+    }
+  };
+
+  useEffect(() => {
+    fetchSubcuenta();
+  }, [reloadTrigger]);
+
+  useEffect(() => {
+    fetchHistorial();
+  }, [pagina, busqueda, desde, hasta]);
+
   if (!subcuenta.cuentaId) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <Text>Subcuenta sin cuenta principal asignada.</Text>
+      <View style={styles.centerContainer}>
+        <Text style={styles.emptyText}>Subcuenta sin cuenta principal asignada.</Text>
       </View>
     );
   }
 
   if (!subcuenta) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <Text>Cargando subcuenta...</Text>
+      <View style={styles.centerContainer}>
+        <Text style={styles.emptyText}>Cargando subcuenta...</Text>
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" />
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
       {/* Header */}
       <View style={styles.headerContainer}>
@@ -218,26 +275,29 @@ const SubaccountDetail = () => {
             <Ionicons name="arrow-back" size={24} color="#1F2937" />
           </TouchableOpacity>
 
-          <Text style={styles.headerTitle} numberOfLines={1} ellipsizeMode="tail">
-            {subcuenta.nombre || '—'}
-          </Text>
-
-          <View style={[
-            styles.statusContainer,
-            { backgroundColor: subcuenta.activa ? '#FFF3E0' : '#FFF2F2' }
-          ]}>
-            <Ionicons
-              name="checkmark-circle-outline"
-              size={16}
-              color={subcuenta.activa ? '#F59E0B' : '#6B7280'}
-            />
-            <Text style={[
-              styles.statusText,
-              { color: subcuenta.activa ? '#F59E0B' : '#6B7280' }
-            ]}>
-              {subcuenta.activa ? 'Activa' : 'Inactiva'}
+          <View style={styles.headerCenter}>
+            <Text style={styles.headerTitle} numberOfLines={1} ellipsizeMode="tail">
+              {subcuenta.nombre || '—'}
             </Text>
+            <View style={[
+              styles.statusContainer,
+              { backgroundColor: subcuenta.activa ? '#FFF7ED' : '#FEF2F2' }
+            ]}>
+              <Ionicons
+                name="checkmark-circle-outline"
+                size={16}
+                color={subcuenta.activa ? '#F59E0B' : '#EF4444'}
+              />
+              <Text style={[
+                styles.statusText,
+                { color: subcuenta.activa ? '#F59E0B' : '#EF4444' }
+              ]}>
+                {subcuenta.activa ? 'Activa' : 'Inactiva'}
+              </Text>
+            </View>
           </View>
+
+          <View style={styles.headerRight} />
         </View>
       </View>
 
@@ -255,7 +315,7 @@ const SubaccountDetail = () => {
           </View>
 
           <View style={styles.colorIndicator}>
-            <View style={[styles.colorDot, { backgroundColor: subcuenta.color || '#ccc' }]} />
+            <View style={[styles.colorDot, { backgroundColor: subcuenta.color || '#9CA3AF' }]} />
             <Text style={styles.colorText}>Color de identificación</Text>
           </View>
         </View>
@@ -314,22 +374,139 @@ const SubaccountDetail = () => {
           </View>
         </View>
 
-        {/* Enhanced Timeline */}
+        {/* Enhanced History Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Historial</Text>
+          <Text style={styles.sectionTitle}>Historial de movimientos</Text>
           <View style={styles.sectionContent}>
-            <DetailRow
-              icon={<Ionicons name="calendar-outline" />}
-              label="Fecha de creación"
-              value={subcuenta.createdAt ? formatDate(subcuenta.createdAt) : '—'}
-              accentColor="#F59E0B"
-            />
-            <DetailRow
-              icon={<Ionicons name="settings-outline" />}
-              label="Última modificación"
-              value={subcuenta.updatedAt ? formatDate(subcuenta.updatedAt) : '—'}
-              accentColor="#F59E0B"
-            />
+            {/* Search Input */}
+            <View style={styles.searchContainer}>
+              <Ionicons name="search-outline" size={20} color="#6B7280" style={styles.searchIcon} />
+              <TextInput
+                placeholder="Buscar en historial..."
+                value={busqueda}
+                onChangeText={(text) => {
+                  setPagina(1);
+                  setBusqueda(text);
+                }}
+                style={styles.searchInput}
+                placeholderTextColor="#9CA3AF"
+              />
+            </View>
+
+            {/* Date Range Inputs */}
+            <View style={styles.dateRangeContainer}>
+              <View style={styles.dateInputContainer}>
+                <Text style={styles.dateLabel}>Desde</Text>
+                <TextInput
+                  style={styles.dateInput}
+                  value={desde}
+                  onChangeText={setDesde}
+                  placeholder="YYYY-MM-DD"
+                  placeholderTextColor="#9CA3AF"
+                />
+              </View>
+              <View style={styles.dateInputContainer}>
+                <Text style={styles.dateLabel}>Hasta</Text>
+                <TextInput
+                  style={styles.dateInput}
+                  value={hasta}
+                  onChangeText={setHasta}
+                  placeholder="YYYY-MM-DD"
+                  placeholderTextColor="#9CA3AF"
+                />
+              </View>
+            </View>
+
+            {/* History List */}
+            <View style={styles.historyContainer}>
+              {historial.length === 0 ? (
+                <View style={styles.emptyHistoryContainer}>
+                  <Ionicons name="document-text-outline" size={48} color="#D1D5DB" />
+                  <Text style={styles.emptyHistoryText}>No hay movimientos registrados</Text>
+                  <Text style={styles.emptyHistorySubtext}>Los movimientos aparecerán aquí cuando se realicen</Text>
+                </View>
+              ) : (
+                historial.map((item, index) => (
+                  <View key={item._id || index} style={styles.historyItem}>
+                    <View style={styles.historyHeader}>
+                      <Text style={styles.historyDescription}>{item.descripcion}</Text>
+                      <Text style={styles.historyDate}>{formatDate(item.createdAt)}</Text>
+                    </View>
+                    
+                    {item.datos && Object.keys(item.datos).length > 0 && (
+                      <View style={styles.historyDetails}>
+                        {Object.entries(item.datos).map(([clave, valor]: [string, any]) => {
+                          const claveLabel = clave.charAt(0).toUpperCase() + clave.slice(1);
+
+                          const iconName = (() => {
+                            switch (clave) {
+                              case 'nombre': return 'text-outline';
+                              case 'color': return 'color-palette-outline';
+                              case 'cantidad': return 'cash-outline';
+                              case 'afectaCuenta': return 'swap-horizontal-outline';
+                              default: return 'information-circle-outline';
+                            }
+                          })();
+
+                          if (typeof valor === 'object' && valor.antes !== undefined && valor.despues !== undefined) {
+                            return (
+                              <View key={clave} style={styles.historyDetailRow}>
+                                <Ionicons name={iconName} size={16} color="#F59E0B" />
+                                <Text style={styles.historyDetailText}>
+                                  {claveLabel}: <Text style={styles.historyDetailValue}>{String(valor.antes)}</Text>
+                                  <Ionicons name="arrow-forward-outline" size={13} color="#6B7280" />
+                                  <Text style={styles.historyDetailValue}>{String(valor.despues)}</Text>
+                                </Text>
+                              </View>
+                            );
+                          } else {
+                            return (
+                              <View key={clave} style={styles.historyDetailRow}>
+                                <Ionicons name={iconName} size={16} color="#F59E0B" />
+                                <Text style={styles.historyDetailText}>
+                                  {claveLabel}: <Text style={styles.historyDetailValue}>{JSON.stringify(valor)}</Text>
+                                </Text>
+                              </View>
+                            );
+                          }
+                        })}
+                      </View>
+                    )}
+                  </View>
+                ))
+              )}
+            </View>
+
+            {/* Pagination */}
+            {historial.length > 0 && (
+              <View style={styles.paginationContainer}>
+                <TouchableOpacity
+                  onPress={() => setPagina((prev) => Math.max(1, prev - 1))}
+                  disabled={pagina === 1}
+                  style={[styles.paginationButton, pagina === 1 && styles.paginationButtonDisabled]}
+                >
+                  <Ionicons name="chevron-back-outline" size={18} color={pagina === 1 ? '#9CA3AF' : '#FFFFFF'} />
+                  <Text style={[styles.paginationButtonText, pagina === 1 && styles.paginationButtonTextDisabled]}>
+                    Anterior
+                  </Text>
+                </TouchableOpacity>
+
+                <View style={styles.paginationInfo}>
+                  <Text style={styles.paginationText}>Página {pagina} de {totalPaginas}</Text>
+                </View>
+
+                <TouchableOpacity
+                  onPress={() => setPagina((prev) => (prev < totalPaginas ? prev + 1 : prev))}
+                  disabled={pagina === totalPaginas}
+                  style={[styles.paginationButton, pagina === totalPaginas && styles.paginationButtonDisabled]}
+                >
+                  <Text style={[styles.paginationButtonText, pagina === totalPaginas && styles.paginationButtonTextDisabled]}>
+                    Siguiente
+                  </Text>
+                  <Ionicons name="chevron-forward-outline" size={18} color={pagina === totalPaginas ? '#9CA3AF' : '#FFFFFF'} />
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
         </View>
 
@@ -382,6 +559,15 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f3f3f3',
   },
+  centerContainer: {
+    flexDirection: "row",
+    backgroundColor: '#f3f3f3',
+  },
+  emptyText: {
+    fontSize: 16,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
   headerContainer: {
     backgroundColor: '#f3f3f3',
     paddingTop: 50,
@@ -405,16 +591,27 @@ const styles = StyleSheet.create({
   backButton: {
     width: 44,
     height: 44,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: '#f3f3f3',
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  headerCenter: {
+    flex: 1,
+    alignItems: 'center',
+    marginHorizontal: 16,
   },
   headerTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '700',
     color: '#1F2937',
     textAlign: 'center',
     marginBottom: 8,
+  },
+  headerRight: {
+    width: 44,
   },
   statusContainer: {
     flexDirection: 'row',
@@ -422,10 +619,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
   },
   statusText: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
+    marginLeft: 4,
   },
   scrollView: {
     flex: 1,
@@ -455,8 +655,8 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   actionsWrapper: {
-    marginTop: 34,
-    paddingHorizontal: 25,
+    marginTop: 24,
+    paddingHorizontal: 20,
   },
   currencySymbol: {
     fontSize: 32,
@@ -473,7 +673,7 @@ const styles = StyleSheet.create({
   currencyCode: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#6B7280',
+    color: '#64748B',
     marginLeft: 8,
   },
   colorIndicator: {
@@ -495,24 +695,26 @@ const styles = StyleSheet.create({
   },
   colorText: {
     fontSize: 14,
-    color: '#6B7280',
+    color: '#64748B',
     fontWeight: '600',
   },
   quickInfoGrid: {
     flexDirection: 'row',
     marginHorizontal: 20,
-    marginTop: 16,
+    marginTop: 24,
     gap: 12,
   },
   infoCard: {
     flex: 1,
     backgroundColor: '#f3f3f3',
-    borderRadius: 20,
+    borderRadius: 16,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
   },
   infoCardContent: {
     padding: 20,
@@ -520,7 +722,7 @@ const styles = StyleSheet.create({
   iconWrapper: {
     width: 48,
     height: 48,
-    borderRadius: 16,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,
@@ -530,7 +732,7 @@ const styles = StyleSheet.create({
   },
   infoLabel: {
     fontSize: 14,
-    color: '#6B7280',
+    color: '#64748B',
     fontWeight: '600',
   },
   infoValue: {
@@ -540,20 +742,22 @@ const styles = StyleSheet.create({
   },
   infoDescription: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: '#94A3B8',
     fontWeight: '500',
     marginTop: 2,
   },
   section: {
     backgroundColor: '#f3f3f3',
     marginHorizontal: 20,
-    marginTop: 16,
-    borderRadius: 20,
+    marginTop: 24,
+    borderRadius: 16,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
   },
   sectionTitle: {
     fontSize: 20,
@@ -566,12 +770,12 @@ const styles = StyleSheet.create({
   sectionContent: {
     paddingHorizontal: 24,
     paddingBottom: 24,
-    gap: 16,
   },
   detailRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    marginBottom: 16,
   },
   detailLeft: {
     flexDirection: 'row',
@@ -582,14 +786,14 @@ const styles = StyleSheet.create({
   detailIcon: {
     width: 40,
     height: 40,
-    borderRadius: 12,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
   },
   detailLabel: {
     fontSize: 16,
-    color: '#6B7280',
+    color: '#64748B',
     fontWeight: '600',
     flex: 1,
   },
@@ -598,6 +802,152 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#1F2937',
     textAlign: 'right',
+  },
+  searchContainer: {
+    position: 'relative',
+    marginBottom: 16,
+  },
+  searchIcon: {
+    position: 'absolute',
+    left: 16,
+    top: 16,
+    zIndex: 1,
+  },
+  searchInput: {
+    backgroundColor: '#f3f3f3',
+    borderRadius: 12,
+    paddingHorizontal: 48,
+    paddingVertical: 16,
+    fontSize: 16,
+    color: '#1F2937',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  dateRangeContainer: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 24,
+  },
+  dateInputContainer: {
+    flex: 1,
+  },
+  dateLabel: {
+    fontSize: 14,
+    color: '#64748B',
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  dateInput: {
+    backgroundColor: '#f3f3f3',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 14,
+    color: '#1F2937',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  historyContainer: {
+    gap: 16,
+  },
+  emptyHistoryContainer: {
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  emptyHistoryText: {
+    fontSize: 16,
+    color: '#64748B',
+    fontWeight: '600',
+    marginTop: 16,
+  },
+  emptyHistorySubtext: {
+    fontSize: 14,
+    color: '#94A3B8',
+    textAlign: 'center',
+    marginTop: 4,
+    paddingHorizontal: 20,
+  },
+  historyItem: {
+    backgroundColor: '#f3f3f3',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  historyHeader: {
+    marginBottom: 8,
+  },
+  historyDescription: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1F2937',
+    marginBottom: 4,
+  },
+  historyDate: {
+    fontSize: 13,
+    color: '#64748B',
+    fontWeight: '500',
+  },
+  historyDetails: {
+    gap: 8,
+  },
+  historyDetailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  historyDetailText: {
+    fontSize: 13,
+    color: '#475569',
+    fontWeight: '500',
+    flex: 1,
+  },
+  historyDetailValue: {
+    fontWeight: '700',
+    color: '#1F2937',
+  },
+  paginationContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 24,
+    gap: 16,
+  },
+  paginationButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F59E0B',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+    gap: 4,
+    shadowColor: '#F59E0B',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  paginationButtonDisabled: {
+    backgroundColor: '#f3f3f3',
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  paginationButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  paginationButtonTextDisabled: {
+    color: '#9CA3AF',
+  },
+  paginationInfo: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  paginationText: {
+    fontSize: 14,
+    color: '#64748B',
+    fontWeight: '600',
   },
   actionContainer: {
     flexDirection: 'row',
@@ -612,14 +962,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 16,
     paddingHorizontal: 24,
-    borderRadius: 16,
+    borderRadius: 12,
     borderWidth: 2,
     backgroundColor: '#f3f3f3',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 4,
     gap: 8,
   },
   editButton: {
