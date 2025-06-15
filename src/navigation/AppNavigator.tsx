@@ -7,15 +7,28 @@ import ForgotPasswordScreen from '../screens/ForgotPasswordScreen';
 import DashboardScreen from '../screens/DashboardScreen';
 import SubaccountDetail from '../screens/SubaccountDetail';
 
-const Stack = createNativeStackNavigator();
+export type Subcuenta = {
+  _id: string;
+  nombre: string;
+  cantidad: number;
+  moneda: string;
+  simbolo: string;
+  color: string;
+  afectaCuenta: boolean;
+  subCuentaId: string;
+  updatedAt: string;
+};
 
 export type RootStackParamList = {
   Splash: undefined;
   Login: undefined;
   Register: undefined;
   ForgotPassword: undefined;
-  DashboardScreen: undefined;
+  Dashboard: { updated?: boolean } | undefined;
+  SubaccountDetail: { subcuenta: Subcuenta; onGlobalRefresh?: () => void };
 };
+
+const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export default function AppNavigator() {
   return (
