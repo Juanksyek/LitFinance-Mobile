@@ -13,7 +13,24 @@ const actions = [
   { icon: "refresh-outline", label: "Recurrente" },
 ];
 
-const ActionButtons = ({ cuentaId, onRefresh }: { cuentaId: string, onRefresh: () => void }) => {
+interface ActionButtonsProps {
+  cuentaId: string;
+  onRefresh: () => void;
+  showSubcuentaButton?: boolean;
+  isSubcuenta?: boolean;
+  subcuenta?: { cuentaPrincipalId: string; subCuentaId: string };
+  fetchSubcuenta?: () => void;
+}
+
+const ActionButtons = ({
+  cuentaId,
+  onRefresh,
+  showSubcuentaButton = true,
+  isSubcuenta = false,
+  subcuenta,
+  fetchSubcuenta,
+}: ActionButtonsProps) => {
+
   const [modalVisible, setModalVisible] = useState(false);
   const [subcuentaModalVisible, setSubcuentaModalVisible] = useState(false);
   const [tipo, setTipo] = useState<'ingreso' | 'egreso'>('ingreso');
@@ -27,10 +44,19 @@ const ActionButtons = ({ cuentaId, onRefresh }: { cuentaId: string, onRefresh: (
     }
   };
 
+  const visibleActions = actions.filter(action => {
+    if (!showSubcuentaButton && action.label === 'Subcuenta') return false;
+    return true;
+  });
+
+  if (__DEV__ && isSubcuenta && !subcuenta) {
+    console.error('❌ subcuenta es undefined cuando isSubcuenta=true');
+  }
+
   return (
     <>
       <View style={styles.container}>
-        {actions.map((action, index) => (
+        {visibleActions.map((action, index) => (
           <View key={index} style={styles.buttonWrapper}>
             <TouchableOpacity
               style={[styles.button, styles.neumorphic]}
@@ -47,17 +73,21 @@ const ActionButtons = ({ cuentaId, onRefresh }: { cuentaId: string, onRefresh: (
         visible={modalVisible}
         onClose={() => setModalVisible(false)}
         tipo={tipo}
-        cuentaId={cuentaId}
-        onSuccess={onRefresh}
+        cuentaId={isSubcuenta && subcuenta ? subcuenta.cuentaPrincipalId : cuentaId}
+        isSubcuenta={isSubcuenta}
+        subcuentaId={isSubcuenta && subcuenta ? subcuenta.subCuentaId : undefined}
+        onSuccess={isSubcuenta ? fetchSubcuenta ?? (() => {}) : onRefresh}
       />
 
       {/* Modal para subcuenta */}
-      <SubaccountModal
-        visible={subcuentaModalVisible}
-        onClose={() => setSubcuentaModalVisible(false)}
-        cuentaPrincipalId={cuentaId}
-        onSuccess={onRefresh}
-      />
+      {showSubcuentaButton && (
+        <SubaccountModal
+          visible={subcuentaModalVisible}
+          onClose={() => setSubcuentaModalVisible(false)}
+          cuentaPrincipalId={cuentaId}
+          onSuccess={onRefresh}
+        />
+      )}
     </>
   );
 };
