@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigation } from '@react-navigation/native';
 import { View, Text, TextInput, StyleSheet, TouchableOpacity, Switch, Dimensions } from 'react-native';
 import { KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import Modal from 'react-native-modal';
@@ -16,6 +17,8 @@ interface Props {
   tipo: 'ingreso' | 'egreso';
   cuentaId: string;
   onSuccess: () => void;
+  isSubcuenta?: boolean;
+  subcuentaId?: string;
 }
 
 interface Concepto {
@@ -25,7 +28,7 @@ interface Concepto {
   icono: string;
 }
 
-const MovementModal: React.FC<Props> = ({ visible, onClose, tipo, cuentaId, onSuccess }) => {
+const MovementModal: React.FC<Props> = ({ visible, onClose, tipo, cuentaId, onSuccess, isSubcuenta, subcuentaId }) => {
   const [monto, setMonto] = useState('');
   const [motivo, setMotivo] = useState('');
   const [afectaCuenta, setAfectaCuenta] = useState(true);
@@ -38,6 +41,7 @@ const MovementModal: React.FC<Props> = ({ visible, onClose, tipo, cuentaId, onSu
   const [conceptoSeleccionado, setConceptoSeleccionado] = useState<Concepto | null>(null);
   const [showConceptsManager, setShowConceptsManager] = useState(false);
   const [loading, setLoading] = useState(false);
+  const navigation = useNavigation<any>();
 
   const fetchMonedasYConceptos = async () => {
     try {
@@ -86,9 +90,9 @@ const MovementModal: React.FC<Props> = ({ visible, onClose, tipo, cuentaId, onSu
         text2: 'Debes ingresar un monto válido y un motivo.',
       });
     }
-    
+
     const conceptoFinal = conceptoSeleccionado?.nombre || motivo.trim();
-    
+
     if (!conceptoFinal) {
       return Toast.show({
         type: 'error',
@@ -100,29 +104,44 @@ const MovementModal: React.FC<Props> = ({ visible, onClose, tipo, cuentaId, onSu
     try {
       setLoading(true);
       const token = await AsyncStorage.getItem('authToken');
-      await fetch(`${API_BASE_URL}/transacciones`, {
+      const payload = {
+        tipo,
+        monto: parseFloat(monto),
+        concepto: conceptoFinal,
+        motivo,
+        moneda,
+        cuentaId,
+        afectaCuenta,
+        ...(isSubcuenta && { esSubcuenta: true, subcuentaId }),
+      };
+
+      console.log('🟠 Enviando movimiento:', payload);
+
+      const res = await fetch(`${API_BASE_URL}/transacciones`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          tipo,
-          monto: parseFloat(monto),
-          concepto: conceptoFinal,
-          motivo,
-          moneda,
-          cuentaId,
-          afectaCuenta,
-        }),
+        body: JSON.stringify(payload),
       });
 
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({}));
+        throw new Error(error.message || 'Error al guardar el movimiento');
+      }
+
       Toast.show({ type: 'success', text1: 'Movimiento guardado' });
+
       setMonto('');
       setMotivo('');
       setConceptoSeleccionado(null);
       onSuccess();
       onClose();
+
+      if (isSubcuenta) {
+        navigation.navigate('Dashboard', { updated: true });
+      }
     } catch (err: any) {
       Toast.show({
         type: 'error',
