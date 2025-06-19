@@ -261,6 +261,41 @@ const SubaccountDetail = () => {
     );
   }
 
+  const toggleEstadoSubcuenta = async () => {
+    try {
+      const token = await AsyncStorage.getItem("authToken");
+      const endpoint = `${API_BASE_URL}/subcuenta/${subcuenta.subCuentaId}/${subcuenta.activa ? 'desactivar' : 'activar'}`;
+
+      const res = await fetch(endpoint, {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({}));
+        throw new Error(error.message || 'No se pudo cambiar el estado');
+      }
+
+      Toast.show({
+        type: 'success',
+        text1: subcuenta.activa ? 'Subcuenta desactivada' : 'Subcuenta activada',
+        text2: `La subcuenta fue ${subcuenta.activa ? 'desactivada' : 'activada'} correctamente`,
+      });
+
+      setReloadTrigger(prev => prev + 1);
+      handleGlobalRefresh();
+
+    } catch (err: any) {
+      Toast.show({
+        type: 'error',
+        text1: 'Error al cambiar estado',
+        text2: 'No se pudo actualizar el estado de la subcuenta',
+      });
+    }
+  };
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
@@ -527,6 +562,26 @@ const SubaccountDetail = () => {
             <Ionicons name="trash-outline" size={20} color="#EF4444" />
             <Text style={[styles.actionButtonText, { color: '#EF4444' }]}>Eliminar</Text>
           </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.actionButton,
+              { borderColor: subcuenta.activa ? '#EF4444' : '#10B981' }
+            ]}
+            onPress={toggleEstadoSubcuenta}
+          >
+            <Ionicons
+              name={subcuenta.activa ? "pause-circle-outline" : "play-circle-outline"}
+              size={20}
+              color={subcuenta.activa ? "#EF4444" : "#10B981"}
+            />
+            <Text style={[
+              styles.actionButtonText,
+              { color: subcuenta.activa ? "#EF4444" : "#10B981" }
+            ]}>
+              {subcuenta.activa ? "Desactivar" : "Activar"}
+            </Text>
+          </TouchableOpacity>
         </View>
 
         <View style={styles.bottomSpacing} />
@@ -541,6 +596,7 @@ const SubaccountDetail = () => {
           setEditVisible(false);
           fetchSubcuenta();
           navigation.navigate('Dashboard', { updated: true });
+          handleGlobalRefresh();
         }}
       />
 
@@ -960,8 +1016,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 24,
+    paddingVertical: 10,
+    paddingHorizontal: 2,
     borderRadius: 12,
     borderWidth: 2,
     backgroundColor: '#f3f3f3',
