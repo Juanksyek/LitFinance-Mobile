@@ -17,6 +17,7 @@ interface Subcuenta {
   afectaCuenta: boolean;
   subCuentaId: string;
   updatedAt: string;
+  activa: boolean;
 }
 
 interface Props {
@@ -34,6 +35,7 @@ const SubaccountsList: React.FC<Props> = ({ userId, refreshKey = 0 }) => {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [hasMore, setHasMore] = useState(true);
   const navigation = useNavigation<any>();
+  const [mostrarSoloActivas, setMostrarSoloActivas] = useState(false);
 
   useEffect(() => {
     const delay = setTimeout(() => setDebouncedSearch(search), 500);
@@ -44,16 +46,29 @@ const SubaccountsList: React.FC<Props> = ({ userId, refreshKey = 0 }) => {
     try {
       setLoading(true);
       const token = await AsyncStorage.getItem("authToken");
-      const res = await fetch(`${API_BASE_URL}/subcuenta/${userId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await fetch(
+        `${API_BASE_URL}/subcuenta/${userId}?soloActivas=${mostrarSoloActivas}&page=${page}&limit=${LIMIT}`,
+        { headers: { Authorization: `Bearer ${token}` }}
+      );
+
       const data = await res.json();
 
-      const filtered = debouncedSearch
-        ? data.filter((s: Subcuenta) =>
-            s.nombre.toLowerCase().includes(debouncedSearch.toLowerCase())
-          )
-        : data;
+      if (!Array.isArray(data)) {
+        console.error("Respuesta inválida:", data);
+        setSubcuentas([]);
+        setHasMore(false);
+        return;
+      }
+
+      let filtered = data;
+
+      if (debouncedSearch.trim()) {
+        filtered = data.filter((s) =>
+          s.nombre.toLowerCase().includes(debouncedSearch.toLowerCase())
+        );
+      }
+
+      filtered = filtered.sort((a, b) => Number(b.activa) - Number(a.activa));
 
       const start = (page - 1) * LIMIT;
       const end = start + LIMIT;
@@ -72,8 +87,13 @@ const SubaccountsList: React.FC<Props> = ({ userId, refreshKey = 0 }) => {
   }, [debouncedSearch]);
 
   useEffect(() => {
-    fetchSubcuentas();
-  }, [page, debouncedSearch, refreshKey]);
+    const delay = setTimeout(() => {
+      fetchSubcuentas();
+    }, 400);
+
+    return () => clearTimeout(delay);
+  }, [page, debouncedSearch, refreshKey, mostrarSoloActivas]);
+
 
   const handlePrev = () => {
     if (page > 1) setPage((p) => p - 1);
@@ -85,10 +105,12 @@ const SubaccountsList: React.FC<Props> = ({ userId, refreshKey = 0 }) => {
 
   const renderItem = ({ item }: { item: Subcuenta }) => (
     <TouchableOpacity
-      onPress={() => navigation.navigate('SubaccountDetail', {
-        subcuenta: item,
-        onGlobalRefresh: () => {}
-      })}
+      onPress={() =>
+        navigation.navigate("SubaccountDetail", {
+          subcuenta: item,
+          onGlobalRefresh: fetchSubcuentas,
+        })
+      }
       style={[styles.card, { borderColor: item.color }]}
     >
       <View style={styles.cardHeader}>
@@ -99,10 +121,18 @@ const SubaccountsList: React.FC<Props> = ({ userId, refreshKey = 0 }) => {
           <Ionicons name="checkmark-circle" size={14} color={item.color} />
         )}
       </View>
+
       <Text style={styles.cardAmount} numberOfLines={1} ellipsizeMode="tail">
         {item.simbolo}
         {item.cantidad.toLocaleString()} {item.moneda}
       </Text>
+
+      {/* Badge de estado */}
+      <View style={[styles.statusBadge, { backgroundColor: item.activa ? "#D1FAE5" : "#FEE2E2" }]}>
+        <Text style={[styles.statusText, { color: item.activa ? "#10B981" : "#EF4444" }]}>
+          {item.activa ? "Activa" : "Inactiva"}
+        </Text>
+      </View>
     </TouchableOpacity>
   );
 
@@ -116,6 +146,27 @@ const SubaccountsList: React.FC<Props> = ({ userId, refreshKey = 0 }) => {
         onChangeText={setSearch}
         placeholderTextColor="#aaa"
       />
+
+      <View style={styles.toggleContainer}>
+        <Text style={styles.toggleLabel}>Mostrar solo activas</Text>
+        <TouchableOpacity
+          style={[
+            styles.toggleSwitch,
+            mostrarSoloActivas ? styles.toggleOn : styles.toggleOff,
+          ]}
+          onPress={() => {
+            setPage(1);
+            setMostrarSoloActivas(!mostrarSoloActivas);
+          }}
+        >
+          <View
+            style={[
+              styles.toggleCircle,
+              mostrarSoloActivas ? styles.circleOn : styles.circleOff,
+            ]}
+          />
+        </TouchableOpacity>
+      </View>
 
       {loading ? (
         <ActivityIndicator style={{ marginTop: 20 }} color="#EF7725" />
@@ -252,6 +303,54 @@ const styles = StyleSheet.create({
   pageIndicator: {
     color: "#444",
     fontWeight: "500",
+  },
+  statusBadge: {
+    alignSelf: 'flex-start',
+    marginTop: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  statusText: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  toggleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  toggleLabel: {
+    fontSize: 14,
+    color: '#333',
+    fontWeight: '600',
+  },
+  toggleSwitch: {
+    width: 50,
+    height: 28,
+    borderRadius: 16,
+    padding: 4,
+    justifyContent: 'center',
+  },
+  toggleOn: {
+    backgroundColor: '#EF7725',
+  },
+  toggleOff: {
+    backgroundColor: '#ccc',
+  },
+  toggleCircle: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+  },
+  circleOn: {
+    backgroundColor: '#fff',
+    alignSelf: 'flex-end',
+  },
+  circleOff: {
+    backgroundColor: '#fff',
+    alignSelf: 'flex-start',
   },
 });
 
