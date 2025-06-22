@@ -30,6 +30,7 @@ const TransactionItem = ({
 };
 
 const TransactionHistory = () => {
+  // componente por trabajar
   return (
     <View style={[styles.card, styles.neumorphicLight]}>
       <Text style={styles.cardLabel}>Historial de transacciones</Text>
