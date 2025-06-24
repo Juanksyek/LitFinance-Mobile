@@ -18,9 +18,10 @@ import Toast from "react-native-toast-message";
 export default function DashboardScreen() {
   const [cuentaId, setCuentaId] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
-  const [reloadTrigger, setReloadTrigger] = useState(0);
+  const [reloadTrigger, setReloadTrigger] = useState(Date.now());
   const route = useRoute<RouteProp<RootStackParamList, 'Dashboard'>>();
   const navigation = useNavigation();
+  const [refreshKey, setRefreshKey] = useState(Date.now());
 
   const fetchCuentaId = async () => {
     try {
@@ -43,30 +44,18 @@ export default function DashboardScreen() {
     fetchCuentaId();
   }, []);
 
-  useFocusEffect(
-    React.useCallback(() => {
-      if ((route.params as any)?.updated) {
-        setReloadTrigger(Date.now());
-      }
-    }, [route])
-  );
-
   const handleRefresh = () => {
-    setReloadTrigger(prev => prev + 1);
+    setReloadTrigger(Date.now());
   };
 
   useFocusEffect(
-  React.useCallback(() => {
-    if (route.params?.updated) {
-      setReloadTrigger(prev => prev + 1);
-      navigation.dispatch(
-        CommonActions.setParams({
-          updated: undefined,
-        })
-      );
-    }
-  }, [route.params?.updated])
-);
+    React.useCallback(() => {
+      if (route.params?.updated) {
+        setReloadTrigger(Date.now());
+        navigation.dispatch(CommonActions.setParams({ updated: undefined }));
+      }
+    }, [route.params?.updated])
+  );
 
   return (
     <View style={styles.wrapper}>
@@ -89,7 +78,7 @@ export default function DashboardScreen() {
         )}
 
         <ExpensesChart />
-        <TransactionHistory />
+        <TransactionHistory refreshKey={refreshKey} />
       </ScrollView>
     </View>
   );
