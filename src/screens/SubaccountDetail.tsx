@@ -51,6 +51,7 @@ const SubaccountDetail = () => {
   const [totalPaginas, setTotalPaginas] = useState(1);
   const [desde, setDesde] = useState('2024-01-01');
   const [hasta, setHasta] = useState('2026-01-01');
+  const [participacion, setParticipacion] = useState<number | null>(null);
   const handleGlobalRefresh = route.params?.onGlobalRefresh || (() => {});
 
   const formatDate = (dateString: string) => {
@@ -162,6 +163,31 @@ const SubaccountDetail = () => {
     }
   };
 
+  const fetchParticipacion = async () => {
+    try {
+      const token = await AsyncStorage.getItem("authToken");
+
+      const res = await fetch(`${API_BASE_URL}/subcuenta/participacion/${subcuenta.cuentaId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      const data = await res.json();
+
+      if (Array.isArray(data)) {
+        const actual = data.find((item) => item.subsubCuentaId === subcuenta._id);
+        if (actual) {
+          setParticipacion(actual.porcentaje);
+        }
+      }
+    } catch (err) {
+      Toast.show({
+        type: "error",
+        text1: "Error al obtener participación",
+        text2: "No se pudo calcular la participación de esta subcuenta",
+      });
+    }
+  };
+
   const handleDelete = () => setDeleteVisible(true);
 
   const confirmDelete = async () => {
@@ -239,6 +265,7 @@ const SubaccountDetail = () => {
 
   useEffect(() => {
     fetchSubcuenta();
+    fetchParticipacion();
   }, [reloadTrigger]);
 
   useEffect(() => {
@@ -390,6 +417,22 @@ const SubaccountDetail = () => {
           />
         </View>
 
+        {/* Participación en subcuentas */}
+        {participacion !== null && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Participación en subcuentas</Text>
+            <View style={styles.sectionContent}>
+              <InfoCard
+                icon={<Ionicons name="pie-chart-outline" />}
+                label="Participación"
+                value={`${participacion.toFixed(1)}%`}
+                accentColor="#F59E0B"
+                description="Proporción en el total de subcuentas activas"
+              />
+            </View>
+          </View>
+        )}
+
         {/* Enhanced Account Information */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Información de cuenta</Text>
@@ -527,7 +570,7 @@ const SubaccountDetail = () => {
                 </TouchableOpacity>
 
                 <View style={styles.paginationInfo}>
-                  <Text style={styles.paginationText}>Página {pagina} de {totalPaginas}</Text>
+                  <Text style={styles.paginationText}> {pagina} de {totalPaginas}</Text>
                 </View>
 
                 <TouchableOpacity
@@ -1001,7 +1044,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   paginationText: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#64748B',
     fontWeight: '600',
   },
