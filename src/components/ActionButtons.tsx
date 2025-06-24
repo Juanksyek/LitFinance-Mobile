@@ -20,6 +20,7 @@ interface ActionButtonsProps {
   isSubcuenta?: boolean;
   subcuenta?: { cuentaPrincipalId: string; subCuentaId: string };
   fetchSubcuenta?: () => void;
+  
 }
 
 const ActionButtons = ({
@@ -34,6 +35,7 @@ const ActionButtons = ({
   const [modalVisible, setModalVisible] = useState(false);
   const [subcuentaModalVisible, setSubcuentaModalVisible] = useState(false);
   const [tipo, setTipo] = useState<'ingreso' | 'egreso'>('ingreso');
+  const [refreshKey, setRefreshKey] = useState(Date.now());
 
   const handlePress = (label: string) => {
     if (label === 'Ingreso' || label === 'Egreso') {
@@ -78,6 +80,7 @@ const ActionButtons = ({
         isSubcuenta={isSubcuenta}
         subcuentaId={isSubcuenta && subcuenta ? subcuenta.subCuentaId : undefined}
         onSuccess={isSubcuenta ? fetchSubcuenta ?? (() => {}) : onRefresh}
+        onRefresh={() => setRefreshKey(Date.now())}
       />
 
       {/* Modal para subcuenta */}
