@@ -52,15 +52,22 @@ const LoginScreen: React.FC = () => {
         throw new Error("La respuesta del servidor no es válida.");
       }
 
+      const usuarioParaGuardar = {
+        id: user.id,
+        nombre: user.nombre,
+        email: user.email,
+        cuentaId: user.cuentaId,
+      };
+  
       await AsyncStorage.setItem("authToken", accessToken);
-      await AsyncStorage.setItem("userData", JSON.stringify(user));
-
+      await AsyncStorage.setItem("userData", JSON.stringify(usuarioParaGuardar));
+    
       Toast.show({
         type: "success",
         text1: message || "Inicio de sesión exitoso",
         text2: `Bienvenido, ${user.nombre || "usuario"}`,
       });
-
+  
       navigation.dispatch(StackActions.replace("Dashboard"));
     } catch (error: any) {
       Toast.show({
