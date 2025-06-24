@@ -19,6 +19,7 @@ interface Props {
   onSuccess: () => void;
   isSubcuenta?: boolean;
   subcuentaId?: string;
+  onRefresh?: () => void;
 }
 
 interface Concepto {
@@ -28,7 +29,7 @@ interface Concepto {
   icono: string;
 }
 
-const MovementModal: React.FC<Props> = ({ visible, onClose, tipo, cuentaId, onSuccess, isSubcuenta, subcuentaId }) => {
+const MovementModal: React.FC<Props> = ({ visible, onClose, tipo, cuentaId, onSuccess, isSubcuenta, subcuentaId, onRefresh }) => {
   const [monto, setMonto] = useState('');
   const [motivo, setMotivo] = useState('');
   const [afectaCuenta, setAfectaCuenta] = useState(true);
@@ -132,6 +133,8 @@ const MovementModal: React.FC<Props> = ({ visible, onClose, tipo, cuentaId, onSu
       }
 
       Toast.show({ type: 'success', text1: 'Movimiento guardado' });
+
+      if (onRefresh) onRefresh();
 
       setMonto('');
       setMotivo('');
