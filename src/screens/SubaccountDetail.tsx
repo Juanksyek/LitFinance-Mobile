@@ -53,6 +53,15 @@ const SubaccountDetail = () => {
   const [hasta, setHasta] = useState('2026-01-01');
   const [participacion, setParticipacion] = useState<number | null>(null);
   const handleGlobalRefresh = route.params?.onGlobalRefresh || (() => {});
+  const [userId, setUserId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const obtenerUserId = async () => {
+      const storedId = await AsyncStorage.getItem('userId');
+      if (storedId) setUserId(storedId);
+    };
+    obtenerUserId();
+  }, []);
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('es-ES', {
@@ -395,6 +404,7 @@ const SubaccountDetail = () => {
               fetchSubcuenta();
               handleGlobalRefresh();
             }}
+            userId={userId!}
           />
         </View>
 
