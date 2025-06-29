@@ -192,14 +192,43 @@ const RecurrentModal = ({
               placeholder="$0.00"
             />
 
-            <Text style={styles.label}>Frecuencia (días)</Text>
-            <TextInput
-              style={styles.input}
-              value={frecuenciaDias}
-              onChangeText={setFrecuenciaDias}
-              keyboardType="numeric"
-              placeholder="Ej. 30"
-            />
+            <Text style={styles.label}>Frecuencia</Text>
+            <View style={styles.recordatorioContainer}>
+              {[
+                { label: 'Semanal', days: '7' },
+                { label: 'Quincenal', days: '15' },
+                { label: 'Mensual', days: '30' },
+                { label: 'Personalizado', days: '' },
+              ].map((f) => (
+                <TouchableOpacity
+                  key={f.label}
+                  onPress={() => setFrecuenciaDias(f.days)}
+                  style={[
+                    styles.recordatorioChip,
+                    frecuenciaDias === f.days && styles.recordatorioChipSelected,
+                  ]}
+                >
+                  <Text
+                    style={
+                      frecuenciaDias === f.days
+                        ? styles.chipTextSelected
+                        : styles.chipText
+                    }
+                  >
+                    {f.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            {frecuenciaDias === '' && (
+              <TextInput
+                style={styles.input}
+                value={frecuenciaDias}
+                onChangeText={setFrecuenciaDias}
+                keyboardType="numeric"
+                placeholder="Ingresa días personalizados"
+              />
+            )}
 
             <Text style={styles.label}>Recordatorios</Text>
             <View style={styles.recordatorioContainer}>
@@ -235,14 +264,15 @@ const RecurrentModal = ({
               </View>
             )}
 
-            <View style={styles.switchContainer}>
-              <Text style={styles.switchLabel}>Afecta subcuenta</Text>
-              <Switch
-                value={afectaSubcuenta}
-                onValueChange={setAfectaSubcuenta}
-                disabled={true}
-              />
-            </View>
+            { subcuentaId && (
+              <View style={styles.switchContainer}>
+                <Text style={styles.switchLabel}>Afecta subcuenta</Text>
+                <Switch
+                  value={afectaSubcuenta}
+                  onValueChange={setAfectaSubcuenta}
+                />
+              </View>
+            )}
           </ScrollView>
 
           <TouchableOpacity style={styles.saveButton} onPress={handleGuardar}>
