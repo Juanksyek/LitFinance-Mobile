@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, Dimensions } from "react-nati
 import Ionicons from "react-native-vector-icons/Ionicons";
 import MovementModal from './MovementModal';
 import SubaccountModal from './SubaccountModal';
+import RecurrentModal from './RecurrentModal';
 
 const { width } = Dimensions.get("window");
 
@@ -20,7 +21,8 @@ interface ActionButtonsProps {
   isSubcuenta?: boolean;
   subcuenta?: { cuentaPrincipalId: string; subCuentaId: string };
   fetchSubcuenta?: () => void;
-  
+  plataformas?: any[];
+  userId: string;
 }
 
 const ActionButtons = ({
@@ -30,10 +32,13 @@ const ActionButtons = ({
   isSubcuenta = false,
   subcuenta,
   fetchSubcuenta,
+  plataformas = [],
+  userId,
 }: ActionButtonsProps) => {
 
   const [modalVisible, setModalVisible] = useState(false);
   const [subcuentaModalVisible, setSubcuentaModalVisible] = useState(false);
+  const [recurrentModalVisible, setRecurrentModalVisible] = useState(false);
   const [tipo, setTipo] = useState<'ingreso' | 'egreso'>('ingreso');
   const [refreshKey, setRefreshKey] = useState(Date.now());
 
@@ -43,6 +48,8 @@ const ActionButtons = ({
       setModalVisible(true);
     } else if (label === 'Subcuenta') {
       setSubcuentaModalVisible(true);
+    } else if (label === 'Recurrente') {
+      setRecurrentModalVisible(true);
     }
   };
 
@@ -52,9 +59,22 @@ const ActionButtons = ({
     return true;
   });
 
-  if (__DEV__ && isSubcuenta && !subcuenta) {
-    console.error('❌ subcuenta es undefined cuando isSubcuenta=true');
-  }
+  const handleRecurrenteSubmit = async (data: any) => {
+    try {
+      const res = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/recurrentes`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
+
+      if (!res.ok) throw new Error('Error al guardar recurrente');
+      onRefresh();
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   return (
     <>
@@ -83,7 +103,6 @@ const ActionButtons = ({
         onRefresh={() => setRefreshKey(Date.now())}
       />
 
-      {/* Modal para subcuenta */}
       {showSubcuentaButton && (
         <SubaccountModal
           visible={subcuentaModalVisible}
@@ -92,6 +111,16 @@ const ActionButtons = ({
           onSuccess={onRefresh}
         />
       )}
+
+      <RecurrentModal
+        visible={recurrentModalVisible}
+        onClose={() => setRecurrentModalVisible(false)}
+        onSubmit={handleRecurrenteSubmit}
+        plataformas={plataformas}
+        cuentaId={cuentaId}
+        subcuentaId={isSubcuenta && subcuenta ? subcuenta.subCuentaId : undefined}
+        userId={userId}
+      />
     </>
   );
 };
