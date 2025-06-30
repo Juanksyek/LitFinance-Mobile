@@ -5,6 +5,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { jwtDecode } from "jwt-decode";
 import { API_BASE_URL } from "../constants/api";
 import Toast from "react-native-toast-message";
+import HistorialDetalleModal from "./HistorialDetalleModal"; // asegúrate de tenerlo en tu proyecto
 
 type HistorialItem = {
   id: string;
@@ -12,6 +13,14 @@ type HistorialItem = {
   monto: number;
   tipo: string;
   fecha: string;
+  cuentaId: string;
+  subcuentaId?: string;
+  detalles?: {
+    origen?: string;
+    etiqueta?: string;
+    resumen?: string;
+    [key: string]: any;
+  };
 };
 
 interface JwtPayload {
@@ -22,30 +31,14 @@ interface JwtPayload {
   [key: string]: any;
 }
 
-const TransactionItem = ({ icon, title, amount, date }: {
-  icon: React.ReactNode;
-  title: string;
-  amount: string;
-  date: string;
-}) => (
-  <TouchableOpacity style={styles.transactionItem}>
-    <View style={[styles.transactionIconContainer, styles.neumorphicInset]}>
-      {icon}
-    </View>
-    <View style={styles.transactionDetails}>
-      <Text style={styles.transactionTitle}>{title}</Text>
-      <Text style={styles.transactionDate}>{date}</Text>
-    </View>
-    <Text style={styles.transactionAmount}>{amount}</Text>
-  </TouchableOpacity>
-);
-
 const TransactionHistory = ({ refreshKey }: { refreshKey?: number }) => {
   const [historial, setHistorial] = useState<HistorialItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [itemSeleccionado, setItemSeleccionado] = useState<HistorialItem | null>(null);
   const limit = 5;
 
   useEffect(() => {
@@ -129,6 +122,31 @@ const TransactionHistory = ({ refreshKey }: { refreshKey?: number }) => {
     }
   };
 
+  const TransactionItem = ({
+    icon,
+    title,
+    amount,
+    date,
+    onPress,
+  }: {
+    icon: React.ReactNode;
+    title: string;
+    amount: string;
+    date: string;
+    onPress: () => void;
+  }) => (
+    <TouchableOpacity style={styles.transactionItem} onPress={onPress}>
+      <View style={[styles.transactionIconContainer, styles.neumorphicInset]}>
+        {icon}
+      </View>
+      <View style={styles.transactionDetails}>
+        <Text style={styles.transactionTitle}>{title}</Text>
+        <Text style={styles.transactionDate}>{date}</Text>
+      </View>
+      <Text style={styles.transactionAmount}>{amount}</Text>
+    </TouchableOpacity>
+  );
+
   return (
     <View style={[styles.card, styles.neumorphicLight]}>
       <Text style={styles.cardLabel}>Historial de transacciones</Text>
@@ -154,6 +172,10 @@ const TransactionHistory = ({ refreshKey }: { refreshKey?: number }) => {
             title={item.descripcion}
             amount={`$${item.monto.toFixed(2)}`}
             date={new Date(item.fecha).toLocaleDateString()}
+            onPress={() => {
+              setItemSeleccionado(item);
+              setModalVisible(true);
+            }}
           />
         ))
       ) : (
@@ -181,6 +203,12 @@ const TransactionHistory = ({ refreshKey }: { refreshKey?: number }) => {
           <Ionicons name="chevron-forward-outline" size={16} color="#EF6C00" />
         </TouchableOpacity>
       </View>
+
+      <HistorialDetalleModal
+        visible={modalVisible}
+        historialItem={itemSeleccionado}
+        onClose={() => setModalVisible(false)}
+      />
     </View>
   );
 };
