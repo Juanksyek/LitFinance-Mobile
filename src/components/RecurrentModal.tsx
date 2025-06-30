@@ -25,7 +25,8 @@ const RecurrentModal = ({
 }: Props) => {
   const [nombre, setNombre] = useState('');
   const [plataforma, setPlataforma] = useState<any>(null);
-  const [frecuenciaDias, setFrecuenciaDias] = useState('30');
+  const [frecuenciaDias, setFrecuenciaDias] = useState('');
+  const [frecuenciaSeleccionada, setFrecuenciaSeleccionada] = useState('30');
   const [monto, setMonto] = useState('');
   const [afectaCuentaPrincipal, setAfectaCuentaPrincipal] = useState(true);
   const [afectaSubcuenta, setAfectaSubcuenta] = useState(false);
@@ -82,28 +83,91 @@ const RecurrentModal = ({
     );
   };
 
-  const handleGuardar = () => {
-    if (!nombre || !plataforma || !monto || !frecuenciaDias) return;
-
-    onSubmit({
+  const handleGuardar = async () => {
+    const diasFinal = frecuenciaSeleccionada === 'custom' ? Number(frecuenciaDias) : Number(frecuenciaSeleccionada);
+  
+    if (!nombre || !plataforma || !monto || !diasFinal) {
+      Toast.show({
+        type: 'error',
+        text1: 'Faltan campos',
+        text2: 'Completa todos los campos requeridos.',
+      });
+      return;
+    }
+  
+    const payload = {
       nombre,
-      plataforma,
-      frecuenciaDias: Number(frecuenciaDias),
+      plataforma: {
+        plataformaId: plataforma.plataformaId,
+        nombre: plataforma.nombre,
+        color: plataforma.color,
+        categoria: plataforma.categoria,
+      },
+      frecuenciaDias: diasFinal,
       monto: Number(monto),
       afectaCuentaPrincipal,
       afectaSubcuenta,
       cuentaId,
-      subcuentaId,
-      userId,
+      subcuentaId: subcuentaId || null,
+      userId: userId || null,
       recordatorios: recordatorios.map((r) => parseInt(r)),
-    });
-
-    onClose();
-    setNombre('');
-    setMonto('');
-    setRecordatorios([]);
-    setPlataforma(null);
-    setFrecuenciaDias('30');
+    };
+  
+    console.log('📤 Enviando recurrente con payload:', JSON.stringify(payload, null, 2));
+  
+    try {
+      const token = await AsyncStorage.getItem("authToken");
+  
+      if (!token) {
+        Toast.show({
+          type: 'error',
+          text1: 'Token inválido',
+          text2: 'Inicia sesión nuevamente.',
+        });
+        return;
+      }
+  
+      const res = await fetch(`${API_BASE_URL}/recurrentes`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+  
+      const json = await res.json();
+  
+      if (!res.ok) {
+        Toast.show({
+          type: 'error',
+          text1: 'Error al guardar',
+          text2: json.message || 'Intenta más tarde.',
+        });
+        return;
+      }
+  
+      Toast.show({
+        type: 'success',
+        text1: 'Recurrente guardado',
+        text2: 'El recurrente fue creado correctamente.',
+      });
+  
+      onSubmit(json);
+      onClose();
+      setNombre('');
+      setMonto('');
+      setRecordatorios([]);
+      setPlataforma(null);
+      setFrecuenciaSeleccionada('30');
+      setFrecuenciaDias('');
+    } catch (err) {
+      Toast.show({
+        type: 'error',
+        text1: 'Error de red',
+        text2: 'No se pudo conectar con el servidor.',
+      });
+    }
   };
 
   return (
@@ -198,19 +262,22 @@ const RecurrentModal = ({
                 { label: 'Semanal', days: '7' },
                 { label: 'Quincenal', days: '15' },
                 { label: 'Mensual', days: '30' },
-                { label: 'Personalizado', days: '' },
+                { label: 'Personalizado', days: 'custom' },
               ].map((f) => (
                 <TouchableOpacity
                   key={f.label}
-                  onPress={() => setFrecuenciaDias(f.days)}
+                  onPress={() => {
+                    setFrecuenciaSeleccionada(f.days);
+                    if (f.days !== 'custom') setFrecuenciaDias('');
+                  }}
                   style={[
                     styles.recordatorioChip,
-                    frecuenciaDias === f.days && styles.recordatorioChipSelected,
+                    frecuenciaSeleccionada === f.days && styles.recordatorioChipSelected,
                   ]}
                 >
                   <Text
                     style={
-                      frecuenciaDias === f.days
+                      frecuenciaSeleccionada === f.days
                         ? styles.chipTextSelected
                         : styles.chipText
                     }
@@ -220,7 +287,8 @@ const RecurrentModal = ({
                 </TouchableOpacity>
               ))}
             </View>
-            {frecuenciaDias === '' && (
+
+            {frecuenciaSeleccionada === 'custom' && (
               <TextInput
                 style={styles.input}
                 value={frecuenciaDias}
