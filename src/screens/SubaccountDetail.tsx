@@ -10,6 +10,7 @@ import { RootStackParamList } from '../navigation/AppNavigator';
 import Toast from "react-native-toast-message";
 import DeleteSubaccountModal from '../components/DeleteSubaccountModal';
 import ActionButtons from '../components/ActionButtons';
+import RecurrentesList from '../components/RecurrenteList';
 
 const { width } = Dimensions.get('window');
 
@@ -462,6 +463,8 @@ const SubaccountDetail = () => {
           </View>
         </View>
 
+        <RecurrentesList esSubcuenta subcuentaId="ID_SUBCUENTA" userId={userId!} />
+        
         {/* Enhanced History Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Historial de movimientos</Text>
