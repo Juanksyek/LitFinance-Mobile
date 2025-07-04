@@ -4,6 +4,7 @@ import Ionicons from "react-native-vector-icons/Ionicons";
 import MovementModal from './MovementModal';
 import SubaccountModal from './SubaccountModal';
 import RecurrentModal from './RecurrentModal';
+import { API_BASE_URL } from "../constants/api";
 
 const { width } = Dimensions.get("window");
 
@@ -61,18 +62,14 @@ const ActionButtons = ({
 
   const handleRecurrenteSubmit = async (data: any) => {
     try {
-      const res = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/recurrentes`, {
+      const res = await fetch(`${API_BASE_URL}/recurrentes`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       });
-
-      if (!res.ok) throw new Error('Error al guardar recurrente');
+    
       onRefresh();
     } catch (err) {
-      console.error(err);
     }
   };
 
