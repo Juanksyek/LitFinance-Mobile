@@ -81,10 +81,13 @@ const HistorialDetalleModal = ({ visible, onClose, historialItem }: Props) => {
             )}
 
             {motivo && (
-            <>
+            <View style={styles.section}>
                 <Text style={styles.label}>Motivo</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Ionicons name="chatbox-ellipses-outline" size={16} color="#0f172a" style={{ marginRight: 6 }} />
                 <Text style={styles.value}>{motivo}</Text>
-            </>
+                </View>
+            </View>
             )}
 
             <View style={styles.section}>
