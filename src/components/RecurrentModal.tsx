@@ -1,455 +1,1267 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, Modal, KeyboardAvoidingView, Platform, StyleSheet, Pressable } from 'react-native';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, Modal, KeyboardAvoidingView, Platform, StyleSheet, Pressable, ActivityIndicator, Animated, Dimensions, Keyboard } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { Switch } from 'react-native';
 import { API_BASE_URL } from '../constants/api';
 import Toast from "react-native-toast-message";
 
-type Props = {
+
+const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
+
+interface Props {
   visible: boolean;
   onClose: () => void;
   onSubmit: (data: any) => void;
   cuentaId: string;
   subcuentaId?: string;
   userId: string;
-};
+  plataformas: any[];
+}
 
-const RecurrentModal = ({
-  visible,
-  onClose,
-  onSubmit,
-  cuentaId,
-  subcuentaId,
-  userId,
-}: Props) => {
+interface FormErrors {
+  nombre?: string;
+  plataforma?: string;
+  monto?: string;
+  frecuencia?: string;
+  moneda?: string;
+}
+
+const RecurrentModal: React.FC<Props> = ({visible, onClose, onSubmit, cuentaId, subcuentaId, userId }) => {
+  // Form state
   const [nombre, setNombre] = useState('');
   const [plataforma, setPlataforma] = useState<any>(null);
-  const [frecuenciaDias, setFrecuenciaDias] = useState('');
-  const [frecuenciaSeleccionada, setFrecuenciaSeleccionada] = useState('30');
+  const [frecuenciaTipo, setFrecuenciaTipo] = useState<'dia_semana' | 'dia_mes' | 'fecha_fija'>('dia_semana');
+  const [frecuenciaValor, setFrecuenciaValor] = useState('');
   const [monto, setMonto] = useState('');
   const [afectaCuentaPrincipal, setAfectaCuentaPrincipal] = useState(true);
   const [afectaSubcuenta, setAfectaSubcuenta] = useState(false);
   const [recordatorios, setRecordatorios] = useState<string[]>([]);
+  const [moneda, setMoneda] = useState('USD');
+  const [loading, setLoading] = useState(false);
 
+  // Data state
   const [plataformas, setPlataformas] = useState<any[]>([]);
+  const [monedasDisponibles, setMonedasDisponibles] = useState<any[]>([]);
+
+  // UI state
   const [loadingPlataformas, setLoadingPlataformas] = useState(false);
+  const [loadingMonedas, setLoadingMonedas] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState('');
+  const [searchMoneda, setSearchMoneda] = useState('');
+  const [errors, setErrors] = useState<FormErrors>({});
+  const [showPlatformSearch, setShowPlatformSearch] = useState(false);
+  const [showCurrencySearch, setShowCurrencySearch] = useState(false);
+
+  // Animation values
+  const slideAnim = React.useRef(new Animated.Value(SCREEN_HEIGHT)).current;
+  const fadeAnim = React.useRef(new Animated.Value(0)).current;
+  const scaleAnim = React.useRef(new Animated.Value(0.95)).current;
+
+  // Debounced search
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [debouncedSearchMoneda, setDebouncedSearchMoneda] = useState('');
 
   useEffect(() => {
-    const fetchPlataformas = async () => {
-      if (!visible) return;
-  
-      setLoadingPlataformas(true);
-      try {
-        const token = await AsyncStorage.getItem("authToken");
-        const res = await fetch(`${API_BASE_URL}/plataformas-recurrentes`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-        });
-  
-        const data = await res.json();
-  
-        if (!Array.isArray(data)) {
-          Toast.show({ 
-            type: 'error', 
-            text1: 'Error al cargar plataformas', 
-            text2: 'Formato de respuesta inesperado.' 
-          });
-          setPlataformas([]);
-        } else {
-          setPlataformas(data);
-        }
-      } catch (error) {
-        Toast.show({ 
-          type: 'error', 
-          text1: 'Error al cargar plataformas', 
-          text2: 'Revisa tu conexión o intenta más tarde.' 
-        });
-        setPlataformas([]);
-      } finally {
-        setLoadingPlataformas(false);
-      }
-    };
-  
-    fetchPlataformas();
+    const timer = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearchMoneda(searchMoneda), 300);
+    return () => clearTimeout(timer);
+  }, [searchMoneda]);
+
+  // Animation effects
+  useEffect(() => {
+    if (visible) {
+      Animated.parallel([
+        Animated.spring(slideAnim, {
+          toValue: 0,
+          useNativeDriver: true,
+          tension: 100,
+          friction: 8,
+        }),
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.spring(scaleAnim, {
+          toValue: 1,
+          useNativeDriver: true,
+          tension: 100,
+          friction: 8,
+        }),
+      ]).start();
+    } else {
+      Animated.parallel([
+        Animated.timing(slideAnim, {
+          toValue: SCREEN_HEIGHT,
+          duration: 250,
+          useNativeDriver: true,
+        }),
+        Animated.timing(fadeAnim, {
+          toValue: 0,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+        Animated.timing(scaleAnim, {
+          toValue: 0.95,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
   }, [visible]);
 
-  const toggleRecordatorio = (valor: string) => {
-    setRecordatorios((prev) =>
-      prev.includes(valor) ? prev.filter((v) => v !== valor) : [...prev, valor]
-    );
-  };
-
-  const handleGuardar = async () => {
-    const diasFinal = frecuenciaSeleccionada === 'custom' ? Number(frecuenciaDias) : Number(frecuenciaSeleccionada);
+  // Data fetching
+  const fetchData = useCallback(async () => {
+    if (!visible) return;
   
-    if (!nombre || !plataforma || !monto || !diasFinal) {
+    const token = await AsyncStorage.getItem('authToken');
+    if (!token) {
       Toast.show({
         type: 'error',
-        text1: 'Faltan campos',
-        text2: 'Completa todos los campos requeridos.',
+        text1: 'Sesión expirada',
+        text2: 'Inicia sesión nuevamente',
       });
       return;
     }
   
-    const payload = {
+    const headers = {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    };
+  
+    // Cargar plataformas
+    setLoadingPlataformas(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/plataformas-recurrentes`, { headers });
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        setPlataformas(data);
+      } else {
+        throw new Error('Formato de respuesta inválido');
+      }
+    } catch (error) {
+      Toast.show({
+        type: 'error',
+        text1: 'Error al cargar plataformas',
+        text2: 'Verifica tu conexión e intenta de nuevo',
+      });
+      setPlataformas([]);
+    } finally {
+      setLoadingPlataformas(false);
+    }
+  
+    // Cargar monedas
+    setLoadingMonedas(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/monedas`, { headers });
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        setMonedasDisponibles(data);
+      } else {
+        throw new Error('Formato de monedas inválido');
+      }
+    } catch (error) {
+      Toast.show({
+        type: 'error',
+        text1: 'Error al cargar monedas',
+        text2: 'No se pudieron obtener las monedas disponibles',
+      });
+      setMonedasDisponibles([]);
+    } finally {
+      setLoadingMonedas(false);
+    }
+  }, [visible]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  // Filtered data
+  const filteredPlataformas = useMemo(() => {
+    return plataformas.filter((p) =>
+      p.nombre.toLowerCase().includes(debouncedSearch.toLowerCase())
+    );
+  }, [plataformas, debouncedSearch]);
+
+  const filteredMonedas = useMemo(() => {
+    return monedasDisponibles.filter((m) =>
+      m.nombre.toLowerCase().includes(debouncedSearchMoneda.toLowerCase()) ||
+      m.codigo.toLowerCase().includes(debouncedSearchMoneda.toLowerCase())
+    );
+  }, [monedasDisponibles, debouncedSearchMoneda]);
+
+  // Event handlers
+  const handleClose = useCallback(() => {
+    Keyboard.dismiss();
+    onClose();
+  }, [onClose]);
+
+  const handleMontoChange = useCallback((text: string) => {
+    // Remove non-numeric characters except decimal point
+    const numericText = text.replace(/[^0-9.]/g, '');
+
+    // Ensure only one decimal point
+    const parts = numericText.split('.');
+    if (parts.length > 2) {
+      return;
+    }
+
+    // Limit decimal places to 2
+    if (parts[1] && parts[1].length > 2) {
+      return;
+    }
+
+    setMonto(numericText);
+    if (errors.monto) {
+      setErrors(prev => ({ ...prev, monto: undefined }));
+    }
+  }, [errors.monto]);
+
+  const toggleRecordatorio = useCallback((valor: string) => {
+    setRecordatorios((prev) =>
+      prev.includes(valor) ? prev.filter((v) => v !== valor) : [...prev, valor]
+    );
+  }, []);
+
+  const handleFrecuenciaChange = useCallback((tipo: typeof frecuenciaTipo) => {
+    setFrecuenciaTipo(tipo);
+    setFrecuenciaValor('');
+    if (errors.frecuencia) {
+      setErrors(prev => ({ ...prev, frecuencia: undefined }));
+    }
+  }, [errors.frecuencia]);
+
+  const handlePlatformSelect = useCallback((platform: any) => {
+    setPlataforma(platform);
+    setShowPlatformSearch(false);
+    setSearch('');
+    if (errors.plataforma) {
+      setErrors(prev => ({ ...prev, plataforma: undefined }));
+    }
+  }, [errors.plataforma]);
+
+  const handleCurrencySelect = useCallback((currency: any) => {
+    setMoneda(currency.codigo);
+    setShowCurrencySearch(false);
+    setSearchMoneda('');
+    if (errors.moneda) {
+      setErrors(prev => ({ ...prev, moneda: undefined }));
+    }
+  }, [errors.moneda]);
+
+  const resetForm = useCallback(() => {
+    setNombre('');
+    setPlataforma(null);
+    setMonto('');
+    setFrecuenciaTipo('dia_semana');
+    setFrecuenciaValor('');
+    setRecordatorios([]);
+    setMoneda('USD');
+    setAfectaCuentaPrincipal(true);
+    setAfectaSubcuenta(false);
+    setSearch('');
+    setSearchMoneda('');
+    setErrors({});
+    setShowPlatformSearch(false);
+    setShowCurrencySearch(false);
+  }, []);
+
+  const handleGuardar = async () => {
+    if (!nombre || !plataforma || !frecuenciaTipo || !frecuenciaValor || !moneda || !monto) {
+      Toast.show({
+        type: 'error',
+        text1: 'Completa todos los campos obligatorios',
+      });
+      return;
+    }
+  
+    const payload: any = {
       nombre,
-      plataforma: {
-        plataformaId: plataforma.plataformaId,
-        nombre: plataforma.nombre,
-        color: plataforma.color,
-        categoria: plataforma.categoria,
-      },
-      frecuenciaDias: diasFinal,
-      monto: Number(monto),
+      plataforma,
+      frecuenciaTipo,
+      frecuenciaValor,
+      monto: parseFloat(monto),
+      moneda,
       afectaCuentaPrincipal,
       afectaSubcuenta,
       cuentaId,
-      subcuentaId: subcuentaId || null,
-      userId: userId || null,
-      recordatorios: recordatorios.map((r) => parseInt(r)),
+      recordatorios,
     };
   
-    console.log('📤 Enviando recurrente con payload:', JSON.stringify(payload, null, 2));
+    if (afectaSubcuenta && subcuentaId) {
+      payload.subcuentaId = subcuentaId;
+    }
   
     try {
-      const token = await AsyncStorage.getItem("authToken");
+      setLoading(true);
   
+      const token = await AsyncStorage.getItem('authToken');
       if (!token) {
         Toast.show({
           type: 'error',
-          text1: 'Token inválido',
-          text2: 'Inicia sesión nuevamente.',
+          text1: 'Sesión expirada',
+          text2: 'Inicia sesión nuevamente',
         });
+        setLoading(false);
         return;
       }
   
       const res = await fetch(`${API_BASE_URL}/recurrentes`, {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(payload),
       });
   
-      const json = await res.json();
+      const data = await res.json();
   
       if (!res.ok) {
-        Toast.show({
-          type: 'error',
-          text1: 'Error al guardar',
-          text2: json.message || 'Intenta más tarde.',
-        });
-        return;
+        throw new Error(data.message || 'Error al guardar el recurrente');
       }
   
       Toast.show({
         type: 'success',
-        text1: 'Recurrente guardado',
-        text2: 'El recurrente fue creado correctamente.',
+        text1: 'Recurrente guardado con éxito',
       });
   
-      onSubmit(json);
+      resetForm();
       onClose();
-      setNombre('');
-      setMonto('');
-      setRecordatorios([]);
-      setPlataforma(null);
-      setFrecuenciaSeleccionada('30');
-      setFrecuenciaDias('');
-    } catch (err) {
+      onSubmit(data);
+    } catch (error: any) {
       Toast.show({
         type: 'error',
-        text1: 'Error de red',
-        text2: 'No se pudo conectar con el servidor.',
+        text1: 'Error',
+        text2: error.message,
       });
+    } finally {
+      setLoading(false);
     }
   };
 
-  return (
-    <Modal visible={visible} animationType="slide" transparent>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.overlay}
+  // Render helpers
+  const renderError = (error?: string) => {
+    if (!error) return null;
+    return (
+      <Animated.View
+        style={[styles.errorContainer, { opacity: fadeAnim }]}
       >
-        <Pressable style={styles.overlay} onPress={onClose} />
-        <View style={styles.modal}>
-          <View style={styles.dragIndicator} />
-          <View style={styles.header}>
-            <Text style={styles.title}>Nuevo Recurrente</Text>
-            <TouchableOpacity onPress={onClose}>
-              <Ionicons name="close" size={24} color="#333" />
-            </TouchableOpacity>
-          </View>
+        <Ionicons name="alert-circle" size={16} color="#ef4444" />
+        <Text style={styles.errorText}>{error}</Text>
+      </Animated.View>
+    );
+  };
 
-          <ScrollView showsVerticalScrollIndicator={false}>
-            <Text style={styles.label}>Nombre</Text>
-            <TextInput
-              style={styles.input}
-              value={nombre}
-              onChangeText={setNombre}
-              placeholder="Ej. Spotify Premium"
+  const renderLoadingSkeleton = (height: number = 50) => (
+    <View style={[styles.skeletonContainer, { height }]}>
+      <Animated.View style={[styles.skeleton, { opacity: fadeAnim }]} />
+    </View>
+  );
+
+  const renderPlatformItem = ({ item: platform }: { item: any }) => (
+    <TouchableOpacity
+      key={platform.plataformaId}
+      onPress={() => handlePlatformSelect(platform)}
+      style={[
+        styles.listItem,
+        plataforma?.plataformaId === platform.plataformaId && styles.listItemSelected,
+      ]}
+      activeOpacity={0.7}
+    >
+      <View style={styles.listItemContent}>
+        <View style={[styles.colorIndicator, { backgroundColor: platform.color }]} />
+        <View style={styles.listItemTextContainer}>
+          <Text style={styles.listItemTitle}>{platform.nombre}</Text>
+          <Text style={styles.listItemSubtitle}>{platform.categoria}</Text>
+        </View>
+        {plataforma?.plataformaId === platform.plataformaId && (
+          <Ionicons name="checkmark-circle" size={20} color="#f59e0b" />
+        )}
+      </View>
+    </TouchableOpacity>
+  );
+
+  const renderCurrencyItem = ({ item: currency }: { item: any }) => (
+    <TouchableOpacity
+      key={currency.codigo}
+      onPress={() => handleCurrencySelect(currency)}
+      style={[
+        styles.listItem,
+        moneda === currency.codigo && styles.listItemSelected,
+      ]}
+      activeOpacity={0.7}
+    >
+      <View style={styles.listItemContent}>
+        <View style={styles.currencyIcon}>
+          <Text style={styles.currencySymbol}>{currency.simbolo}</Text>
+        </View>
+        <View style={styles.listItemTextContainer}>
+          <Text style={styles.listItemTitle}>{currency.nombre}</Text>
+          <Text style={styles.listItemSubtitle}>{currency.codigo}</Text>
+        </View>
+        {moneda === currency.codigo && (
+          <Ionicons name="checkmark-circle" size={20} color="#f59e0b" />
+        )}
+      </View>
+    </TouchableOpacity>
+  );
+
+  const renderFrequencySelector = () => {
+    const frequencies = [
+      { label: 'Semanal', tipo: 'dia_semana', icon: 'calendar-outline' },
+      { label: 'Mensual', tipo: 'dia_mes', icon: 'calendar' },
+      { label: 'Anual', tipo: 'fecha_fija', icon: 'calendar-sharp' },
+    ];
+
+    return (
+      <View style={styles.chipContainer}>
+        {frequencies.map((freq) => (
+          <TouchableOpacity
+            key={freq.tipo}
+            onPress={() => handleFrecuenciaChange(freq.tipo as any)}
+            style={[
+              styles.chip,
+              frecuenciaTipo === freq.tipo && styles.chipSelected,
+            ]}
+            activeOpacity={0.8}
+          >
+            <Ionicons
+              name={freq.icon as any}
+              size={16}
+              color={frecuenciaTipo === freq.tipo ? '#ffffff' : '#64748b'}
+              style={styles.chipIcon}
             />
+            <Text
+              style={[
+                styles.chipText,
+                frecuenciaTipo === freq.tipo && styles.chipTextSelected,
+              ]}
+            >
+              {freq.label}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+    );
+  };
 
-            <Text style={styles.label}>Plataforma</Text>
-            <View style={[styles.input, { padding: 0 }]}>
-              <TextInput
-                placeholder="Buscar plataforma..."
-                placeholderTextColor="#64748b"
-                style={{ paddingHorizontal: 12, paddingVertical: 10, color: '#0f172a' }}
-                value={search}
-                onChangeText={setSearch}
-              />
-              <ScrollView style={{ maxHeight: 120 }}>
-                {plataformas
-                  .filter((p) =>
-                    p.nombre.toLowerCase().includes(search.toLowerCase())
-                  )
-                  .map((p) => (
+  if (!visible) return null;
+
+  return (
+    <Modal visible={visible} animationType="none" transparent statusBarTranslucent>
+      <View style={styles.overlay}>
+        <Animated.View style={[styles.backdrop, { opacity: fadeAnim }]}>
+          <Pressable style={StyleSheet.absoluteFillObject} onPress={handleClose} />
+        </Animated.View>
+
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.keyboardAvoid}
+        >
+          <Animated.View
+            style={[
+              styles.modal,
+              {
+                transform: [
+                  { translateY: slideAnim },
+                  { scale: scaleAnim }
+                ],
+              },
+            ]}
+          >
+            <View style={styles.dragIndicator} />
+
+            <View style={styles.header}>
+              <Text style={styles.title}>Nuevo Recurrente</Text>
+              <TouchableOpacity onPress={handleClose} style={styles.closeButton} activeOpacity={0.7}>
+                <Ionicons name="close" size={24} color="#64748b" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              style={styles.scrollView}
+              contentContainerStyle={styles.scrollContent}
+              keyboardShouldPersistTaps="handled"
+            >
+              {/* Name Input */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Nombre del Recurrente</Text>
+                <TextInput
+                  style={[styles.input, errors.nombre && styles.inputError]}
+                  value={nombre}
+                  onChangeText={(text) => {
+                    setNombre(text);
+                    if (errors.nombre) {
+                      setErrors(prev => ({ ...prev, nombre: undefined }));
+                    }
+                  }}
+                  placeholder="Ej. Spotify Premium, Netflix, Gym..."
+                  placeholderTextColor="#94a3b8"
+                  maxLength={50}
+                />
+                {renderError(errors.nombre)}
+              </View>
+
+              {/* Platform Selection */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Plataforma</Text>
+                <TouchableOpacity
+                  style={[styles.selectorButton, errors.plataforma && styles.inputError]}
+                  onPress={() => setShowPlatformSearch(!showPlatformSearch)}
+                  activeOpacity={0.8}
+                >
+                  {plataforma ? (
+                    <View style={styles.selectedItemContainer}>
+                      <View style={[styles.colorIndicator, { backgroundColor: plataforma.color }]} />
+                      <Text style={styles.selectedItemText}>{plataforma.nombre}</Text>
+                    </View>
+                  ) : (
+                    <Text style={styles.placeholderText}>Selecciona una plataforma</Text>
+                  )}
+                  <Ionicons
+                    name={showPlatformSearch ? 'chevron-up' : 'chevron-down'}
+                    size={20}
+                    color="#64748b"
+                  />
+                </TouchableOpacity>
+                {renderError(errors.plataforma)}
+
+                {showPlatformSearch && (
+                  <View style={styles.searchContainer}>
+                    <View style={styles.searchInputContainer}>
+                      <Ionicons name="search" size={20} color="#64748b" style={styles.searchIcon} />
+                      <TextInput
+                        style={styles.searchInput}
+                        value={search}
+                        onChangeText={setSearch}
+                        placeholder="Buscar plataforma..."
+                        placeholderTextColor="#94a3b8"
+                      />
+                    </View>
+
+                    <ScrollView style={styles.listContainer} nestedScrollEnabled>
+                      {loadingPlataformas ? (
+                        <>
+                          {renderLoadingSkeleton()}
+                          {renderLoadingSkeleton()}
+                          {renderLoadingSkeleton()}
+                        </>
+                      ) : filteredPlataformas.length > 0 ? (
+                        filteredPlataformas.map((platform) => renderPlatformItem({ item: platform }))
+                      ) : (
+                        <View style={styles.emptyState}>
+                          <Ionicons name="search" size={48} color="#cbd5e1" />
+                          <Text style={styles.emptyStateText}>No se encontraron plataformas</Text>
+                          <Text style={styles.emptyStateSubtext}>Intenta con otro término de búsqueda</Text>
+                        </View>
+                      )}
+                    </ScrollView>
+                  </View>
+                )}
+              </View>
+
+              {/* Currency Selection */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Moneda</Text>
+                <TouchableOpacity
+                  style={[styles.selectorButton, errors.moneda && styles.inputError]}
+                  onPress={() => setShowCurrencySearch(!showCurrencySearch)}
+                  activeOpacity={0.8}
+                >
+                  {moneda ? (
+                    <View style={styles.selectedItemContainer}>
+                      {monedasDisponibles.find(m => m.codigo === moneda) && (
+                        <>
+                          <View style={styles.currencyIcon}>
+                            <Text style={styles.currencySymbol}>
+                              {monedasDisponibles.find(m => m.codigo === moneda)?.simbolo}
+                            </Text>
+                          </View>
+                          <Text style={styles.selectedItemText}>
+                            {monedasDisponibles.find(m => m.codigo === moneda)?.nombre} ({moneda})
+                          </Text>
+                        </>
+                      )}
+                    </View>
+                  ) : (
+                    <Text style={styles.placeholderText}>Selecciona una moneda</Text>
+                  )}
+                  <Ionicons
+                    name={showCurrencySearch ? 'chevron-up' : 'chevron-down'}
+                    size={20}
+                    color="#64748b"
+                  />
+                </TouchableOpacity>
+                {renderError(errors.moneda)}
+
+                {showCurrencySearch && (
+                  <View style={styles.searchContainer}>
+                    <View style={styles.searchInputContainer}>
+                      <Ionicons name="search" size={20} color="#64748b" style={styles.searchIcon} />
+                      <TextInput
+                        style={styles.searchInput}
+                        value={searchMoneda}
+                        onChangeText={setSearchMoneda}
+                        placeholder="Buscar moneda..."
+                        placeholderTextColor="#94a3b8"
+                      />
+                    </View>
+
+                    <ScrollView style={styles.listContainer} nestedScrollEnabled>
+                      {loadingMonedas ? (
+                        <>
+                          {renderLoadingSkeleton()}
+                          {renderLoadingSkeleton()}
+                          {renderLoadingSkeleton()}
+                        </>
+                      ) : filteredMonedas.length > 0 ? (
+                        filteredMonedas.map((currency) => renderCurrencyItem({ item: currency }))
+                      ) : (
+                        <View style={styles.emptyState}>
+                          <Ionicons name="card" size={48} color="#cbd5e1" />
+                          <Text style={styles.emptyStateText}>No se encontraron monedas</Text>
+                          <Text style={styles.emptyStateSubtext}>Intenta con otro término de búsqueda</Text>
+                        </View>
+                      )}
+                    </ScrollView>
+                  </View>
+                )}
+              </View>
+
+              {/* Amount Input */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Monto</Text>
+                <View style={styles.amountContainer}>
+                  <View style={styles.currencyPrefix}>
+                    <Text style={styles.currencyPrefixText}>
+                      {monedasDisponibles.find(m => m.codigo === moneda)?.simbolo || '$'}
+                    </Text>
+                  </View>
+                  <TextInput
+                    style={[styles.amountInput, errors.monto && styles.inputError]}
+                    value={monto}
+                    onChangeText={handleMontoChange}
+                    keyboardType="decimal-pad"
+                    placeholder="0.00"
+                    placeholderTextColor="#94a3b8"
+                  />
+                </View>
+                {renderError(errors.monto)}
+              </View>
+
+              {/* Frequency Selection */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Frecuencia</Text>
+                {renderFrequencySelector()}
+                {renderError(errors.frecuencia)}
+
+                {/* Frequency Value Selection */}
+                {frecuenciaTipo === 'dia_semana' && (
+                  <View style={styles.chipContainer}>
+                    {['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'].map((day, index) => (
+                      <TouchableOpacity
+                        key={index}
+                        onPress={() => setFrecuenciaValor(String(index))}
+                        style={[
+                          styles.dayChip,
+                          frecuenciaValor === String(index) && styles.chipSelected,
+                        ]}
+                        activeOpacity={0.8}
+                      >
+                        <Text
+                          style={[
+                            styles.chipText,
+                            frecuenciaValor === String(index) && styles.chipTextSelected,
+                          ]}
+                        >
+                          {day}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
+
+                {frecuenciaTipo === 'dia_mes' && (
+                  <View style={styles.chipContainer}>
+                    {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => (
+                      <TouchableOpacity
+                        key={day}
+                        onPress={() => setFrecuenciaValor(String(day))}
+                        style={[
+                          styles.dayChip,
+                          frecuenciaValor === String(day) && styles.chipSelected,
+                        ]}
+                        activeOpacity={0.8}
+                      >
+                        <Text
+                          style={[
+                            styles.chipText,
+                            frecuenciaValor === String(day) && styles.chipTextSelected,
+                          ]}
+                        >
+                          {day}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
+
+                {frecuenciaTipo === 'fecha_fija' && (
+                  <>
+                    <Text style={styles.subLabel}>Selecciona el mes</Text>
+                    <View style={styles.chipContainer}>
+                      {[
+                        'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun',
+                        'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'
+                      ].map((mes, index) => (
+                        <TouchableOpacity
+                          key={mes}
+                          onPress={() => setFrecuenciaValor(`${index + 1}-1`)}
+                          style={[
+                            styles.chip,
+                            frecuenciaValor.startsWith(`${index + 1}-`) && styles.chipSelected,
+                          ]}
+                          activeOpacity={0.8}
+                        >
+                          <Text
+                            style={[
+                              styles.chipText,
+                              frecuenciaValor.startsWith(`${index + 1}-`) && styles.chipTextSelected,
+                            ]}
+                          >
+                            {mes}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+
+                    {frecuenciaValor.includes('-') && (
+                      <>
+                        <Text style={styles.subLabel}>Selecciona el día</Text>
+                        <View style={styles.chipContainer}>
+                          {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => {
+                            const [mes] = frecuenciaValor.split('-');
+                            const nuevaFecha = `${mes}-${day}`;
+                            return (
+                              <TouchableOpacity
+                                key={day}
+                                onPress={() => setFrecuenciaValor(nuevaFecha)}
+                                style={[
+                                  styles.dayChip,
+                                  frecuenciaValor === nuevaFecha && styles.chipSelected,
+                                ]}
+                                activeOpacity={0.8}
+                              >
+                                <Text
+                                  style={[
+                                    styles.chipText,
+                                    frecuenciaValor === nuevaFecha && styles.chipTextSelected,
+                                  ]}
+                                >
+                                  {day}
+                                </Text>
+                              </TouchableOpacity>
+                            );
+                          })}
+                        </View>
+                      </>
+                    )}
+                  </>
+                )}
+              </View>
+
+              {/* Reminders */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Recordatorios</Text>
+                <Text style={styles.description}>Te notificaremos antes del próximo pago</Text>
+                <View style={styles.chipContainer}>
+                  {[
+                    { value: '1', label: '1 día antes' },
+                    { value: '3', label: '3 días antes' },
+                    { value: '7', label: '1 semana antes' },
+                  ].map((reminder) => (
                     <TouchableOpacity
-                      key={p.plataformaId}
-                      onPress={() => {
-                        if (plataforma?.plataformaId === p.plataformaId) {
-                          setPlataforma(null);
-                        } else {
-                          setPlataforma(p);
-                        }
-                      }}
-                      style={{
-                        paddingVertical: 8,
-                        paddingHorizontal: 12,
-                        borderRadius: 12,
-                        backgroundColor:
-                          plataforma?.plataformaId === p.plataformaId ? '#FEF2F2' : 'transparent',
-                      }}
+                      key={reminder.value}
+                      onPress={() => toggleRecordatorio(reminder.value)}
+                      style={[
+                        styles.chip,
+                        recordatorios.includes(reminder.value) && styles.chipSelected,
+                      ]}
+                      activeOpacity={0.8}
                     >
-                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                        <View
-                          style={{
-                            width: 12,
-                            height: 12,
-                            borderRadius: 6,
-                            backgroundColor: p.color,
-                            marginRight: 8,
-                          }}
-                        />
-                        <Text style={{ color: '#0f172a' }}>{p.nombre}</Text>
-                        {plataforma?.plataformaId === p.plataformaId && (
-                          <Ionicons name="checkmark-circle" size={16} color="#F59E0B" style={{ marginLeft: 6 }} />
-                        )}
-                      </View>
+                      <Ionicons
+                        name="notifications-outline"
+                        size={16}
+                        color={recordatorios.includes(reminder.value) ? '#ffffff' : '#64748b'}
+                        style={styles.chipIcon}
+                      />
+                      <Text
+                        style={[
+                          styles.chipText,
+                          recordatorios.includes(reminder.value) && styles.chipTextSelected,
+                        ]}
+                      >
+                        {reminder.label}
+                      </Text>
                     </TouchableOpacity>
                   ))}
-              </ScrollView>
-            </View>
-
-            <Text style={styles.label}>Monto</Text>
-            <TextInput
-              style={styles.input}
-              value={monto}
-              onChangeText={setMonto}
-              keyboardType="numeric"
-              placeholder="$0.00"
-            />
-
-            <Text style={styles.label}>Frecuencia</Text>
-            <View style={styles.recordatorioContainer}>
-              {[
-                { label: 'Semanal', days: '7' },
-                { label: 'Quincenal', days: '15' },
-                { label: 'Mensual', days: '30' },
-                { label: 'Personalizado', days: 'custom' },
-              ].map((f) => (
-                <TouchableOpacity
-                  key={f.label}
-                  onPress={() => {
-                    setFrecuenciaSeleccionada(f.days);
-                    if (f.days !== 'custom') setFrecuenciaDias('');
-                  }}
-                  style={[
-                    styles.recordatorioChip,
-                    frecuenciaSeleccionada === f.days && styles.recordatorioChipSelected,
-                  ]}
-                >
-                  <Text
-                    style={
-                      frecuenciaSeleccionada === f.days
-                        ? styles.chipTextSelected
-                        : styles.chipText
-                    }
-                  >
-                    {f.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            {frecuenciaSeleccionada === 'custom' && (
-              <TextInput
-                style={styles.input}
-                value={frecuenciaDias}
-                onChangeText={setFrecuenciaDias}
-                keyboardType="numeric"
-                placeholder="Ingresa días personalizados"
-              />
-            )}
-
-            <Text style={styles.label}>Recordatorios</Text>
-            <View style={styles.recordatorioContainer}>
-              {['1', '3', '7'].map((r) => (
-                <TouchableOpacity
-                  key={r}
-                  onPress={() => toggleRecordatorio(r)}
-                  style={[
-                    styles.recordatorioChip,
-                    recordatorios.includes(r) && styles.recordatorioChipSelected,
-                  ]}
-                >
-                  <Text
-                    style={
-                      recordatorios.includes(r)
-                        ? styles.chipTextSelected
-                        : styles.chipText
-                    }
-                  >
-                    {r} días antes
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            { !subcuentaId && (
-              <View style={styles.switchContainer}>
-                <Text style={styles.switchLabel}>Afecta cuenta principal</Text>
-                <Switch
-                  value={afectaCuentaPrincipal}
-                  onValueChange={setAfectaCuentaPrincipal}
-                />
+                </View>
               </View>
-            )}
 
-            { subcuentaId && (
-              <View style={styles.switchContainer}>
-                <Text style={styles.switchLabel}>Afecta subcuenta</Text>
-                <Switch
-                  value={afectaSubcuenta}
-                  onValueChange={setAfectaSubcuenta}
-                />
+              {/* Account Settings */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Configuración de Cuenta</Text>
+
+                {!subcuentaId && (
+                  <View style={styles.switchRow}>
+                    <View style={styles.switchLabelContainer}>
+                      <Text style={styles.switchLabel}>Afectar cuenta principal</Text>
+                      <Text style={styles.switchDescription}>El monto se descontará de la cuenta principal</Text>
+                    </View>
+                    <Switch
+                      value={afectaCuentaPrincipal}
+                      onValueChange={setAfectaCuentaPrincipal}
+                      trackColor={{ false: '#e2e8f0', true: '#f59e0b' }}
+                      thumbColor={afectaCuentaPrincipal ? '#ffffff' : '#f1f5f9'}
+                    />
+                  </View>
+                )}
+
+                {subcuentaId && (
+                  <View style={styles.switchRow}>
+                    <View style={styles.switchLabelContainer}>
+                      <Text style={styles.switchLabel}>Afectar subcuenta</Text>
+                      <Text style={styles.switchDescription}>El monto se descontará de la subcuenta seleccionada</Text>
+                    </View>
+                    <Switch
+                      value={afectaSubcuenta}
+                      onValueChange={setAfectaSubcuenta}
+                      trackColor={{ false: '#e2e8f0', true: '#f59e0b' }}
+                      thumbColor={afectaSubcuenta ? '#ffffff' : '#f1f5f9'}
+                    />
+                  </View>
+                )}
               </View>
-            )}
-          </ScrollView>
+            </ScrollView>
 
-          <TouchableOpacity style={styles.saveButton} onPress={handleGuardar}>
-            <Text style={styles.saveButtonText}>Guardar</Text>
-          </TouchableOpacity>
-        </View>
-      </KeyboardAvoidingView>
+            {/* Action Buttons */}
+            <View style={styles.actionContainer}>
+              <TouchableOpacity
+                style={styles.cancelButton}
+                onPress={handleClose}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.cancelButtonText}>Cancelar</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.saveButton, saving && styles.saveButtonDisabled]}
+                onPress={handleGuardar}
+                disabled={saving}
+                activeOpacity={0.8}
+              >
+                {saving ? (
+                  <ActivityIndicator size="small" color="#ffffff" />
+                ) : (
+                  <>
+                    <Ionicons name="checkmark" size={20} color="#ffffff" style={styles.saveButtonIcon} />
+                    <Text style={styles.saveButtonText}>Guardar</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          </Animated.View>
+        </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 };
-
-export default RecurrentModal;
 
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
     justifyContent: 'flex-end',
   },
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+  },
+  keyboardAvoid: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
   modal: {
-    backgroundColor: '#f8fafc',
-    borderTopLeftRadius: 30,
-    borderTopRightRadius: 30,
-    padding: 20,
-    maxHeight: '95%',
+    backgroundColor: '#ffffff',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    maxHeight: SCREEN_HEIGHT * 0.95,
+    minHeight: SCREEN_HEIGHT * 0.6,
+    paddingTop: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -8 },
+    shadowOpacity: 0.08,
+    shadowRadius: 20,
+    elevation: 10,
   },
   dragIndicator: {
-    width: 60,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#cbd5e1',
+    width: 44,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#e2e8f0',
     alignSelf: 'center',
-    marginBottom: 10,
+    marginBottom: 14,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
   },
   title: {
     fontSize: 20,
-    fontWeight: '600',
-    color: '#1e293b',
+    fontWeight: '700',
+    color: '#0f172a',
+    letterSpacing: -0.3,
+  },
+  closeButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#f8fafc',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+  },
+  inputGroup: {
+    marginBottom: 22,
   },
   label: {
-    marginTop: 10,
-    marginBottom: 5,
-    color: '#475569',
-    fontSize: 14,
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#334155',
+    marginBottom: 8,
+  },
+  subLabel: {
+    fontSize: 13,
     fontWeight: '500',
+    color: '#64748b',
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  description: {
+    fontSize: 13,
+    color: '#64748b',
+    marginBottom: 10,
+    lineHeight: 18,
   },
   input: {
-    backgroundColor: '#e2e8f0',
-    borderRadius: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 15,
-    fontSize: 16,
+    backgroundColor: '#f8fafc',
+    borderWidth: 1.5,
+    borderColor: '#e2e8f0',
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    fontSize: 14,
     color: '#0f172a',
-    marginBottom: 8,
-  },
-  picker: {
-    backgroundColor: '#e2e8f0',
-    borderRadius: 12,
-    overflow: 'hidden',
-    marginBottom: 8,
-  },
-  recordatorioContainer: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 12,
-    flexWrap: 'wrap',
-  },
-  recordatorioChip: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 20,
-    backgroundColor: '#cbd5e1',
-  },
-  recordatorioChipSelected: {
-    backgroundColor: '#F59E0B',
-  },
-  chipText: {
-    color: '#1e293b',
     fontWeight: '500',
   },
-  chipTextSelected: {
-    color: '#f0f9ff',
-    fontWeight: '600',
+  inputError: {
+    borderColor: '#ef4444',
+    backgroundColor: '#fef2f2',
   },
-  switchContainer: {
+  selectorButton: {
+    backgroundColor: '#f8fafc',
+    borderWidth: 1.5,
+    borderColor: '#e2e8f0',
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  selectedItemContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    flex: 1,
+  },
+  selectedItemText: {
+    fontSize: 14,
+    color: '#0f172a',
+    fontWeight: '500',
+    marginLeft: 10,
+  },
+  placeholderText: {
+    fontSize: 14,
+    color: '#94a3b8',
+  },
+  colorIndicator: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    marginRight: 6,
+  },
+  currencyIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#f1f5f9',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 6,
+  },
+  currencySymbol: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  searchContainer: {
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 14,
+    backgroundColor: '#ffffff',
+    maxHeight: 280,
+  },
+  searchInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+  },
+  searchIcon: {
+    marginRight: 8,
+    color: '#64748b',
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    color: '#0f172a',
+  },
+  listContainer: {
+    maxHeight: 200,
+  },
+  listItem: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+  listItemSelected: {
+    backgroundColor: '#f0fdf4',
+  },
+  listItemContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  listItemTextContainer: {
+    flex: 1,
+    marginLeft: 10,
+  },
+  listItemTitle: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#0f172a',
+    marginBottom: 1,
+  },
+  listItemSubtitle: {
+    fontSize: 12,
+    color: '#64748b',
+  },
+  emptyState: {
+    padding: 36,
+    alignItems: 'center',
+  },
+  emptyStateText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#64748b',
+    marginTop: 10,
+    marginBottom: 2,
+  },
+  emptyStateSubtext: {
+    fontSize: 12,
+    color: '#94a3b8',
+    textAlign: 'center',
+  },
+  amountContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8fafc',
+    borderWidth: 1.5,
+    borderColor: '#e2e8f0',
+    borderRadius: 14,
+  },
+  currencyPrefix: {
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    backgroundColor: '#e2e8f0',
+    borderRightWidth: 1,
+    borderRightColor: '#cbd5e1',
+  },
+  currencyPrefixText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  amountInput: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    fontSize: 14,
+    color: '#0f172a',
+    fontWeight: '600',
+  },
+  chipContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 10,
+  },
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    backgroundColor: '#f1f5f9',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  chipSelected: {
+    backgroundColor: '#f59e0b',
+    borderColor: '#f59e0b',
+  },
+  chipIcon: {
+    marginRight: 6,
+  },
+  chipText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#475569',
+  },
+  chipTextSelected: {
+    color: '#ffffff',
+    fontWeight: '600',
+  },
+  dayChip: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    backgroundColor: '#f1f5f9',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    minWidth: 40,
+    alignItems: 'center',
+  },
+  switchRow: {
+    flexDirection: 'row',
     justifyContent: 'space-between',
-    marginVertical: 8,
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    backgroundColor: '#f8fafc',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  switchLabelContainer: {
+    flex: 1,
+    marginRight: 12,
   },
   switchLabel: {
     fontSize: 14,
-    color: '#475569',
+    fontWeight: '500',
+    color: '#334155',
+    marginBottom: 2,
+  },
+  switchDescription: {
+    fontSize: 12,
+    color: '#64748b',
+  },
+  actionContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    paddingBottom: Platform.OS === 'ios' ? 34 : 16,
+    borderTopWidth: 1,
+    borderTopColor: '#f1f5f9',
+    gap: 12,
+    backgroundColor: '#ffffff',
+  },
+  cancelButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 14,
+    backgroundColor: '#f8fafc',
+    borderWidth: 1.5,
+    borderColor: '#e2e8f0',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cancelButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#64748b',
   },
   saveButton: {
-    marginTop: 12,
-    backgroundColor: '#F59E0B',
-    paddingVertical: 14,
-    borderRadius: 24,
+    flex: 2,
+    flexDirection: 'row',
+    paddingVertical: 12,
+    borderRadius: 14,
+    backgroundColor: '#f59e0b',
     alignItems: 'center',
+    justifyContent: 'center',
+  },
+  saveButtonDisabled: {
+    backgroundColor: '#94a3b8',
+  },
+  saveButtonIcon: {
+    marginRight: 6,
   },
   saveButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#ffffff',
+  },
+  errorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 6,
+    paddingHorizontal: 2,
+  },
+  errorText: {
+    fontSize: 13,
+    color: '#ef4444',
+    marginLeft: 4,
+    fontWeight: '500',
+  },
+  skeletonContainer: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+  },
+  skeleton: {
+    backgroundColor: '#e2e8f0',
+    borderRadius: 6,
+    height: 18,
   },
 });
+
+export default RecurrentModal;
