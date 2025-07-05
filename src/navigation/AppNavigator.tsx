@@ -6,6 +6,7 @@ import RegisterScreen from '../screens/RegisterScreen';
 import ForgotPasswordScreen from '../screens/ForgotPasswordScreen';
 import DashboardScreen from '../screens/DashboardScreen';
 import SubaccountDetail from '../screens/SubaccountDetail';
+import RecurrenteDetail from '../screens/RecurrentDetail';
 
 export type Subcuenta = {
   _id: string;
@@ -26,6 +27,7 @@ export type RootStackParamList = {
   ForgotPassword: undefined;
   Dashboard: { updated?: boolean } | undefined;
   SubaccountDetail: { subcuenta: Subcuenta; onGlobalRefresh?: () => void };
+  RecurrenteDetail: { recurrente: { nombre: string; monto: number; frecuenciaDias: number; proximaEjecucion: string; plataforma?: { color: string; nombre: string; categoria: string }; afectaCuentaPrincipal: boolean; afectaSubcuenta: boolean; recordatorios?: number[] } };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -39,6 +41,7 @@ export default function AppNavigator() {
       <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
       <Stack.Screen name="Dashboard" component={DashboardScreen} />
       <Stack.Screen name="SubaccountDetail" component={SubaccountDetail} />
+      <Stack.Screen name="RecurrenteDetail" component={RecurrenteDetail} />
     </Stack.Navigator>
   );
 }

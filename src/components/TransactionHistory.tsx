@@ -5,7 +5,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { jwtDecode } from "jwt-decode";
 import { API_BASE_URL } from "../constants/api";
 import Toast from "react-native-toast-message";
-import HistorialDetalleModal from "./HistorialDetalleModal"; // asegúrate de tenerlo en tu proyecto
+import HistorialDetalleModal from "./HistorialDetalleModal";
 
 type HistorialItem = {
   id: string;
