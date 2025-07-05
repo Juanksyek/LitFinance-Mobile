@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { View, StyleSheet, ScrollView } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import DashboardHeader from "../components/DashboardHeader";
@@ -14,12 +14,14 @@ import { useFocusEffect, useRoute, useNavigation, RouteProp } from '@react-navig
 import { RootStackParamList } from '../navigation/AppNavigator';
 import { CommonActions } from '@react-navigation/native';
 import Toast from "react-native-toast-message";
+import RecurrentesList from "../components/RecurrenteList";
 
 export default function DashboardScreen() {
   const [cuentaId, setCuentaId] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [reloadTrigger, setReloadTrigger] = useState(Date.now());
   const route = useRoute<RouteProp<RootStackParamList, 'Dashboard'>>();
+  const [recurrentesFiltrados, setRecurrentesFiltrados] = useState([]);
   const navigation = useNavigation();
   const [refreshKey, setRefreshKey] = useState(Date.now());
 
@@ -64,15 +66,14 @@ export default function DashboardScreen() {
         <DashboardHeader />
       </View>
 
-      <ScrollView
-        contentContainerStyle={styles.contentContainer}
-        showsVerticalScrollIndicator={false}
-      >
+      <ScrollView contentContainerStyle={styles.contentContainer} showsVerticalScrollIndicator={false} >
         <BalanceCard reloadTrigger={reloadTrigger} />
-        {cuentaId && (
-          <ActionButtons cuentaId={cuentaId} onRefresh={handleRefresh} />
+        {cuentaId && userId && (
+          <ActionButtons cuentaId={cuentaId} userId={userId} onRefresh={handleRefresh} />
         )}
-        
+
+        {userId && <RecurrentesList userId={userId} refreshKey={reloadTrigger} />}
+
         {userId && (
           <SubaccountsList userId={userId} refreshKey={reloadTrigger} />
         )}
