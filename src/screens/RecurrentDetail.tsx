@@ -1,9 +1,10 @@
-import React from "react";
+import React, { useState } from "react";
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, StatusBar, Dimensions } from "react-native";
 import { RouteProp, useRoute, useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import RecurrentModal from "../components/RecurrentModal";
 
 const { width } = Dimensions.get('window');
 
@@ -17,6 +18,8 @@ type RecurrenteDetailRouteProp = RouteProp<{ RecurrenteDetail: { recurrente: {
   afectaCuentaPrincipal: boolean;
   afectaSubcuenta: boolean;
   recordatorios?: number[];
+  userId?: string;
+  cuentaId?: string;
 } } }, "RecurrenteDetail">;
 
 const obtenerDescripcionFrecuencia = (tipo: string, valor: string): string => {
@@ -71,7 +74,9 @@ const formatearFechaEjecucion = (isoDate: string) => {
 const RecurrenteDetail = () => {
   const route = useRoute<RecurrenteDetailRouteProp>();
   const navigation = useNavigation();
-  const { recurrente } = route.params;
+  const [recurrente, setRecurrente] = useState(route.params.recurrente);
+
+  const [modalVisible, setModalVisible] = useState(false);
 
   const formatCurrency = (amount: number, currency: string = 'MXN') => {
     return new Intl.NumberFormat('es-MX', {
@@ -208,9 +213,24 @@ const RecurrenteDetail = () => {
           </View>
 
           <View style={styles.actionSection}>
-            <ActionButton onPress={() => {}} icon="create" text="Editar" primary={true} />
+            <ActionButton onPress={() => setModalVisible(true)} icon="create" text="Editar" primary={true} />
             <ActionButton onPress={() => {}} icon="pause" text="Pausar" />
           </View>
+
+          {modalVisible && (
+            <RecurrentModal
+              visible={modalVisible}
+              onClose={() => setModalVisible(false)}
+              onSubmit={(data) => {
+                setRecurrente(data);
+                setModalVisible(false);
+              }}
+              cuentaId={recurrente.cuentaId || '0000000'}
+              userId={recurrente.userId || "0000000"}
+              plataformas={recurrente.plataforma ? [recurrente.plataforma] : []}
+              recurrenteExistente={recurrente}
+            />
+          )}
 
           <View style={styles.bottomSpacer} />
         </ScrollView>
