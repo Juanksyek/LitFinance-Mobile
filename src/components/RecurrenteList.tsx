@@ -39,14 +39,16 @@ const RecurrentesList = ({
     const [debouncedSearch, setDebouncedSearch] = useState("");
     const [hasMore, setHasMore] = useState(true);
     const [loading, setLoading] = useState(false);
-    const [internalRefresh, setInternalRefresh] = useState(0);
+
     const navigation = useNavigation<RecurrenteNavigationProp>();
 
+    // Delay para el search
     useEffect(() => {
         const timeout = setTimeout(() => setDebouncedSearch(search), 400);
         return () => clearTimeout(timeout);
     }, [search]);
 
+    // Fetch principal
     const fetchRecurrentes = async () => {
         try {
             setLoading(true);
@@ -57,10 +59,7 @@ const RecurrentesList = ({
             });
             const data = await res.json();
 
-
-            if (!Array.isArray(data.items)) {
-                return;
-            }
+            if (!Array.isArray(data.items)) return;
 
             const filtrados = esSubcuenta
                 ? data.items.filter((r: Recurrente) => r.subcuentaId === subcuentaId)
@@ -69,20 +68,22 @@ const RecurrentesList = ({
             setRecurrentes(filtrados);
             setHasMore(data.hasNextPage);
         } catch (err) {
+            console.error("Error al obtener recurrentes:", err);
         } finally {
             setLoading(false);
         }
     };
 
-
+    // Efecto principal al cambiar page o debouncedSearch
     useEffect(() => {
         fetchRecurrentes();
-    }, [page, debouncedSearch, internalRefresh]);
+    }, [page, debouncedSearch]);
 
+    // Si se pasa refreshKey (por editar o crear), se reinicia la búsqueda
     useEffect(() => {
         if (refreshKey) {
             setPage(1);
-            setInternalRefresh((prev) => prev + 1);
+            setDebouncedSearch(""); // Reiniciar búsqueda también
         }
     }, [refreshKey]);
 

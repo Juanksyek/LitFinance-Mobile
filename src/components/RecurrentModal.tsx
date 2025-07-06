@@ -5,8 +5,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { Switch } from 'react-native';
 import { API_BASE_URL } from '../constants/api';
 import Toast from "react-native-toast-message";
-
-
+import { useNavigation } from '@react-navigation/native';
+import { StackNavigationProp } from '@react-navigation/stack';
+import { RootStackParamList } from '../navigation/AppNavigator';
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
 
 interface Props {
@@ -17,6 +18,8 @@ interface Props {
   subcuentaId?: string;
   userId: string;
   plataformas: any[];
+  recurrente?: any;
+  recurrenteExistente?: any;
 }
 
 interface FormErrors {
@@ -27,7 +30,7 @@ interface FormErrors {
   moneda?: string;
 }
 
-const RecurrentModal: React.FC<Props> = ({visible, onClose, onSubmit, cuentaId, subcuentaId, userId }) => {
+const RecurrentModal: React.FC<Props> = ({ visible, onClose, onSubmit, cuentaId, subcuentaId, recurrente, recurrenteExistente }) => {
   // Form state
   const [nombre, setNombre] = useState('');
   const [plataforma, setPlataforma] = useState<any>(null);
@@ -37,9 +40,12 @@ const RecurrentModal: React.FC<Props> = ({visible, onClose, onSubmit, cuentaId, 
   const [afectaCuentaPrincipal, setAfectaCuentaPrincipal] = useState(true);
   const [afectaSubcuenta, setAfectaSubcuenta] = useState(false);
   const [recordatorios, setRecordatorios] = useState<string[]>([]);
+  const [recordatoriosSeleccionados, setRecordatoriosSeleccionados] = useState<number[]>([]);
   const [moneda, setMoneda] = useState('USD');
   const [loading, setLoading] = useState(false);
-
+  type NavigationProp = StackNavigationProp<RootStackParamList, 'Dashboard'>;
+  const navigation = useNavigation<NavigationProp>();
+  
   // Data state
   const [plataformas, setPlataformas] = useState<any[]>([]);
   const [monedasDisponibles, setMonedasDisponibles] = useState<any[]>([]);
@@ -223,11 +229,11 @@ const RecurrentModal: React.FC<Props> = ({visible, onClose, onSubmit, cuentaId, 
     }
   }, [errors.monto]);
 
-  const toggleRecordatorio = useCallback((valor: string) => {
-    setRecordatorios((prev) =>
-      prev.includes(valor) ? prev.filter((v) => v !== valor) : [...prev, valor]
+  const toggleRecordatorio = (valor: number) => {
+    setRecordatoriosSeleccionados((prev) =>
+      prev.includes(valor) ? prev.filter((r) => r !== valor) : [...prev, valor]
     );
-  }, []);
+  };
 
   const handleFrecuenciaChange = useCallback((tipo: typeof frecuenciaTipo) => {
     setFrecuenciaTipo(tipo);
@@ -291,7 +297,7 @@ const RecurrentModal: React.FC<Props> = ({visible, onClose, onSubmit, cuentaId, 
       afectaCuentaPrincipal,
       afectaSubcuenta,
       cuentaId,
-      recordatorios,
+      recordatorios: recordatoriosSeleccionados,
     };
   
     if (afectaSubcuenta && subcuentaId) {
@@ -312,24 +318,53 @@ const RecurrentModal: React.FC<Props> = ({visible, onClose, onSubmit, cuentaId, 
         return;
       }
   
-      const res = await fetch(`${API_BASE_URL}/recurrentes`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(payload),
-      });
+      // Usar recurrenteExistente si está presente, si no, usar recurrente
+      const editingRecurrente = recurrenteExistente || recurrente;
+  
+      let res;
+      if (editingRecurrente && recurrenteExistente) {
+        // Editar recurrente usando PUT y la URL con el recurrenteId
+        res = await fetch(`${API_BASE_URL}/recurrentes/${recurrenteExistente.recurrenteId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(payload),
+        });
+      } else if (editingRecurrente) {
+        // Fallback por compatibilidad
+        res = await fetch(`${API_BASE_URL}/recurrentes/${editingRecurrente._id || editingRecurrente.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(payload),
+        });
+      } else {
+        // Crear nuevo recurrente
+        res = await fetch(`${API_BASE_URL}/recurrentes`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(payload),
+        });
+      }
   
       const data = await res.json();
   
+      navigation.navigate("Dashboard", { updated: true });
+      
       if (!res.ok) {
         throw new Error(data.message || 'Error al guardar el recurrente');
       }
   
       Toast.show({
         type: 'success',
-        text1: 'Recurrente guardado con éxito',
+        text1: editingRecurrente ? 'Recurrente actualizado' : 'Recurrente guardado con éxito',
       });
   
       resetForm();
@@ -345,6 +380,43 @@ const RecurrentModal: React.FC<Props> = ({visible, onClose, onSubmit, cuentaId, 
       setLoading(false);
     }
   };
+
+  // Prefill form if editing recurrenteExistente
+  useEffect(() => {
+    if (recurrenteExistente) {
+      setNombre(recurrenteExistente.nombre || '');
+      setPlataforma(recurrenteExistente.plataforma || null);
+      setMonto(recurrenteExistente.monto?.toString() || '');
+      setFrecuenciaTipo(recurrenteExistente.frecuenciaTipo || 'dia_semana');
+      setFrecuenciaValor(recurrenteExistente.frecuenciaValor || '');
+      setRecordatorios(recurrenteExistente.recordatorios || []);
+      setMoneda(recurrenteExistente.moneda || 'USD');
+      setAfectaCuentaPrincipal(recurrenteExistente.afectaCuentaPrincipal ?? true);
+      setAfectaSubcuenta(recurrenteExistente.afectaSubcuenta ?? false);
+      if (recurrenteExistente?.recordatorios) {
+        setRecordatoriosSeleccionados(recurrenteExistente.recordatorios);
+      }
+    }
+  }, [recurrenteExistente]);
+
+  useEffect(() => {
+    // Si no hay edición de recurrenteExistente, usar recurrente como fallback
+    if (!recurrenteExistente) {
+      if (recurrente) {
+        setNombre(recurrente.nombre || '');
+        setPlataforma(recurrente.plataforma || null);
+        setFrecuenciaTipo(recurrente.frecuenciaTipo || 'dia_semana');
+        setFrecuenciaValor(recurrente.frecuenciaValor || '');
+        setMonto(recurrente.monto?.toString() || '');
+        setMoneda(recurrente.moneda || 'USD');
+        setAfectaCuentaPrincipal(recurrente.afectaCuentaPrincipal ?? true);
+        setAfectaSubcuenta(recurrente.afectaSubcuenta ?? false);
+        setRecordatorios(recurrente.recordatorios || []);
+      } else {
+        resetForm();
+      }
+    }
+  }, [recurrente, visible, recurrenteExistente, resetForm]);
 
   // Render helpers
   const renderError = (error?: string) => {
@@ -782,34 +854,28 @@ const RecurrentModal: React.FC<Props> = ({visible, onClose, onSubmit, cuentaId, 
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Recordatorios</Text>
                 <Text style={styles.description}>Te notificaremos antes del próximo pago</Text>
-                <View style={styles.chipContainer}>
-                  {[
-                    { value: '1', label: '1 día antes' },
-                    { value: '3', label: '3 días antes' },
-                    { value: '7', label: '1 semana antes' },
-                  ].map((reminder) => (
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 }}>
+                  {[1, 3, 7].map((dias) => (
                     <TouchableOpacity
-                      key={reminder.value}
-                      onPress={() => toggleRecordatorio(reminder.value)}
+                      key={dias}
+                      onPress={() => toggleRecordatorio(dias)}
                       style={[
-                        styles.chip,
-                        recordatorios.includes(reminder.value) && styles.chipSelected,
+                        styles.reminderButton,
+                        recordatoriosSeleccionados.includes(dias) && styles.reminderButtonSelected,
                       ]}
-                      activeOpacity={0.8}
                     >
                       <Ionicons
-                        name="notifications-outline"
+                        name="alarm-outline"
                         size={16}
-                        color={recordatorios.includes(reminder.value) ? '#ffffff' : '#64748b'}
-                        style={styles.chipIcon}
+                        color={recordatoriosSeleccionados.includes(dias) ? '#0f172a' : '#64748b'}
+                        style={{ marginRight: 5 }}
                       />
-                      <Text
-                        style={[
-                          styles.chipText,
-                          recordatorios.includes(reminder.value) && styles.chipTextSelected,
-                        ]}
-                      >
-                        {reminder.label}
+                      <Text style={styles.reminderText}>
+                        {dias === 1
+                          ? '1 día antes'
+                          : dias === 3
+                          ? '3 días antes'
+                          : '1 semana antes'}
                       </Text>
                     </TouchableOpacity>
                   ))}
@@ -1261,6 +1327,34 @@ const styles = StyleSheet.create({
     backgroundColor: '#e2e8f0',
     borderRadius: 6,
     height: 18,
+  },
+  reminderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginTop: 10,
+    marginBottom: 16,
+  },
+  reminderButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f0f0f0',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 18,
+    marginHorizontal: 4,
+    elevation: 2,
+  },
+  reminderButtonSelected: {
+    backgroundColor: '#f59e0b',
+  },
+  reminderButtonText: {
+    fontSize: 13,
+    marginLeft: 6,
+    color: '#333',
+  },
+  reminderText: {
+    fontSize: 10,
+    color: '#333',
   },
 });
 
