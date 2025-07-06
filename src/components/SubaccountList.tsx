@@ -25,7 +25,7 @@ interface Props {
   refreshKey?: number;
 }
 
-const LIMIT = 5;
+const LIMIT = 4;
 
 const SubaccountsList: React.FC<Props> = ({ userId, refreshKey = 0 }) => {
   const [subcuentas, setSubcuentas] = useState<Subcuenta[]>([]);
@@ -70,11 +70,8 @@ const SubaccountsList: React.FC<Props> = ({ userId, refreshKey = 0 }) => {
 
       filtered = filtered.sort((a, b) => Number(b.activa) - Number(a.activa));
 
-      const start = (page - 1) * LIMIT;
-      const end = start + LIMIT;
-
-      setSubcuentas(filtered.slice(start, end));
-      setHasMore(end < filtered.length);
+      setSubcuentas(filtered);
+      setHasMore(filtered.length === LIMIT);
     } catch (err) {
       console.error("Error al obtener subcuentas:", err);
     } finally {
