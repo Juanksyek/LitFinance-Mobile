@@ -8,9 +8,9 @@ import { API_BASE_URL } from '../constants/api';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../navigation/AppNavigator';
 import Toast from "react-native-toast-message";
-import DeleteSubaccountModal from '../components/DeleteSubaccountModal';
 import ActionButtons from '../components/ActionButtons';
 import RecurrentesList from '../components/RecurrenteList';
+import DeleteModal from '../components/DeleteModal';
 
 const { width } = Dimensions.get('window');
 
@@ -53,7 +53,7 @@ const SubaccountDetail = () => {
   const [desde, setDesde] = useState('2024-01-01');
   const [hasta, setHasta] = useState('2026-01-01');
   const [participacion, setParticipacion] = useState<number | null>(null);
-  const handleGlobalRefresh = route.params?.onGlobalRefresh || (() => {});
+  const handleGlobalRefresh = route.params?.onGlobalRefresh || (() => { });
   const [userId, setUserId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -86,12 +86,12 @@ const SubaccountDetail = () => {
     fetchSubcuenta();
   }, [reloadTrigger]);
 
-  const InfoCard = ({ 
-    icon, 
-    label, 
-    value, 
+  const InfoCard = ({
+    icon,
+    label,
+    value,
     accentColor = '#F59E0B',
-    description 
+    description
   }: {
     icon: React.ReactNode;
     label: string;
@@ -102,8 +102,8 @@ const SubaccountDetail = () => {
     <View style={styles.infoCard}>
       <View style={styles.infoCardContent}>
         <View style={[styles.iconWrapper, { backgroundColor: accentColor + '15' }]}>
-          {React.cloneElement(icon as React.ReactElement<any>, { 
-            size: 22, 
+          {React.cloneElement(icon as React.ReactElement<any>, {
+            size: 22,
             color: accentColor
           })}
         </View>
@@ -116,11 +116,11 @@ const SubaccountDetail = () => {
     </View>
   );
 
-  const DetailRow = ({ 
-    icon, 
-    label, 
-    value, 
-    accentColor = '#F59E0B' 
+  const DetailRow = ({
+    icon,
+    label,
+    value,
+    accentColor = '#F59E0B'
   }: {
     icon: React.ReactNode;
     label: string;
@@ -130,8 +130,8 @@ const SubaccountDetail = () => {
     <View style={styles.detailRow}>
       <View style={styles.detailLeft}>
         <View style={[styles.detailIcon, { backgroundColor: accentColor + '12' }]}>
-          {React.cloneElement(icon as React.ReactElement<any>, { 
-            size: 18, 
+          {React.cloneElement(icon as React.ReactElement<any>, {
+            size: 18,
             color: accentColor
           })}
         </View>
@@ -149,7 +149,7 @@ const SubaccountDetail = () => {
     try {
       const token = await AsyncStorage.getItem("authToken");
       const subCuentaId = subcuenta.subCuentaId;
-      
+
       const res = await fetch(`${API_BASE_URL}/subcuenta/buscar/${subcuenta?.subCuentaId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -377,7 +377,7 @@ const SubaccountDetail = () => {
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         <View style={styles.balanceCard} key={subcuenta.updatedAt}>
           <Text style={styles.balanceLabel}>Saldo actual</Text>
-          
+
           <View style={styles.balanceContainer}>
             <Text style={styles.currencySymbol}>{subcuenta.simbolo || '—'}</Text>
             <Text style={styles.balanceAmount}>
@@ -418,7 +418,7 @@ const SubaccountDetail = () => {
             accentColor={subcuenta.afectaCuenta ? '#F59E0B' : '#6B7280'}
             description={subcuenta.afectaCuenta ? 'Modifica el saldo principal' : 'Independiente'}
           />
-          
+
           <InfoCard
             icon={<Ionicons name="finger-print-outline" />}
             label="ID Subcuenta"
@@ -464,7 +464,7 @@ const SubaccountDetail = () => {
         </View>
 
         <RecurrentesList esSubcuenta subcuentaId="ID_SUBCUENTA" userId={userId!} />
-        
+
         {/* Enhanced History Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Historial de movimientos</Text>
@@ -523,7 +523,7 @@ const SubaccountDetail = () => {
                       <Text style={styles.historyDescription}>{item.descripcion}</Text>
                       <Text style={styles.historyDate}>{formatDate(item.createdAt)}</Text>
                     </View>
-                    
+
                     {item.datos && Object.keys(item.datos).length > 0 && (
                       <View style={styles.historyDetails}>
                         {Object.entries(item.datos).map(([clave, valor]: [string, any]) => {
@@ -656,12 +656,13 @@ const SubaccountDetail = () => {
         }}
       />
 
-      <DeleteSubaccountModal
+      <DeleteModal
         visible={deleteVisible}
         onCancel={() => setDeleteVisible(false)}
         onConfirm={confirmDelete}
+        title="Eliminar Subcuenta"
+        message="¿Estás seguro de que deseas eliminar esta Subcuenta? Esta acción no se puede deshacer."
       />
-
     </View>
   );
 };

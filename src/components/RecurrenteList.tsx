@@ -4,6 +4,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { API_BASE_URL } from "../constants/api";
 import { useNavigation, NavigationProp } from "@react-navigation/native";
 import { RootStackParamList } from "../navigation/AppNavigator";
+import { Ionicons } from "@expo/vector-icons";
 
 const { width } = Dimensions.get("window");
 const LIMIT = 4;
@@ -13,14 +14,16 @@ type Recurrente = {
     recurrenteId: string;
     nombre: string;
     monto: number;
-    frecuenciaDias: number;
+    frecuenciaValor: string;
+    frecuenciaTipo: 'dia_semana' | 'dia_mes' | 'fecha_anual';
     proximaEjecucion: string;
     plataforma?: { color: string; nombre: string; categoria: string };
     afectaCuentaPrincipal: boolean;
     afectaSubcuenta: boolean;
     subcuentaId?: string;
     recordatorios?: number[];
-};
+    pausado: boolean;
+  };
 
 const RecurrentesList = ({
     userId,
@@ -87,23 +90,46 @@ const RecurrentesList = ({
         }
     }, [refreshKey]);
 
-    const renderItem = ({ item }: { item: Recurrente }) => (
-        <TouchableOpacity
+    const renderItem = ({ item }: { item: Recurrente }) => {
+        const obtenerPeriodo = () => {
+          switch (item.frecuenciaTipo) {
+            case "dia_semana":
+              return `Cada ${item.frecuenciaValor}`;
+            case "dia_mes":
+              return `Cada mes el día ${item.frecuenciaValor}`;
+            case "fecha_anual":
+              return `Cada ${item.frecuenciaValor}`;
+            default:
+              return "Sin periodo definido";
+          }
+        };
+      
+        return (
+          <TouchableOpacity
             onPress={() => navigation.navigate("RecurrenteDetail", { recurrente: item })}
             style={[
-                styles.card,
-                { borderColor: item.plataforma?.color || "#EF7725" },
+              styles.card,
+              { borderColor: item.plataforma?.color || "#EF7725" },
             ]}
-        >
-            <Text style={styles.nombre} numberOfLines={1}>
-                {item.nombre}
-            </Text>
-            <Text style={styles.monto}>${item.monto.toFixed(2)}</Text>
-            <View style={styles.badge}>
-                <Text style={styles.badgeText}>{item.frecuenciaDias} días</Text>
+          >
+            <View>
+              <Text style={styles.nombre} numberOfLines={1}>{item.nombre}</Text>
+              <Text style={styles.monto}>${item.monto.toFixed(2)}</Text>
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>{obtenerPeriodo()}</Text>
+              </View>
+              {item.pausado && (
+                <View style={[styles.badge, { backgroundColor: "#FEF3C7" }]}>
+                  <Text style={[styles.badgeText, { color: "#92400E" }]}>Pausado</Text>
+                </View>
+              )}
             </View>
-        </TouchableOpacity>
-    );
+            {item.pausado && (
+              <Ionicons name="pause-circle" size={20} color="#FFD700" style={{ position: 'absolute', top: 6, right: 6 }} />
+            )}
+          </TouchableOpacity>
+        );
+      };
 
     return (
         <View style={styles.wrapper}>

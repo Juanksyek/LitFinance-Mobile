@@ -47,6 +47,12 @@ export default function DashboardScreen() {
     fetchCuentaId();
   }, []);
 
+  useEffect(() => {
+    if (route.params?.updated) {
+      setReloadTrigger(prev => prev + 1);
+    }
+  }, [route.params]);
+
   const handleRefresh = () => {
     const now = Date.now();
     setReloadTrigger(now);

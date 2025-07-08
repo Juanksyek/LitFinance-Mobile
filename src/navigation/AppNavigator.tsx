@@ -27,7 +27,22 @@ export type RootStackParamList = {
   ForgotPassword: undefined;
   Dashboard: { updated?: boolean } | undefined;
   SubaccountDetail: { subcuenta: Subcuenta; onGlobalRefresh?: () => void };
-  RecurrenteDetail: { recurrente: { nombre: string; monto: number; frecuenciaDias: number; proximaEjecucion: string; plataforma?: { color: string; nombre: string; categoria: string }; afectaCuentaPrincipal: boolean; afectaSubcuenta: boolean; recordatorios?: number[] } };
+  RecurrenteDetail: {
+    recurrente: {
+      recurrenteId: string;
+      nombre: string;
+      monto: number;
+      frecuenciaTipo: 'dia_semana' | 'dia_mes' | 'fecha_anual';
+      frecuenciaValor: string;
+      proximaEjecucion: string;
+      plataforma?: { color: string; nombre: string; categoria: string };
+      afectaCuentaPrincipal: boolean;
+      afectaSubcuenta: boolean;
+      subcuentaId?: string;
+      recordatorios?: number[];
+      pausado: boolean;
+    };
+  };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
