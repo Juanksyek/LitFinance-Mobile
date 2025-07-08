@@ -25,7 +25,7 @@ interface Props {
   refreshKey?: number;
 }
 
-const LIMIT = 4;
+const LIMIT = 5;
 
 const SubaccountsList: React.FC<Props> = ({ userId, refreshKey = 0 }) => {
   const [subcuentas, setSubcuentas] = useState<Subcuenta[]>([]);
@@ -48,7 +48,7 @@ const SubaccountsList: React.FC<Props> = ({ userId, refreshKey = 0 }) => {
       const token = await AsyncStorage.getItem("authToken");
       const res = await fetch(
         `${API_BASE_URL}/subcuenta/${userId}?soloActivas=${mostrarSoloActivas}&page=${page}&limit=${LIMIT}`,
-        { headers: { Authorization: `Bearer ${token}` }}
+        { headers: { Authorization: `Bearer ${token}` } }
       );
 
       const data = await res.json();
@@ -71,7 +71,7 @@ const SubaccountsList: React.FC<Props> = ({ userId, refreshKey = 0 }) => {
       filtered = filtered.sort((a, b) => Number(b.activa) - Number(a.activa));
 
       setSubcuentas(filtered);
-      setHasMore(filtered.length === LIMIT);
+      setHasMore(data.length === LIMIT && filtered.length > 0);
     } catch (err) {
       console.error("Error al obtener subcuentas:", err);
     } finally {
