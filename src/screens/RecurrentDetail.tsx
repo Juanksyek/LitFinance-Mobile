@@ -2,25 +2,35 @@ import React, { useState } from "react";
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, StatusBar, Dimensions } from "react-native";
 import { RouteProp, useRoute, useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
-import { format } from 'date-fns';
-import { es } from 'date-fns/locale';
 import RecurrentModal from "../components/RecurrentModal";
+import { API_BASE_URL } from '../constants/api';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import Toast from 'react-native-toast-message';
+import { StackNavigationProp } from '@react-navigation/stack';
+import { RootStackParamList } from '../navigation/AppNavigator';
+import DeleteModal from '../components/DeleteModal';
 
 const { width } = Dimensions.get('window');
 
-type RecurrenteDetailRouteProp = RouteProp<{ RecurrenteDetail: { recurrente: {
-  nombre: string;
-  monto: number;
-  frecuenciaTipo: string;
-  frecuenciaValor: string;
-  proximaEjecucion: string;
-  plataforma?: { nombre: string; categoria: string };
-  afectaCuentaPrincipal: boolean;
-  afectaSubcuenta: boolean;
-  recordatorios?: number[];
-  userId?: string;
-  cuentaId?: string;
-} } }, "RecurrenteDetail">;
+type RecurrenteDetailRouteProp = RouteProp<{
+  RecurrenteDetail: {
+    recurrente: {
+      recurrenteId: string;
+      nombre: string;
+      monto: number;
+      frecuenciaTipo: string;
+      frecuenciaValor: string;
+      proximaEjecucion: string;
+      plataforma?: { nombre: string; categoria: string };
+      afectaCuentaPrincipal: boolean;
+      afectaSubcuenta: boolean;
+      recordatorios?: number[];
+      userId?: string;
+      cuentaId?: string;
+      pausado?: boolean;
+    }
+  }
+}, "RecurrenteDetail">;
 
 const obtenerDescripcionFrecuencia = (tipo: string, valor: string): string => {
   switch (tipo) {
@@ -66,15 +76,11 @@ const obtenerFechaCompleta = (valor: string): string => {
   return `el ${dia} de ${meses[parseInt(mes) - 1]}`;
 };
 
-const formatearFechaEjecucion = (isoDate: string) => {
-  const fecha = new Date(isoDate);
-  return format(fecha, "eeee d 'de' MMMM 'de' yyyy", { locale: es });
-};
-
 const RecurrenteDetail = () => {
   const route = useRoute<RecurrenteDetailRouteProp>();
-  const navigation = useNavigation();
+  const navigation = useNavigation<StackNavigationProp<RootStackParamList>>();
   const [recurrente, setRecurrente] = useState(route.params.recurrente);
+  const [deleteVisible, setDeleteVisible] = useState(false);
 
   const [modalVisible, setModalVisible] = useState(false);
 
@@ -129,6 +135,66 @@ const RecurrenteDetail = () => {
       </Text>
     </TouchableOpacity>
   );
+
+  const toggleEstadoRecurrente = async () => {
+    try {
+      const token = await AsyncStorage.getItem("authToken");
+      const endpoint = `${API_BASE_URL}/recurrentes/${recurrente.recurrenteId}/${recurrente.pausado ? 'reanudar' : 'pausar'}`;
+      const res = await fetch(endpoint, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) throw new Error(data.message || 'Error al actualizar estado');
+
+      Toast.show({
+        type: 'success',
+        text1: 'Recurrente actualizado',
+      });
+
+      setTimeout(() => {
+        navigation.navigate('Dashboard', { updated: true });
+      }, 600);
+
+      setRecurrente({ ...recurrente, pausado: !recurrente.pausado });
+    } catch (err) {
+      Toast.show({
+        type: 'error',
+        text1: 'Error al cambiar estado',
+        text2: 'No se pudo pausar o reanudar el recurrente',
+      });
+    }
+  };
+
+  const handleDelete = async () => {
+    try {
+      const token = await AsyncStorage.getItem("authToken");
+      if (!token) return;
+
+      await fetch(`${API_BASE_URL}/recurrentes/${recurrente.recurrenteId}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      Toast.show({
+        type: 'success',
+        text1: 'Recurrente eliminado',
+      });
+
+      setDeleteVisible(false);
+      navigation.navigate('Dashboard', { updated: true });
+    } catch (error) {
+      console.error('Error al eliminar recurrente:', error);
+      Toast.show({
+        type: 'error',
+        text1: 'Hubo un problema al eliminar',
+      });
+    }
+  };
 
   return (
     <>
@@ -188,8 +254,8 @@ const RecurrenteDetail = () => {
                 recurrente.afectaCuentaPrincipal
                   ? "Cuenta principal"
                   : recurrente.afectaSubcuenta
-                  ? "Subcuenta"
-                  : "No especificado"
+                    ? "Subcuenta"
+                    : "No especificado"
               }
             />
           </View>
@@ -214,7 +280,14 @@ const RecurrenteDetail = () => {
 
           <View style={styles.actionSection}>
             <ActionButton onPress={() => setModalVisible(true)} icon="create" text="Editar" primary={true} />
-            <ActionButton onPress={() => {}} icon="pause" text="Pausar" />
+            <ActionButton
+              onPress={toggleEstadoRecurrente}
+              icon={recurrente.pausado ? "play" : "pause"}
+              text={recurrente.pausado ? "Reanudar" : "Pausar"}
+            />
+            <TouchableOpacity onPress={() => setDeleteVisible(true)}>
+              <Ionicons name="trash-outline" size={24} color="#EF4444" />
+            </TouchableOpacity>
           </View>
 
           {modalVisible && (
@@ -232,9 +305,30 @@ const RecurrenteDetail = () => {
             />
           )}
 
+          {modalVisible && (
+            <RecurrentModal
+              visible={modalVisible}
+              onClose={() => setModalVisible(false)}
+              onSubmit={(data) => {
+                setRecurrente(data);
+                setModalVisible(false);
+              }}
+              cuentaId={recurrente.cuentaId || '0000000'}
+              userId={recurrente.userId || "0000000"}
+              plataformas={recurrente.plataforma ? [recurrente.plataforma] : []}
+              recurrenteExistente={recurrente}
+            />
+          )}
           <View style={styles.bottomSpacer} />
         </ScrollView>
       </View>
+      <DeleteModal
+        visible={deleteVisible}
+        onCancel={() => setDeleteVisible(false)}
+        onConfirm={handleDelete}
+        title="Eliminar recurrente"
+        message="¿Estás seguro de que deseas eliminar este recurrente? Esta acción no se puede deshacer."
+      />
     </>
   );
 };
