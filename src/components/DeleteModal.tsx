@@ -6,25 +6,46 @@ type Props = {
   visible: boolean;
   onCancel: () => void;
   onConfirm: () => void;
+  title: string;
+  message: string;
+  confirmText?: string;
+  confirmColor?: string;
+  confirmBg?: string;
 };
 
-export default function DeleteSubaccountModal({ visible, onCancel, onConfirm }: Props) {
+export default function DeleteModal({
+  visible,
+  onCancel,
+  onConfirm,
+  title,
+  message,
+  confirmText = 'Eliminar',
+  confirmColor = '#EF4444',
+  confirmBg = '#fef2f2',
+}: Props) {
   return (
     <Modal visible={visible} animationType="fade" transparent>
       <View style={styles.overlay}>
         <View style={styles.modal}>
-          <Ionicons name="warning-outline" size={42} color="#EF4444" style={styles.icon} />
-          <Text style={styles.title}>Eliminar subcuenta</Text>
-          <Text style={styles.message}>
-            ¿Estás seguro de que deseas eliminar esta subcuenta? Esta acción no se puede deshacer.
-          </Text>
+          <Ionicons name="warning-outline" size={42} color={confirmColor} style={styles.icon} />
+          <Text style={styles.title}>{title}</Text>
+          <Text style={styles.message}>{message}</Text>
 
           <View style={styles.actions}>
             <TouchableOpacity style={[styles.button, styles.cancel]} onPress={onCancel}>
               <Text style={[styles.buttonText, { color: '#374151' }]}>Cancelar</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.button, styles.delete]} onPress={onConfirm}>
-              <Text style={[styles.buttonText, { color: '#EF4444' }]}>Eliminar</Text>
+            <TouchableOpacity
+              style={[
+                styles.button,
+                {
+                  borderColor: confirmColor,
+                  backgroundColor: confirmBg,
+                },
+              ]}
+              onPress={onConfirm}
+            >
+              <Text style={[styles.buttonText, { color: confirmColor }]}>{confirmText}</Text>
             </TouchableOpacity>
           </View>
         </View>
