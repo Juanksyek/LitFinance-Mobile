@@ -5,6 +5,7 @@ import MovementModal from './MovementModal';
 import SubaccountModal from './SubaccountModal';
 import RecurrentModal from './RecurrentModal';
 import { API_BASE_URL } from "../constants/api";
+import Toast from "react-native-toast-message";
 
 const { width } = Dimensions.get("window");
 
@@ -70,6 +71,11 @@ const ActionButtons = ({
     
       onRefresh();
     } catch (err) {
+      Toast.show({
+        type: 'error',
+        text1: 'Error al crear el recurrente',
+        text2: 'Por favor intenta nuevamente o revisa tu conexión',
+      });
     }
   };
 
