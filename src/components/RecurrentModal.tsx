@@ -282,99 +282,58 @@ const RecurrentModal: React.FC<Props> = ({ visible, onClose, onSubmit, cuentaId,
     if (!nombre || !plataforma || !frecuenciaTipo || !frecuenciaValor || !moneda || !monto) {
       Toast.show({
         type: 'error',
-        text1: 'Completa todos los campos obligatorios',
+        text1: 'Campos incompletos',
+        text2: 'Por favor completa todos los campos requeridos',
       });
       return;
     }
   
-    const payload: any = {
-      nombre,
-      plataforma,
-      frecuenciaTipo,
-      frecuenciaValor,
-      monto: parseFloat(monto),
-      moneda,
-      afectaCuentaPrincipal,
-      afectaSubcuenta,
-      cuentaId,
-      recordatorios: recordatoriosSeleccionados,
-    };
-  
-    if (afectaSubcuenta && subcuentaId) {
-      payload.subcuentaId = subcuentaId;
-    }
+    setLoading(true);
   
     try {
-      setLoading(true);
+      const token = await AsyncStorage.getItem("authToken");
   
-      const token = await AsyncStorage.getItem('authToken');
-      if (!token) {
-        Toast.show({
-          type: 'error',
-          text1: 'Sesión expirada',
-          text2: 'Inicia sesión nuevamente',
-        });
-        setLoading(false);
-        return;
-      }
+      const recurrenteData = {
+        nombre,
+        plataforma,
+        frecuenciaTipo,
+        frecuenciaValor,
+        moneda,
+        monto: parseFloat(monto),
+        cuentaId,
+        subcuentaId: subcuentaId || null,
+        afectaCuentaPrincipal: !subcuentaId,
+        afectaSubcuenta: !!subcuentaId,
+        recordatorios: recordatorios,
+      };
   
-      // Usar recurrenteExistente si está presente, si no, usar recurrente
-      const editingRecurrente = recurrenteExistente || recurrente;
+      const res = await fetch(`${API_BASE_URL}/recurrentes`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(recurrenteData),
+      });
   
-      let res;
-      if (editingRecurrente && recurrenteExistente) {
-        // Editar recurrente usando PUT y la URL con el recurrenteId
-        res = await fetch(`${API_BASE_URL}/recurrentes/${recurrenteExistente.recurrenteId}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify(payload),
-        });
-      } else if (editingRecurrente) {
-        // Fallback por compatibilidad
-        res = await fetch(`${API_BASE_URL}/recurrentes/${editingRecurrente._id || editingRecurrente.id}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify(payload),
-        });
-      } else {
-        // Crear nuevo recurrente
-        res = await fetch(`${API_BASE_URL}/recurrentes`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify(payload),
-        });
-      }
-  
-      const data = await res.json();
-  
-      navigation.navigate("Dashboard", { updated: true });
-      
       if (!res.ok) {
-        throw new Error(data.message || 'Error al guardar el recurrente');
+        const error = await res.json().catch(() => ({}));
+        throw new Error(error.message || 'Error al crear el recurrente');
       }
   
       Toast.show({
         type: 'success',
-        text1: editingRecurrente ? 'Recurrente actualizado' : 'Recurrente guardado con éxito',
+        text1: 'Recurrente creado',
+        text2: 'El recurrente fue guardado correctamente',
       });
   
-      resetForm();
+      onSubmit(recurrenteData);
       onClose();
-      onSubmit(data);
-    } catch (error: any) {
+    } catch (err: any) {
       Toast.show({
         type: 'error',
         text1: 'Error',
-        text2: error.message,
+        text2: 'No se pudo guardar el recurrente. Intenta de nuevo.',
       });
     } finally {
       setLoading(false);
