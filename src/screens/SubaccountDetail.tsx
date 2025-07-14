@@ -9,8 +9,8 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../navigation/AppNavigator';
 import Toast from "react-native-toast-message";
 import ActionButtons from '../components/ActionButtons';
-import RecurrentesList from '../components/RecurrenteList';
 import DeleteModal from '../components/DeleteModal';
+import SubaccountRecurrentesList from '../components/SubaccountRecurrentesList';
 
 const { width } = Dimensions.get('window');
 
@@ -409,6 +409,11 @@ const SubaccountDetail = () => {
           />
         </View>
 
+        {/* Recurrentes List */}
+        <View style={{ flex: 1 }}>
+          <SubaccountRecurrentesList subcuentaId={subcuenta.subCuentaId} userId={userId!} />
+        </View>
+
         {/* Enhanced Quick Info Cards */}
         <View style={styles.quickInfoGrid}>
           <InfoCard
@@ -462,8 +467,6 @@ const SubaccountDetail = () => {
             />
           </View>
         </View>
-
-        <RecurrentesList esSubcuenta subcuentaId="ID_SUBCUENTA" userId={userId!} />
 
         {/* Enhanced History Section */}
         <View style={styles.section}>
