@@ -220,15 +220,17 @@ const MovementModal: React.FC<Props> = ({ visible, onClose, tipo, cuentaId, onSu
         <View style={styles.conceptoHeader}>
           <TextInput
             placeholder="Busca o escribe un concepto rápido"
+            placeholderTextColor="#999"
             value={conceptoBusqueda}
             onChangeText={setConceptoBusqueda}
-            style={[styles.input, { flex: 1 }]}
+            style={[styles.input, { flex: 1, color: '#000', fontSize: 12 }]}
           />
           <TouchableOpacity onPress={() => setShowConceptsManager(true)}>
             <Text style={styles.adminLink}>+ Conceptos</Text>
           </TouchableOpacity>
         </View>
 
+        <Text style={styles.conceptosText}>Tus conceptos</Text>
         <View style={styles.conceptosBox}>
           {conceptosFiltrados.map((item) => {
             const isSelected = conceptoSeleccionado?.conceptoId === item.conceptoId;
@@ -412,6 +414,12 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#EF7725',
     fontWeight: '500',
+  },
+  conceptosText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#444',
+    marginBottom: 8,
   },
   conceptosBox: {
     flexDirection: 'row',
