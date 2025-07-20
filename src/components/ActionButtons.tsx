@@ -159,7 +159,7 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 6,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.7)",
+    borderColor: "#f0f0f3",
   },
   neumorphicPressed: {
     backgroundColor: "#f0f0f3",
@@ -169,7 +169,7 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 4,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.7)",
+    borderColor: "#f0f0f3",
   },
 });
 
