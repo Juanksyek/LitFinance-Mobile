@@ -203,7 +203,7 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 5,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.7)',
+    borderColor: '#f0f0f3',
   },
   filtroTexto: {
     marginLeft: 8,
@@ -222,7 +222,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 5,
-    borderColor: 'rgba(255,255,255,0.7)',
+    borderColor: '#f0f0f3',
   },
   filtroOpcion: {
     paddingVertical: 8,
@@ -244,7 +244,7 @@ const styles = StyleSheet.create({
     shadowRadius: 14,
     elevation: 8,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.7)",
+    borderColor: "#f0f0f3",
   },
 });
 
