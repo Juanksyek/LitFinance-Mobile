@@ -7,6 +7,7 @@ import ForgotPasswordScreen from '../screens/ForgotPasswordScreen';
 import DashboardScreen from '../screens/DashboardScreen';
 import SubaccountDetail from '../screens/SubaccountDetail';
 import RecurrenteDetail from '../screens/RecurrentDetail';
+import MainAccountScreen from '../screens/MainAccountScreen';
 
 export type Subcuenta = {
   _id: string;
@@ -43,6 +44,7 @@ export type RootStackParamList = {
       pausado: boolean;
     };
   };
+  MainAccount: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -57,6 +59,7 @@ export default function AppNavigator() {
       <Stack.Screen name="Dashboard" component={DashboardScreen} />
       <Stack.Screen name="SubaccountDetail" component={SubaccountDetail} />
       <Stack.Screen name="RecurrenteDetail" component={RecurrenteDetail} />
+      <Stack.Screen name="MainAccount" component={MainAccountScreen} />
     </Stack.Navigator>
   );
 }
