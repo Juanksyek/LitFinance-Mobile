@@ -233,7 +233,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(0,0,0,0.05)",
+    borderBottomColor: "#f0f0f3",
   },
   transactionIconContainer: {
     width: 42,
@@ -283,7 +283,7 @@ const styles = StyleSheet.create({
     shadowRadius: 14,
     elevation: 8,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.7)",
+    borderColor: "#f0f0f3",
   },
   neumorphicInset: {
     backgroundColor: "#e6e6e9",
@@ -293,7 +293,7 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     elevation: 1,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.4)",
+    borderColor: "#f0f0f3",
   },
   searchInput: {
     backgroundColor: "#fff",
@@ -301,7 +301,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: 12,
     fontSize: 14,
-    borderColor: "#ccc",
+    borderColor: "#f0f0f3",
     borderWidth: 1,
     marginBottom: 12,
     color: "#000",
