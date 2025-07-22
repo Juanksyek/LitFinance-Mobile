@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from "react";
-import { View, StyleSheet, ScrollView } from "react-native";
+import { View, StyleSheet, ScrollView, RefreshControl } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import DashboardHeader from "../components/DashboardHeader";
 import BalanceCard from "../components/BalanceCard";
@@ -22,6 +22,7 @@ export default function DashboardScreen() {
   const [refreshKey, setRefreshKey] = useState(Date.now());
   const route = useRoute<RouteProp<RootStackParamList, "Dashboard">>();
   const navigation = useNavigation();
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const fetchCuentaId = async () => {
     try {
@@ -53,11 +54,23 @@ export default function DashboardScreen() {
     }
   }, [route.params]);
 
-  const handleRefresh = () => {
-    const now = Date.now();
-    setReloadTrigger(now);
-    setRefreshKey(now);
-  };
+  const handleRefresh = useCallback(() => {
+    setIsRefreshing(true);
+    
+    try {
+      setReloadTrigger(prev => prev + 1);
+    } catch (error) {
+      Toast.show({
+        type: "error",
+        text1: "Error al recargar",
+        text2: "No se pudieron recargar los componentes.",
+      });
+    } finally {
+      setTimeout(() => {
+        setIsRefreshing(false);
+      }, 1000);
+    }
+  }, []);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -82,7 +95,14 @@ export default function DashboardScreen() {
         <DashboardHeader />
       </View>
 
-      <ScrollView contentContainerStyle={styles.contentContainer} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.contentContainer}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} />
+        }
+      >
+
         <BalanceCard reloadTrigger={reloadTrigger} />
 
         {cuentaId && userId && (
