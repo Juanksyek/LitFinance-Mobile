@@ -531,7 +531,7 @@ const styles = StyleSheet.create({
   },
   headerSubtitle: {
     fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.9)',
+    color: '#000',
     textAlign: 'center',
     fontWeight: '500',
   },
@@ -619,7 +619,7 @@ const styles = StyleSheet.create({
   currencySymbol: {
     fontSize: 28,
     fontWeight: '700',
-    color: 'rgba(255, 255, 255, 0.9)',
+    color: '#000',
     marginRight: 8,
   },
   amount: {
@@ -642,7 +642,7 @@ const styles = StyleSheet.create({
   },
   currencyName: {
     fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.9)',
+    color: '#000',
     fontWeight: '600',
   },
   currencyDot: {
