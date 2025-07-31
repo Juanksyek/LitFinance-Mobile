@@ -1,3 +1,4 @@
+// commnt
 import React, { useState } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView, Image } from "react-native";
 import FormInput from "../components/FormInput";
