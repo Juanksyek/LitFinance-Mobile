@@ -1,9 +1,20 @@
 import React, { useState, useRef, useEffect } from "react";
-import { View, Text, StyleSheet, Image, TouchableOpacity, Animated, Platform, StatusBar, Modal } from "react-native";
+import { View, Text, StyleSheet, Image, TouchableOpacity, Animated, Platform, StatusBar, Modal, Dimensions } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Toast from "react-native-toast-message";
-import MainAccountScreen from "../screens/MainAccountScreen";
 import { useNavigation } from "@react-navigation/native";
+
+const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+
+const getResponsiveSpacing = () => {
+  const baseWidth = 375;
+  const scale = screenWidth / baseWidth;
+  return {
+    small: Math.max(8 * scale, 8),
+    medium: Math.max(16 * scale, 12),
+    large: Math.max(24 * scale, 16),
+  };
+};
 
 const DashboardWidget = () => {
   return (
@@ -21,6 +32,7 @@ const Header = () => {
   const opacityAnim = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(-10)).current;
   const navigation = useNavigation();
+  const spacing = getResponsiveSpacing();
 
   useEffect(() => {
     const fetchNombre = async () => {
@@ -173,7 +185,10 @@ const styles = StyleSheet.create({
     backgroundColor: "#f0f0f3",
   },
   headerWrapper: {
-    marginTop: Platform.OS === "android" ? StatusBar.currentHeight ?? 24 : 10,
+    marginTop: Platform.select({
+      android: Math.max((StatusBar.currentHeight ?? 24) * 0.3, 8),
+      ios: screenHeight > 800 ? 10 : 5,
+    }),
     width: "100%",
     alignItems: "center",
     backgroundColor: "#f0f0f3",
@@ -185,11 +200,14 @@ const styles = StyleSheet.create({
   notchBar: {
     width: "100%",
     backgroundColor: "#f0f0f3",
-    borderBottomLeftRadius: 28,
-    borderBottomRightRadius: 28,
-    paddingHorizontal: 20,
-    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight ?? 24 : 36,
-    paddingBottom: 16,
+    borderBottomLeftRadius: Math.min(28, screenWidth * 0.075),
+    borderBottomRightRadius: Math.min(28, screenWidth * 0.075),
+    paddingHorizontal: Math.max(screenWidth * 0.05, 16),
+    paddingTop: Platform.select({
+      android: Math.max((StatusBar.currentHeight ?? 24) * 0.8, 16),
+      ios: screenHeight > 800 ? 36 : 24,
+    }),
+    paddingBottom: Math.max(screenWidth * 0.04, 12),
   },
   neumorphicLight: {
     backgroundColor: "#f0f0f3",
@@ -215,16 +233,16 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 12,
+    marginBottom: Math.max(screenWidth * 0.03, 8),
   },
   logoContainer: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: Math.min(50, screenWidth * 0.13),
+    height: Math.min(50, screenWidth * 0.13),
+    borderRadius: Math.min(25, screenWidth * 0.065),
     backgroundColor: "#f0f0f3",
     justifyContent: "center",
     alignItems: "center",
-    marginRight: 12,
+    marginRight: Math.max(screenWidth * 0.03, 10),
     shadowColor: "#d1d9e6",
     shadowOffset: { width: 4, height: 4 },
     shadowOpacity: 0.4,
@@ -248,63 +266,66 @@ const styles = StyleSheet.create({
     borderRightColor: "#d1d9e640",
   },
   logo: {
-    width: 32,
-    height: 32,
+    width: Math.min(32, screenWidth * 0.085),
+    height: Math.min(32, screenWidth * 0.085),
     resizeMode: "contain",
   },
   expandTrigger: {
     width: "100%",
     alignItems: "center",
+    paddingVertical: Math.max(screenWidth * 0.02, 6),
   },
   grabber: {
-    width: 60,
-    height: 6,
+    width: Math.min(60, screenWidth * 0.16),
+    height: Math.max(6, screenWidth * 0.015),
     backgroundColor: "#ccc",
     borderRadius: 2,
   },
   welcomeText: {
-    fontSize: 20,
+    fontSize: Math.min(20, screenWidth * 0.05),
     fontWeight: "600",
     color: "#333",
     flexShrink: 1,
+    textAlign: "center",
   },
   optionsContainer: {
-    gap: 8,
-    marginTop: 8,
+    gap: Math.max(screenWidth * 0.02, 6),
+    marginTop: Math.max(screenWidth * 0.02, 6),
     alignItems: "center",
-    paddingVertical: 8,
+    paddingVertical: Math.max(screenWidth * 0.02, 6),
   },
   menuItem: {
-    width: "70%",
+    width: Math.min(screenWidth * 0.7, 280),
     alignItems: "center",
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 12,
+    paddingVertical: Math.max(screenWidth * 0.02, 8),
+    paddingHorizontal: Math.max(screenWidth * 0.04, 12),
+    borderRadius: Math.min(12, screenWidth * 0.03),
   },
   logoutButton: {
     backgroundColor: "#f0f0f3",
     borderColor: "rgba(244, 67, 54, 0.2)",
   },
   menuText: {
-    fontSize: 13,
+    fontSize: Math.min(13, screenWidth * 0.035),
     fontWeight: "500",
     color: "#555",
+    textAlign: "center",
   },
   logoutText: {
     color: "#F44336",
     fontWeight: "600",
   },
-    modalOverlay: {
+  modalOverlay: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: "rgba(0, 0, 0, 0.5)",
   },
   modalContainer: {
-    width: "80%",
+    width: Math.min(screenWidth * 0.8, 320),
     backgroundColor: "#f0f0f3",
-    borderRadius: 12,
-    padding: 20,
+    borderRadius: Math.min(12, screenWidth * 0.03),
+    padding: Math.max(screenWidth * 0.05, 16),
     alignItems: "center",
     shadowColor: "#000",
     shadowOffset: { width: 4, height: 4 },
@@ -315,9 +336,9 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255, 255, 255, 0.6)",
   },
   modalTitle: {
-    fontSize: 18,
+    fontSize: Math.min(18, screenWidth * 0.045),
     fontWeight: "bold",
-    marginBottom: 20,
+    marginBottom: Math.max(screenWidth * 0.05, 16),
     textAlign: "center",
     color: "#333",
   },
@@ -325,12 +346,12 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     width: "100%",
+    gap: Math.max(screenWidth * 0.02, 8),
   },
   modalButton: {
     flex: 1,
-    padding: 10,
-    marginHorizontal: 5,
-    borderRadius: 10,
+    padding: Math.max(screenWidth * 0.025, 10),
+    borderRadius: Math.min(10, screenWidth * 0.025),
     alignItems: "center",
     backgroundColor: "#f0f0f3",
     shadowColor: "#000",
@@ -350,6 +371,7 @@ const styles = StyleSheet.create({
   modalButtonTextNormal: {
     color: "#000",
     fontWeight: "bold",
+    fontSize: Math.min(14, screenWidth * 0.037),
   },
 });
 
