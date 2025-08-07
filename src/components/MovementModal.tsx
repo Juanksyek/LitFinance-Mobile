@@ -8,6 +8,8 @@ import { API_BASE_URL } from '../constants/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Toast from 'react-native-toast-message';
 import ConceptsManager from './ConceptsManager';
+import SmartInput from './SmartInput';
+import SmartNumber from './SmartNumber';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 
@@ -30,7 +32,11 @@ interface Concepto {
 }
 
 const MovementModal: React.FC<Props> = ({ visible, onClose, tipo, cuentaId, onSuccess, isSubcuenta, subcuentaId, onRefresh }) => {
-  const [monto, setMonto] = useState('');
+  // ✅ NUEVO: Estados para manejo inteligente de números
+  const [montoNumerico, setMontoNumerico] = useState<number | null>(null);
+  const [montoValido, setMontoValido] = useState(false);
+  const [erroresMonto, setErroresMonto] = useState<string[]>([]);
+  
   const [motivo, setMotivo] = useState('');
   const [afectaCuenta, setAfectaCuenta] = useState(true);
   const [moneda, setMoneda] = useState('MXN');
@@ -43,6 +49,48 @@ const MovementModal: React.FC<Props> = ({ visible, onClose, tipo, cuentaId, onSu
   const [showConceptsManager, setShowConceptsManager] = useState(false);
   const [loading, setLoading] = useState(false);
   const navigation = useNavigation<any>();
+
+  // ✅ NUEVO: Configuración de límites según el contexto
+  const getLimitesPorTipo = () => {
+    const baseLimit = isSubcuenta ? 1000000 : 10000000; // Límites menores para subcuentas
+    
+    if (tipo === 'egreso') {
+      return {
+        maxValue: baseLimit,
+        minValue: 0.01,
+        warningThreshold: baseLimit * 0.1 // 10% del límite como advertencia
+      };
+    } else {
+      return {
+        maxValue: baseLimit * 10,
+        minValue: 0.01,
+        warningThreshold: baseLimit * 0.5 // 50% del límite como advertencia
+      };
+    }
+  };
+
+  // ✅ NUEVO: Handlers para el manejo inteligente de números
+  const handleMontoChange = (value: number | null) => {
+    setMontoNumerico(value);
+  };
+
+  const handleValidationChange = (isValid: boolean, errors: string[]) => {
+    setMontoValido(isValid);
+    setErroresMonto(errors);
+  };
+
+  // ✅ NUEVO: Función auxiliar para símbolos de moneda
+  const getSymbolForCurrency = (currency: string): string => {
+    const symbols: Record<string, string> = {
+      'MXN': '$',
+      'USD': '$',
+      'EUR': '€',
+      'GBP': '£',
+      'JPY': '¥',
+      'CNY': '¥',
+    };
+    return symbols[currency] || '$';
+  };
 
   const fetchMonedasYConceptos = async () => {
     try {
@@ -84,11 +132,22 @@ const MovementModal: React.FC<Props> = ({ visible, onClose, tipo, cuentaId, onSu
   };
 
   const handleSend = async () => {
-    if (!monto || isNaN(Number(monto)) || Number(monto) <= 0 || !motivo.trim()) {
+    // ✅ NUEVO: Validación mejorada con números inteligentes
+    if (!montoNumerico || !montoValido || !motivo.trim()) {
       return Toast.show({
         type: 'error',
-        text1: 'Campos inválidos',
-        text2: 'Debes ingresar un monto válido y un motivo.',
+        text1: 'Datos incompletos',
+        text2: 'Verifica el monto y el motivo.',
+      });
+    }
+
+    // ✅ NUEVO: Advertencia para montos extremos
+    const limits = getLimitesPorTipo();
+    if (erroresMonto.some(error => error.includes('muy grande'))) {
+      Toast.show({
+        type: 'warning',
+        text1: 'Monto inusualmente grande',
+        text2: '¿Estás seguro de que el monto es correcto?',
       });
     }
 
@@ -107,7 +166,7 @@ const MovementModal: React.FC<Props> = ({ visible, onClose, tipo, cuentaId, onSu
       const token = await AsyncStorage.getItem('authToken');
       const payload = {
         tipo,
-        monto: parseFloat(monto),
+        monto: montoNumerico, // ✅ NUEVO: Usar el valor numérico validado
         concepto: conceptoFinal,
         motivo,
         moneda,
@@ -136,7 +195,10 @@ const MovementModal: React.FC<Props> = ({ visible, onClose, tipo, cuentaId, onSu
 
       if (onRefresh) onRefresh();
 
-      setMonto('');
+      // ✅ NUEVO: Limpiar estados numéricos
+      setMontoNumerico(null);
+      setMontoValido(false);
+      setErroresMonto([]);
       setMotivo('');
       setConceptoSeleccionado(null);
       onSuccess();
@@ -165,7 +227,10 @@ const MovementModal: React.FC<Props> = ({ visible, onClose, tipo, cuentaId, onSu
   useEffect(() => {
     if (visible) fetchMonedasYConceptos();
     else {
-      setMonto('');
+      // ✅ NUEVO: Limpiar estados numéricos al cerrar
+      setMontoNumerico(null);
+      setMontoValido(false);
+      setErroresMonto([]);
       setMotivo('');
       setConceptoBusqueda('');
       setConceptoSeleccionado(null);
@@ -195,19 +260,46 @@ const MovementModal: React.FC<Props> = ({ visible, onClose, tipo, cuentaId, onSu
         </View>
 
         <View style={styles.row}>
-          <TextInput
-            placeholder="Monto"
-            keyboardType="numeric"
-            value={monto}
-            onChangeText={setMonto}
-            style={[styles.input, { flex: 1, marginRight: 8 }]}
-            placeholderTextColor="#aaa"
+          {/* ✅ NUEVO: Input inteligente para el monto */}
+          <SmartInput
+            type="currency"
+            initialValue={0}
+            context="transaction"
+            maxValue={getLimitesPorTipo().maxValue}
+            minValue={getLimitesPorTipo().minValue}
+            onValueChange={handleMontoChange}
+            onValidationChange={handleValidationChange}
+            prefix={getSymbolForCurrency(moneda)}
+            clearable={true}
+            autoFix={true}
+            style={[styles.smartInputContainer, { flex: 1, marginRight: 8 }]}
+            placeholder="0.00"
           />
           <TouchableOpacity style={styles.monedaBox} onPress={() => setMonedaModalVisible(true)}>
             <Text style={styles.monedaText}>{moneda}</Text>
             <Ionicons name="chevron-down" size={16} color="#666" />
           </TouchableOpacity>
         </View>
+
+        {/* ✅ NUEVO: Advertencia para montos grandes */}
+        {montoNumerico && montoNumerico >= getLimitesPorTipo().warningThreshold && (
+          <View style={styles.warningContainer}>
+            <Ionicons name="warning-outline" size={16} color="#F59E0B" />
+            <View style={styles.warningContent}>
+              <Text style={styles.warningTitle}>Monto inusualmente grande</Text>
+              <Text style={styles.warningText}>
+                Has ingresado: <SmartNumber 
+                  value={montoNumerico}
+                  options={{ context: 'detail', symbol: getSymbolForCurrency(moneda) }}
+                  textStyle={styles.warningAmount}
+                />
+              </Text>
+              <Text style={styles.warningSubtext}>
+                Verifica que sea correcto antes de continuar.
+              </Text>
+            </View>
+          </View>
+        )}
 
         <TextInput
           placeholder="Motivo"
@@ -472,6 +564,44 @@ const styles = StyleSheet.create({
     backgroundColor: '#f0f0f3',
     borderRadius: 20,
     padding: 20,
+  },
+  // ✅ NUEVO: Estilos para SmartInput y advertencias
+  smartInputContainer: {
+    marginBottom: 0, // SmartInput ya tiene su propio margin
+  },
+  warningContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#FEF3C7',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+    marginTop: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: '#F59E0B',
+  },
+  warningContent: {
+    flex: 1,
+    marginLeft: 8,
+  },
+  warningTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#92400E',
+    marginBottom: 4,
+  },
+  warningText: {
+    fontSize: 12,
+    color: '#92400E',
+    marginBottom: 2,
+  },
+  warningAmount: {
+    fontWeight: '700',
+    color: '#92400E',
+  },
+  warningSubtext: {
+    fontSize: 11,
+    color: '#A16207',
+    fontStyle: 'italic',
   },
 });
 
