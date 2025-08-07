@@ -1,6 +1,8 @@
 import React from 'react';
 import { Modal, View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+// ✅ NUEVO: Importar SmartNumber para mostrar cifras grandes de forma segura
+import SmartNumber from './SmartNumber';
 
 type Detalles = {
   origen?: string;
@@ -92,7 +94,18 @@ const HistorialDetalleModal = ({ visible, onClose, historialItem }: Props) => {
 
             <View style={styles.section}>
               <Text style={styles.label}>Monto</Text>
-              <Text style={[styles.value, { color: colorTipo }]}>${monto.toFixed(2)}</Text>
+              {/* ✅ NUEVO: SmartNumber en lugar de toFixed para cifras grandes */}
+              <Text style={[styles.value, { color: colorTipo }]}>
+                <SmartNumber 
+                  value={monto} 
+                  options={{ 
+                    context: 'detail', 
+                    symbol: '$',
+                    maxLength: 12 
+                  }}
+                  textStyle={[styles.value, { color: colorTipo }]}
+                />
+              </Text>
             </View>
 
             <View style={styles.section}>
