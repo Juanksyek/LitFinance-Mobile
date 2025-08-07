@@ -5,6 +5,9 @@ import Ionicons from "react-native-vector-icons/Ionicons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Toast from "react-native-toast-message";
 import { API_BASE_URL } from "../constants/api";
+// ✅ NUEVO: Importar componentes para manejar cifras grandes
+import SmartInput from './SmartInput';
+import SmartNumber from './SmartNumber';
 
 const SCREEN_HEIGHT = Dimensions.get("window").height;
 
@@ -40,11 +43,30 @@ const EditSubaccountModal: React.FC<Props> = ({
   const [nombre, setNombre] = useState(subcuenta.nombre);
   const [moneda, setMoneda] = useState(subcuenta.moneda);
   const [simbolo, setSimbolo] = useState(subcuenta.simbolo);
-  const [cantidad, setCantidad] = useState(String(subcuenta.cantidad));
+  // ✅ NUEVO: Estados para manejar cifras grandes de forma segura
+  const [cantidadNumerica, setCantidadNumerica] = useState<number | null>(subcuenta.cantidad || null);
+  const [cantidadValida, setCantidadValida] = useState(true);
+  const [erroresCantidad, setErroresCantidad] = useState<string[]>([]);
   const [color, setColor] = useState(subcuenta.color);
   const [afectaCuenta, setAfectaCuenta] = useState(subcuenta.afectaCuenta);
   const [monedas, setMonedas] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+
+  // ✅ NUEVO: Funciones para manejar cambios de cantidad de forma segura
+  const getLimitesSubcuenta = () => ({
+    min: 0,
+    max: 999999999999, // 999 mil millones
+    warning: 100000000, // Advertencia a partir de 100 millones
+  });
+
+  const handleCantidadChange = (value: number | null) => {
+    setCantidadNumerica(value);
+  };
+
+  const handleCantidadValidation = (isValid: boolean, errors: string[]) => {
+    setCantidadValida(isValid);
+    setErroresCantidad(errors);
+  };
   const [monedaModalVisible, setMonedaModalVisible] = useState(false);
 
   const fetchMonedas = async () => {
@@ -61,6 +83,16 @@ const EditSubaccountModal: React.FC<Props> = ({
   };
 
   const handleUpdate = async () => {
+    // ✅ NUEVO: Validar cantidad numérica antes de enviar
+    if (!cantidadValida || cantidadNumerica === null) {
+      Toast.show({
+        type: "error",
+        text1: "Cantidad inválida",
+        text2: "Verifica la cantidad antes de continuar.",
+      });
+      return;
+    }
+
     try {
       setLoading(true);
       const token = await AsyncStorage.getItem("authToken");
@@ -70,7 +102,7 @@ const EditSubaccountModal: React.FC<Props> = ({
         simbolo,
         color,
         afectaCuenta,
-        cantidad: Number(cantidad),
+        cantidad: cantidadNumerica, // ✅ NUEVO: Usar valor numérico validado
       };
 
       const res = await fetch(`${API_BASE_URL}/subcuenta/${subcuenta.subCuentaId}`, {
@@ -150,13 +182,36 @@ const EditSubaccountModal: React.FC<Props> = ({
           </View>
         </View>
 
-        <TextInput
-          value={cantidad}
-          onChangeText={setCantidad}
-          keyboardType="numeric"
-          placeholder="Cantidad"
-          style={styles.input}
-        />
+        {/* ✅ NUEVO: SmartInput en lugar de TextInput básico */}
+        <View style={styles.smartInputContainer}>
+          <SmartInput
+            type="currency"
+            placeholder="Cantidad"
+            prefix={simbolo}
+            initialValue={cantidadNumerica || undefined}
+            {...getLimitesSubcuenta()}
+            onValueChange={handleCantidadChange}
+            onValidationChange={handleCantidadValidation}
+            style={styles.input}
+            autoFix={true}
+          />
+        </View>
+
+        {/* ✅ NUEVO: Mostrar advertencia si hay errores */}
+        {erroresCantidad.length > 0 && (
+          <View style={styles.warningContainer}>
+            <Ionicons name="warning-outline" size={20} color="#F59E0B" />
+            <View style={styles.warningContent}>
+              <Text style={styles.warningTitle}>Cantidad muy grande</Text>
+              <Text style={styles.warningText}>
+                Cantidad: <SmartNumber value={cantidadNumerica || 0} options={{ context: 'modal', symbol: simbolo }} />
+              </Text>
+              <Text style={styles.warningSubtext}>
+                {erroresCantidad[0]}
+              </Text>
+            </View>
+          </View>
+        )}
 
         <Text style={styles.switchLabel}>Color</Text>
         <View style={styles.colorGrid}>
@@ -344,6 +399,40 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderBottomWidth: 1,
     borderColor: "#eee",
+  },
+  // ✅ NUEVO: Estilos para SmartInput y advertencias
+  smartInputContainer: {
+    marginBottom: 0, // SmartInput ya tiene su propio margin
+  },
+  warningContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#FEF3C7',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+    marginTop: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: '#F59E0B',
+  },
+  warningContent: {
+    flex: 1,
+    marginLeft: 8,
+  },
+  warningTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#92400E',
+    marginBottom: 4,
+  },
+  warningText: {
+    fontSize: 12,
+    color: '#92400E',
+    marginBottom: 2,
+  },
+  warningSubtext: {
+    fontSize: 11,
+    color: '#A16207',
+    fontStyle: 'italic',
   },
 });
 
