@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView, Image } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView, Image, Modal } from 'react-native';
 import axios from 'axios';
 import Toast from 'react-native-toast-message';
 import Ionicons from 'react-native-vector-icons/Ionicons';
@@ -7,6 +7,7 @@ import FormInput from '../components/FormInput';
 import { useThemeColors } from '../theme/useThemeColors';
 import { useNavigation } from '@react-navigation/native';
 import { API_BASE_URL } from '../constants/api';
+import { monedasPredefinidas, Moneda } from '../constants/monedas';
 
 const getPasswordStrength = (password: string) => {
   if (password.length < 6) return 'Débil';
@@ -25,14 +26,36 @@ const RegisterScreen: React.FC = () => {
     nombreCompleto: '',
     edad: '',
     ocupacion: '',
+    monedaPreferencia: 'USD',
   });
 
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [monedas, setMonedas] = useState<Moneda[]>(monedasPredefinidas);
+  const [monedaModalVisible, setMonedaModalVisible] = useState(false);
 
-  const handleChange = (key: keyof typeof form, value: string) => {
+  const handleChange = (key: keyof typeof form, value: string | boolean) => {
     setForm(prev => ({ ...prev, [key]: value }));
   };
+
+  const fetchMonedas = async () => {
+    try {
+      console.log('Obteniendo monedas desde: /monedas/catalogo');
+      const response = await axios.get(`${API_BASE_URL}/monedas/catalogo`);
+      
+      if (response.data && Array.isArray(response.data)) {
+        setMonedas(response.data);
+        return;
+      }
+    } catch (error: any) {
+      console.log(`❌ Error obteniendo monedas:`, error.response?.status || error.message);
+    }
+    setMonedas(monedasPredefinidas);
+  };
+
+  useEffect(() => {
+    fetchMonedas();
+  }, []);
 
   const passwordStrength = getPasswordStrength(form.password);
   const passwordsMatch = form.password === form.confirmPassword;
@@ -71,6 +94,7 @@ const RegisterScreen: React.FC = () => {
         nombreCompleto: form.nombreCompleto,
         edad: parseInt(form.edad, 10),
         ocupacion: form.ocupacion,
+        monedaPreferencia: form.monedaPreferencia,
       };
 
       await axios.post(`${API_BASE_URL}/auth/register`, payload);
@@ -183,6 +207,17 @@ const RegisterScreen: React.FC = () => {
             </View>
           )}
 
+          <Text style={styles.sectionTitle}>Preferencias</Text>
+          <TouchableOpacity 
+            style={styles.monedaSelector}
+            onPress={() => setMonedaModalVisible(true)}
+          >
+            <Text style={styles.monedaText}>
+              Moneda preferida: {monedas.find(m => m.codigo === form.monedaPreferencia)?.nombre || form.monedaPreferencia}
+            </Text>
+            <Ionicons name="chevron-down" size={20} color={colors.placeholder} />
+          </TouchableOpacity>
+
           <TouchableOpacity style={[styles.button, { backgroundColor: '#EF7725' }]} onPress={handleRegister}>
             <Text style={styles.buttonText}>Registrarse</Text>
           </TouchableOpacity>
@@ -194,6 +229,44 @@ const RegisterScreen: React.FC = () => {
             </Text>
           </Text>
         </View>
+
+        {/* Modal para seleccionar moneda */}
+        <Modal
+          visible={monedaModalVisible}
+          animationType="slide"
+          transparent
+          onRequestClose={() => setMonedaModalVisible(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContainer}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Seleccionar Moneda</Text>
+                <TouchableOpacity onPress={() => setMonedaModalVisible(false)}>
+                  <Ionicons name="close" size={24} color={colors.text} />
+                </TouchableOpacity>
+              </View>
+              <ScrollView style={styles.modalScroll}>
+                {monedas.map((moneda) => (
+                  <TouchableOpacity
+                    key={moneda.codigo}
+                    style={styles.monedaOption}
+                    onPress={() => {
+                      handleChange('monedaPreferencia', moneda.codigo);
+                      setMonedaModalVisible(false);
+                    }}
+                  >
+                    <Text style={styles.monedaOptionText}>
+                      {moneda.simbolo} {moneda.nombre} ({moneda.codigo})
+                    </Text>
+                    {form.monedaPreferencia === moneda.codigo && (
+                      <Ionicons name="checkmark" size={20} color="#EF7725" />
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -258,6 +331,62 @@ const styles = StyleSheet.create({
   backText: {
     fontSize: 14,
     textAlign: 'center',
+  },
+  monedaSelector: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    height: 48,
+    borderRadius: 10,
+    marginBottom: 10,
+    paddingHorizontal: 16,
+    backgroundColor: '#F8F9FA',
+    borderWidth: 1,
+    borderColor: '#E9ECEF',
+  },
+  monedaText: {
+    fontSize: 16,
+    color: '#495057',
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  modalContainer: {
+    width: '90%',
+    maxHeight: '70%',
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: 20,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1F2937',
+  },
+  modalScroll: {
+    maxHeight: 300,
+  },
+  monedaOption: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    marginBottom: 4,
+  },
+  monedaOptionText: {
+    fontSize: 16,
+    color: '#374151',
   },
 });
 

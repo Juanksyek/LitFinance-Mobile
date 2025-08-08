@@ -8,6 +8,8 @@ import DeleteModal from './DeleteModal';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../navigation/AppNavigator';
+// ✅ NUEVO: Importar SmartNumber para mostrar cifras grandes de forma segura
+import SmartNumber from './SmartNumber';
 
 const { width } = Dimensions.get('window');
 
@@ -118,7 +120,13 @@ const SubaccountRecurrentesList = ({ subcuentaId, userId, onRefresh }: Props) =>
           >
             <View>
               <Text style={styles.nombre} numberOfLines={1}>{item.nombre}</Text>
-              <Text style={styles.monto}>${item.monto.toFixed(2)}</Text>
+              {/* ✅ NUEVO: Formato de miles para cifras grandes */}
+              <Text style={styles.monto}>
+                ${item.monto >= 1000000 
+                  ? `${(item.monto / 1000000).toFixed(1)}M`
+                  : item.monto.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                }
+              </Text>
               <View style={styles.badge}>
                 <Text style={styles.badgeText}>Próxima: {item.proximaEjecucion.slice(0, 10)}</Text>
               </View>

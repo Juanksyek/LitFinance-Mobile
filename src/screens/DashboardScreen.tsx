@@ -24,23 +24,57 @@ export default function DashboardScreen() {
   const route = useRoute<RouteProp<RootStackParamList, "Dashboard">>();
   const navigation = useNavigation();
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastRefreshTime, setLastRefreshTime] = useState(0);
+
+  // 🆕 Función para actualizar todos los componentes cuando cambia la moneda
+  const handleCurrencyChange = useCallback(() => {
+    console.log('💱 [DashboardScreen] === INICIO ACTUALIZACIÓN POR CAMBIO DE MONEDA ===');
+    console.log('💱 [DashboardScreen] Actualizando todos los componentes por cambio de moneda');
+    const newTrigger = Date.now();
+    console.log('💱 [DashboardScreen] Nuevos triggers:', {
+      reloadTrigger: newTrigger,
+      refreshKey: newTrigger,
+      timestamp: new Date().toISOString()
+    });
+    setReloadTrigger(newTrigger);
+    setRefreshKey(newTrigger);
+    console.log('💱 [DashboardScreen] === FIN ACTUALIZACIÓN POR CAMBIO DE MONEDA ===');
+  }, []);
 
   const fetchCuentaId = async () => {
     try {
+      console.log('Obteniendo datos de cuenta principal...');
       const token = await AsyncStorage.getItem("authToken");
+      
+      if (!token) {
+        throw new Error('No hay token de autenticación');
+      }
+      
       const res = await axios.get(`${API_BASE_URL}/cuenta/principal`, {
         headers: { Authorization: `Bearer ${token}` },
+        timeout: 10000, // 10 segundos de timeout
       });
+      
       setCuentaId(res.data.id || res.data._id);
       setUserId(res.data.userId);
-
-      // Activar refresh también después de obtener los datos por primera vez
-      handleRefresh();
-    } catch (err) {
+      console.log('Datos de cuenta obtenidos exitosamente');
+    } catch (err: any) {
+      console.error('Error fetching cuenta:', err);
+      
+      let errorMessage = "Inicia sesión de nuevo o inténtalo más tarde";
+      
+      if (err.response?.status === 429) {
+        errorMessage = "Demasiadas peticiones. Espera un momento e intenta de nuevo";
+      } else if (err.code === 'ECONNABORTED') {
+        errorMessage = "Tiempo de espera agotado. Verifica tu conexión";
+      } else if (err.response?.status === 401) {
+        errorMessage = "Sesión expirada. Inicia sesión nuevamente";
+      }
+      
       Toast.show({
         type: "error",
         text1: "Error al recuperar la cuenta principal",
-        text2: "Inicia sesión de nuevo o inténtalo más tarde",
+        text2: errorMessage,
       });
     }
   };
@@ -55,23 +89,53 @@ export default function DashboardScreen() {
     }
   }, [route.params]);
 
-  const handleRefresh = useCallback(() => {
+  const handleRefresh = useCallback(async () => {
+    const now = Date.now();
+    const minInterval = 2000; // Mínimo 2 segundos entre refreshes
+    
+    // Evitar refreshes muy frecuentes
+    if (now - lastRefreshTime < minInterval) {
+      console.log('Refresh bloqueado: muy pronto desde el último refresh');
+      return;
+    }
+    
+    if (isRefreshing) {
+      console.log('Refresh ya en progreso, ignorando');
+      return;
+    }
+
     setIsRefreshing(true);
+    setLastRefreshTime(now);
     
     try {
-      setReloadTrigger(prev => prev + 1);
+      console.log('Iniciando refresh de datos...');
+      
+      // Recargar los datos de la cuenta principal
+      await fetchCuentaId();
+      
+      // Actualizar el trigger para recargar todos los componentes
+      setReloadTrigger(Date.now());
+      setRefreshKey(Date.now());
+      
+      console.log('Refresh completado exitosamente');
+      Toast.show({
+        type: "success",
+        text1: "Datos actualizados",
+        text2: "La información se ha refrescado correctamente",
+      });
     } catch (error) {
+      console.error('Error al refrescar:', error);
       Toast.show({
         type: "error",
         text1: "Error al recargar",
-        text2: "No se pudieron recargar los componentes.",
+        text2: "No se pudieron actualizar los datos.",
       });
     } finally {
       setTimeout(() => {
         setIsRefreshing(false);
-      }, 1000);
+      }, 1500);
     }
-  }, []);
+  }, [lastRefreshTime, isRefreshing]);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -84,9 +148,15 @@ export default function DashboardScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      // Refresca al volver a enfocar el dashboard (útil tras editar un recurrente)
-      handleRefresh();
-    }, [])
+      // Solo refrescar si han pasado más de 30 segundos desde el último refresh
+      const now = Date.now();
+      if (now - lastRefreshTime > 30000) {
+        console.log('Auto-refresh al enfocar la pantalla');
+        handleRefresh();
+      } else {
+        console.log('Auto-refresh omitido: refresh reciente');
+      }
+    }, [lastRefreshTime, handleRefresh])
   );
 
   return (
@@ -104,7 +174,7 @@ export default function DashboardScreen() {
         }
       >
 
-        <BalanceCard reloadTrigger={reloadTrigger} />
+        <BalanceCard reloadTrigger={reloadTrigger} onCurrencyChange={handleCurrencyChange} />
 
         {cuentaId && userId && (
           <ActionButtons cuentaId={cuentaId} userId={userId} onRefresh={handleRefresh} />
