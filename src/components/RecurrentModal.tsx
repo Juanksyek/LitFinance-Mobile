@@ -8,6 +8,9 @@ import Toast from "react-native-toast-message";
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../navigation/AppNavigator';
+// ✅ NUEVO: Importar componentes para manejar cifras grandes
+import SmartInput from './SmartInput';
+import SmartNumber from './SmartNumber';
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
 
 interface Props {
@@ -36,7 +39,10 @@ const RecurrentModal: React.FC<Props> = ({ visible, onClose, onSubmit, cuentaId,
   const [plataforma, setPlataforma] = useState<any>(null);
   const [frecuenciaTipo, setFrecuenciaTipo] = useState<'dia_semana' | 'dia_mes' | 'fecha_fija'>('dia_semana');
   const [frecuenciaValor, setFrecuenciaValor] = useState('');
-  const [monto, setMonto] = useState('');
+  // ✅ NUEVO: Estados para manejar cifras grandes de forma segura
+  const [montoNumerico, setMontoNumerico] = useState<number | null>(null);
+  const [montoValido, setMontoValido] = useState(false);
+  const [erroresMonto, setErroresMonto] = useState<string[]>([]);
   const [afectaCuentaPrincipal, setAfectaCuentaPrincipal] = useState(true);
   const [afectaSubcuenta, setAfectaSubcuenta] = useState(false);
   const [recordatorios, setRecordatorios] = useState<string[]>([]);
@@ -46,6 +52,18 @@ const RecurrentModal: React.FC<Props> = ({ visible, onClose, onSubmit, cuentaId,
   type NavigationProp = StackNavigationProp<RootStackParamList, 'Dashboard'>;
   const navigation = useNavigation<NavigationProp>();
   
+  // ✅ NUEVO: Funciones para manejar cambios de monto de forma segura
+  const getLimitesRecurrente = () => ({
+    min: 0.01,
+    max: 100000000, // 100 millones para pagos recurrentes (tarjetas, etc.)
+    warning: 10000000, // Advertencia a partir de 10 millones
+  });
+
+  const handleMontoValidation = (isValid: boolean, errors: string[]) => {
+    setMontoValido(isValid);
+    setErroresMonto(errors);
+  };
+
   // Data state
   const [plataformas, setPlataformas] = useState<any[]>([]);
   const [monedasDisponibles, setMonedasDisponibles] = useState<any[]>([]);
@@ -208,22 +226,9 @@ const RecurrentModal: React.FC<Props> = ({ visible, onClose, onSubmit, cuentaId,
     onClose();
   }, [onClose]);
 
-  const handleMontoChange = useCallback((text: string) => {
-    // Remove non-numeric characters except decimal point
-    const numericText = text.replace(/[^0-9.]/g, '');
-
-    // Ensure only one decimal point
-    const parts = numericText.split('.');
-    if (parts.length > 2) {
-      return;
-    }
-
-    // Limit decimal places to 2
-    if (parts[1] && parts[1].length > 2) {
-      return;
-    }
-
-    setMonto(numericText);
+  // ✅ NUEVO: Reemplazar función de manejo de monto con versión segura
+  const handleMontoChange = useCallback((value: number | null) => {
+    setMontoNumerico(value);
     if (errors.monto) {
       setErrors(prev => ({ ...prev, monto: undefined }));
     }
@@ -264,7 +269,10 @@ const RecurrentModal: React.FC<Props> = ({ visible, onClose, onSubmit, cuentaId,
   const resetForm = useCallback(() => {
     setNombre('');
     setPlataforma(null);
-    setMonto('');
+    // ✅ NUEVO: Limpiar estados numéricos
+    setMontoNumerico(null);
+    setMontoValido(false);
+    setErroresMonto([]);
     setFrecuenciaTipo('dia_semana');
     setFrecuenciaValor('');
     setRecordatorios([]);
@@ -279,7 +287,7 @@ const RecurrentModal: React.FC<Props> = ({ visible, onClose, onSubmit, cuentaId,
   }, []);
 
   const handleGuardar = async () => {
-    if (!nombre || !plataforma || !frecuenciaTipo || !frecuenciaValor || !moneda || !monto) {
+    if (!nombre || !plataforma || !frecuenciaTipo || !frecuenciaValor || !moneda || !montoNumerico || !montoValido) {
       Toast.show({
         type: 'error',
         text1: 'Campos incompletos',
@@ -299,7 +307,7 @@ const RecurrentModal: React.FC<Props> = ({ visible, onClose, onSubmit, cuentaId,
         frecuenciaTipo,
         frecuenciaValor,
         moneda,
-        monto: parseFloat(monto),
+        monto: montoNumerico, // ✅ NUEVO: Usar valor numérico validado
         cuentaId,
         subcuentaId: subcuentaId || null,
         afectaCuentaPrincipal: !subcuentaId,
@@ -345,7 +353,8 @@ const RecurrentModal: React.FC<Props> = ({ visible, onClose, onSubmit, cuentaId,
     if (recurrenteExistente) {
       setNombre(recurrenteExistente.nombre || '');
       setPlataforma(recurrenteExistente.plataforma || null);
-      setMonto(recurrenteExistente.monto?.toString() || '');
+      // ✅ NUEVO: Setear valor numérico inicial
+      setMontoNumerico(recurrenteExistente.monto || null);
       setFrecuenciaTipo(recurrenteExistente.frecuenciaTipo || 'dia_semana');
       setFrecuenciaValor(recurrenteExistente.frecuenciaValor || '');
       setRecordatorios(recurrenteExistente.recordatorios || []);
@@ -366,7 +375,8 @@ const RecurrentModal: React.FC<Props> = ({ visible, onClose, onSubmit, cuentaId,
         setPlataforma(recurrente.plataforma || null);
         setFrecuenciaTipo(recurrente.frecuenciaTipo || 'dia_semana');
         setFrecuenciaValor(recurrente.frecuenciaValor || '');
-        setMonto(recurrente.monto?.toString() || '');
+        // ✅ NUEVO: Setear valor numérico del recurrente
+        setMontoNumerico(recurrente.monto || null);
         setMoneda(recurrente.moneda || 'USD');
         setAfectaCuentaPrincipal(recurrente.afectaCuentaPrincipal ?? true);
         setAfectaSubcuenta(recurrente.afectaSubcuenta ?? false);
@@ -667,25 +677,39 @@ const RecurrentModal: React.FC<Props> = ({ visible, onClose, onSubmit, cuentaId,
                 )}
               </View>
 
-              {/* Amount Input */}
+              {/* ✅ NUEVO: SmartInput en lugar de TextInput básico */}
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Monto</Text>
-                <View style={styles.amountContainer}>
-                  <View style={styles.currencyPrefix}>
-                    <Text style={styles.currencyPrefixText}>
-                      {monedasDisponibles.find(m => m.codigo === moneda)?.simbolo || '$'}
-                    </Text>
-                  </View>
-                  <TextInput
-                    style={[styles.amountInput, errors.monto && styles.inputError]}
-                    value={monto}
-                    onChangeText={handleMontoChange}
-                    keyboardType="decimal-pad"
+                <View style={styles.smartInputContainer}>
+                  <SmartInput
+                    type="currency"
                     placeholder="0.00"
-                    placeholderTextColor="#94a3b8"
+                    prefix={monedasDisponibles.find(m => m.codigo === moneda)?.simbolo || '$'}
+                    initialValue={montoNumerico || undefined}
+                    {...getLimitesRecurrente()}
+                    onValueChange={handleMontoChange}
+                    onValidationChange={handleMontoValidation}
+                    style={[styles.amountInput, errors.monto && styles.inputError]}
+                    autoFix={true}
                   />
                 </View>
                 {renderError(errors.monto)}
+                
+                {/* ✅ NUEVO: Mostrar advertencia si hay errores */}
+                {erroresMonto.length > 0 && (
+                  <View style={styles.warningContainer}>
+                    <Ionicons name="warning-outline" size={20} color="#F59E0B" />
+                    <View style={styles.warningContent}>
+                      <Text style={styles.warningTitle}>Monto muy grande</Text>
+                      <Text style={styles.warningText}>
+                        Monto: <SmartNumber value={montoNumerico || 0} options={{ context: 'modal', symbol: monedasDisponibles.find(m => m.codigo === moneda)?.simbolo || '$' }} />
+                      </Text>
+                      <Text style={styles.warningSubtext}>
+                        {erroresMonto[0]}
+                      </Text>
+                    </View>
+                  </View>
+                )}
               </View>
 
               {/* Frequency Selection */}
@@ -1314,6 +1338,40 @@ const styles = StyleSheet.create({
   reminderText: {
     fontSize: 10,
     color: '#333',
+  },
+  // ✅ NUEVO: Estilos para SmartInput y advertencias
+  smartInputContainer: {
+    marginBottom: 0, // SmartInput ya tiene su propio margin
+  },
+  warningContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#FEF3C7',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+    marginTop: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: '#F59E0B',
+  },
+  warningContent: {
+    flex: 1,
+    marginLeft: 8,
+  },
+  warningTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#92400E',
+    marginBottom: 4,
+  },
+  warningText: {
+    fontSize: 12,
+    color: '#92400E',
+    marginBottom: 2,
+  },
+  warningSubtext: {
+    fontSize: 11,
+    color: '#A16207',
+    fontStyle: 'italic',
   },
 });
 
