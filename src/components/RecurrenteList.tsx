@@ -5,6 +5,8 @@ import { API_BASE_URL } from "../constants/api";
 import { useNavigation, NavigationProp } from "@react-navigation/native";
 import { RootStackParamList } from "../navigation/AppNavigator";
 import { Ionicons } from "@expo/vector-icons";
+// ✅ NUEVO: Importar SmartNumber para mostrar cifras grandes de forma segura
+import SmartNumber from './SmartNumber';
 
 const { width } = Dimensions.get("window");
 const LIMIT = 4;
@@ -53,6 +55,14 @@ const RecurrentesList = ({
 
     // Fetch principal
     const fetchRecurrentes = async () => {
+        console.log('📋 [RecurrentesList] Iniciando fetch de recurrentes:', {
+            userId,
+            page,
+            debouncedSearch,
+            esSubcuenta,
+            subcuentaId
+        });
+        
         try {
             setLoading(true);
             const token = await AsyncStorage.getItem("authToken");
@@ -62,16 +72,27 @@ const RecurrentesList = ({
             });
             const data = await res.json();
 
+            console.log('📥 [RecurrentesList] Respuesta recibida:', {
+                itemsLength: data.items?.length || 0,
+                hasNextPage: data.hasNextPage
+            });
+
             if (!Array.isArray(data.items)) return;
 
             const filtrados = esSubcuenta
                 ? data.items.filter((r: Recurrente) => r.subcuentaId === subcuentaId)
                 : data.items.filter((r: Recurrente) => r.afectaCuentaPrincipal);
 
+            console.log('✅ [RecurrentesList] Recurrentes filtrados:', {
+                totalOriginal: data.items.length,
+                totalFiltrado: filtrados.length,
+                tipo: esSubcuenta ? 'subcuenta' : 'cuenta principal'
+            });
+
             setRecurrentes(filtrados);
             setHasMore(data.hasNextPage);
         } catch (err) {
-            console.error("Error al obtener recurrentes:", err);
+            console.error("❌ [RecurrentesList] Error al obtener recurrentes:", err);
         } finally {
             setLoading(false);
         }
@@ -85,8 +106,11 @@ const RecurrentesList = ({
     // Si se pasa refreshKey (por editar o crear), se reinicia la búsqueda
     useEffect(() => {
         if (refreshKey) {
+            console.log('🔄 [RecurrentesList] RefreshKey cambió, recargando datos:', refreshKey);
             setPage(1);
             setDebouncedSearch(""); // Reiniciar búsqueda también
+            // Recargar inmediatamente los datos
+            fetchRecurrentes();
         }
     }, [refreshKey]);
 
@@ -114,7 +138,13 @@ const RecurrentesList = ({
           >
             <View>
               <Text style={styles.nombre} numberOfLines={1}>{item.nombre}</Text>
-              <Text style={styles.monto}>${item.monto.toFixed(2)}</Text>
+              {/* ✅ NUEVO: Formato de miles para cifras grandes */}
+              <Text style={styles.monto}>
+                ${item.monto >= 1000000 
+                  ? `${(item.monto / 1000000).toFixed(1)}M`
+                  : item.monto.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                }
+              </Text>
               <View style={styles.badge}>
                 <Text style={styles.badgeText}>{obtenerPeriodo()}</Text>
               </View>
