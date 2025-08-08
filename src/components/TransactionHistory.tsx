@@ -6,6 +6,8 @@ import { jwtDecode } from "jwt-decode";
 import { API_BASE_URL } from "../constants/api";
 import Toast from "react-native-toast-message";
 import HistorialDetalleModal from "./HistorialDetalleModal";
+// ✅ NUEVO: Importar SmartNumber para mostrar cifras grandes de forma segura
+import SmartNumber from './SmartNumber';
 
 type HistorialItem = {
   id: string;
@@ -43,6 +45,13 @@ const TransactionHistory = ({ refreshKey }: { refreshKey?: number }) => {
 
   useEffect(() => {
     const fetchHistorial = async () => {
+      console.log('📋 [TransactionHistory] Iniciando fetch de historial:', {
+        refreshKey,
+        search,
+        page,
+        timestamp: new Date().toISOString()
+      });
+      
       setLoading(true);
       try {
         const token = await AsyncStorage.getItem("authToken");
@@ -78,9 +87,16 @@ const TransactionHistory = ({ refreshKey }: { refreshKey?: number }) => {
 
         const data = await res.json();
 
+        console.log('📥 [TransactionHistory] Respuesta recibida:', {
+          dataLength: data?.data?.length || 0,
+          hasData: Array.isArray(data?.data),
+          hasMore: data?.data?.length === limit
+        });
+
         if (Array.isArray(data?.data)) {
           setHistorial(data.data);
           setHasMore(data.data.length === limit);
+          console.log('✅ [TransactionHistory] Historial actualizado exitosamente');
         } else {
           setHistorial([]);
           setHasMore(false);
@@ -170,7 +186,12 @@ const TransactionHistory = ({ refreshKey }: { refreshKey?: number }) => {
             key={item.id}
             icon={iconByTipo(item.tipo)}
             title={item.descripcion}
-            amount={`$${item.monto.toFixed(2)}`}
+            amount={
+              // ✅ NUEVO: Formatear cifras grandes con representación en miles para 1M+
+              item.monto >= 1000000 
+                ? `$${(item.monto / 1000000).toFixed(1)}M`
+                : `$${item.monto.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+            }
             date={new Date(item.fecha).toLocaleDateString()}
             onPress={() => {
               setItemSeleccionado(item);
