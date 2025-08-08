@@ -4,6 +4,8 @@ import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { API_BASE_URL } from "../constants/api";
 import { useNavigation } from '@react-navigation/native';
+// ✅ NUEVO: Importar SmartNumber para mostrar cifras grandes de forma segura
+import SmartNumber from './SmartNumber';
 
 const { width } = Dimensions.get("window");
 
@@ -43,6 +45,14 @@ const SubaccountsList: React.FC<Props> = ({ userId, refreshKey = 0 }) => {
   }, [search]);
 
   const fetchSubcuentas = async () => {
+    console.log('💳 [SubaccountsList] Iniciando fetch de subcuentas:', {
+      userId,
+      page,
+      mostrarSoloActivas,
+      refreshKey,
+      timestamp: new Date().toISOString()
+    });
+    
     try {
       setLoading(true);
       const token = await AsyncStorage.getItem("authToken");
@@ -53,8 +63,13 @@ const SubaccountsList: React.FC<Props> = ({ userId, refreshKey = 0 }) => {
 
       const data = await res.json();
 
+      console.log('📥 [SubaccountsList] Respuesta recibida:', {
+        dataLength: Array.isArray(data) ? data.length : 'No es array',
+        type: typeof data
+      });
+
       if (!Array.isArray(data)) {
-        console.error("Respuesta inválida:", data);
+        console.error("❌ [SubaccountsList] Respuesta inválida:", data);
         setSubcuentas([]);
         setHasMore(false);
         return;
@@ -70,10 +85,16 @@ const SubaccountsList: React.FC<Props> = ({ userId, refreshKey = 0 }) => {
 
       filtered = filtered.sort((a, b) => Number(b.activa) - Number(a.activa));
 
+      console.log('✅ [SubaccountsList] Subcuentas actualizadas:', {
+        totalOriginal: data.length,
+        totalFiltrado: filtered.length,
+        hasMore: data.length === LIMIT && filtered.length > 0
+      });
+
       setSubcuentas(filtered);
       setHasMore(data.length === LIMIT && filtered.length > 0);
     } catch (err) {
-      console.error("Error al obtener subcuentas:", err);
+      console.error("❌ [SubaccountsList] Error al obtener subcuentas:", err);
     } finally {
       setLoading(false);
     }
@@ -121,7 +142,10 @@ const SubaccountsList: React.FC<Props> = ({ userId, refreshKey = 0 }) => {
 
       <Text style={styles.cardAmount} numberOfLines={1} ellipsizeMode="tail">
         {item.simbolo}
-        {item.cantidad.toLocaleString()} {item.moneda}
+        {item.cantidad >= 1000000 
+          ? `${(item.cantidad / 1000000).toFixed(1)}M`
+          : item.cantidad.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+        } {item.moneda}
       </Text>
 
       {/* Badge de estado */}
