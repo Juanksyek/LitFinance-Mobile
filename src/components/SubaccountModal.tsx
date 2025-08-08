@@ -5,6 +5,9 @@ import Ionicons from "react-native-vector-icons/Ionicons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Toast from "react-native-toast-message";
 import { API_BASE_URL } from "../constants/api";
+// ✅ NUEVO: Importar componentes para manejar cifras grandes
+import SmartInput from './SmartInput';
+import SmartNumber from './SmartNumber';
 
 const SCREEN_HEIGHT = Dimensions.get("window").height;
 
@@ -36,7 +39,26 @@ const SubaccountModal: React.FC<Props> = ({
   const [monedas, setMonedas] = useState<any[]>([]);
   const [monedaModalVisible, setMonedaModalVisible] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [cantidad, setCantidad] = useState("0");
+  // ✅ NUEVO: Estados para manejar cifras grandes de forma segura
+  const [cantidadNumerica, setCantidadNumerica] = useState<number | null>(0);
+  const [cantidadValida, setCantidadValida] = useState(true);
+  const [erroresCantidad, setErroresCantidad] = useState<string[]>([]);
+
+  // ✅ NUEVO: Funciones para manejar cambios de cantidad de forma segura
+  const getLimitesSubcuenta = () => ({
+    min: 0,
+    max: 999999999999, // 999 mil millones (subcuentas pueden ser muy grandes)
+    warning: 100000000, // Advertencia a partir de 100 millones
+  });
+
+  const handleCantidadChange = (value: number | null) => {
+    setCantidadNumerica(value);
+  };
+
+  const handleCantidadValidation = (isValid: boolean, errors: string[]) => {
+    setCantidadValida(isValid);
+    setErroresCantidad(errors);
+  };
 
   const fetchMonedas = async () => {
     try {
@@ -67,13 +89,32 @@ const SubaccountModal: React.FC<Props> = ({
       return;
     }
 
+    // ✅ NUEVO: Validar cantidad numérica
+    if (!cantidadValida || cantidadNumerica === null) {
+      Toast.show({
+        type: "error",
+        text1: "Cantidad inválida",
+        text2: "Verifica la cantidad inicial.",
+      });
+      return;
+    }
+
+    // ✅ NUEVO: Advertencia para cantidades muy grandes
+    if (erroresCantidad.some(error => error.includes('muy grande'))) {
+      Toast.show({
+        type: "info",
+        text1: "Cantidad inusualmente grande",
+        text2: "Verifica que sea correcta antes de continuar.",
+      });
+    }
+
     try {
       setLoading(true);
       const token = await AsyncStorage.getItem("authToken");
 
       const payload = {
         nombre: nombre.trim(),
-        cantidad: Number(cantidad),
+        cantidad: cantidadNumerica, // ✅ NUEVO: Usar valor numérico validado
         moneda,
         simbolo,
         color,
@@ -98,7 +139,11 @@ const SubaccountModal: React.FC<Props> = ({
       }
 
       Toast.show({ type: "success", text1: "Subcuenta creada" });
+      // ✅ NUEVO: Limpiar todos los estados incluyendo los numéricos
       setNombre("");
+      setCantidadNumerica(0);
+      setCantidadValida(true);
+      setErroresCantidad([]);
       onSuccess();
       onClose();
     } catch (err: any) {
@@ -161,13 +206,36 @@ const SubaccountModal: React.FC<Props> = ({
           </View>
         </View>
 
-        <TextInput
-          placeholder="Cantidad inicial"
-          keyboardType="numeric"
-          value={cantidad}
-          onChangeText={setCantidad}
-          style={styles.input}
-        />
+        {/* ✅ NUEVO: SmartInput en lugar de TextInput básico */}
+        <View style={styles.smartInputContainer}>
+          <SmartInput
+            type="currency"
+            placeholder="Cantidad inicial"
+            prefix={simbolo}
+            initialValue={cantidadNumerica || undefined}
+            {...getLimitesSubcuenta()}
+            onValueChange={handleCantidadChange}
+            onValidationChange={handleCantidadValidation}
+            style={styles.input}
+            autoFix={true}
+          />
+        </View>
+
+        {/* ✅ NUEVO: Mostrar advertencia si hay errores */}
+        {erroresCantidad.length > 0 && (
+          <View style={styles.warningContainer}>
+            <Ionicons name="warning-outline" size={20} color="#F59E0B" />
+            <View style={styles.warningContent}>
+              <Text style={styles.warningTitle}>Cantidad muy grande</Text>
+              <Text style={styles.warningText}>
+                Cantidad: <SmartNumber value={cantidadNumerica || 0} options={{ context: 'modal', symbol: simbolo }} />
+              </Text>
+              <Text style={styles.warningSubtext}>
+                {erroresCantidad[0]}
+              </Text>
+            </View>
+          </View>
+        )}
 
         <View style={{ marginBottom: 16 }}>
           <Text style={styles.switchLabel}>Color</Text>
@@ -360,6 +428,40 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#333",
     marginLeft: 4,
+  },
+  // ✅ NUEVO: Estilos para SmartInput y advertencias
+  smartInputContainer: {
+    marginBottom: 0, // SmartInput ya tiene su propio margin
+  },
+  warningContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#FEF3C7',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+    marginTop: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: '#F59E0B',
+  },
+  warningContent: {
+    flex: 1,
+    marginLeft: 8,
+  },
+  warningTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#92400E',
+    marginBottom: 4,
+  },
+  warningText: {
+    fontSize: 12,
+    color: '#92400E',
+    marginBottom: 2,
+  },
+  warningSubtext: {
+    fontSize: 11,
+    color: '#A16207',
+    fontStyle: 'italic',
   },
 });
 
