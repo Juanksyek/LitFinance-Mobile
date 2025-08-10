@@ -79,119 +79,221 @@ const LoginScreen: React.FC = () => {
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
       >
-        <Image
-          source={require("../images/LitFinance.png")}
-          style={styles.logo}
-        />
+        {/* Logo Container with Neumorphic Effect */}
+        <View style={[{ backgroundColor: colors.background }]}>
+          <Image
+            source={require("../images/LitFinance.png")}
+            style={styles.logo}
+          />
+        </View>
 
         <Text style={[styles.title, { color: colors.text }]}>LitFinance</Text>
+        <Text style={[styles.subtitle, { color: colors.placeholder }]}>
+          Bienvenido de vuelta
+        </Text>
 
-        <View style={styles.inputContainer}>
-          <FormInput
-            placeholder="Correo"
-            keyboardType="email-address"
-            autoCapitalize="none"
-            value={email}
-            onChangeText={setEmail}
-            style={styles.input}
-          />
-          <FormInput
-            placeholder="Contraseña"
-            secureTextEntry={!showPassword}
-            value={password}
-            onChangeText={setPassword}
-            style={styles.input}
-            rightIcon={
-              <Ionicons
-                name={showPassword ? "eye-off-outline" : "eye-outline"}
-                size={20}
-                color={colors.placeholder}
+        {/* Main Card Container */}
+        <View style={[styles.cardContainer, { backgroundColor: colors.background }]}>
+          <View style={styles.inputContainer}>
+            <View style={[styles.inputWrapper, { backgroundColor: colors.background }]}>
+              <FormInput
+                placeholder="Correo electrónico"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                value={email}
+                onChangeText={setEmail}
+                style={[styles.input, { backgroundColor: 'transparent', borderWidth: 0 }]}
               />
-            }
-            onRightIconPress={() => setShowPassword(!showPassword)}
-          />
+            </View>
+            
+            <View style={[styles.inputWrapper, { backgroundColor: colors.background }]}>
+              <FormInput
+                placeholder="Contraseña"
+                secureTextEntry={!showPassword}
+                value={password}
+                onChangeText={setPassword}
+                style={[styles.input, { backgroundColor: 'transparent', borderWidth: 0 }]}
+                rightIcon={
+                  <TouchableOpacity 
+                    style={styles.iconButton}
+                    onPress={() => setShowPassword(!showPassword)}
+                  >
+                    <Ionicons
+                      name={showPassword ? "eye-off-outline" : "eye-outline"}
+                      size={22}
+                      color={colors.placeholder}
+                    />
+                  </TouchableOpacity>
+                }
+              />
+            </View>
+
+            <TouchableOpacity
+              onPress={() => navigation.navigate("ForgotPassword")}
+              style={styles.forgotContainer}
+            >
+              <Text style={[styles.forgotText, { color: colors.placeholder }]}>
+                ¿Olvidaste tu contraseña?
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Login Button with Neumorphic Effect */}
           <TouchableOpacity
-            onPress={() => navigation.navigate("ForgotPassword")}
+            style={[
+              styles.button, 
+              { backgroundColor: loading ? colors.placeholder : colors.button },
+              loading && styles.buttonDisabled
+            ]}
+            onPress={handleLogin}
+            disabled={loading}
+            activeOpacity={0.8}
           >
-            <Text style={[styles.forgotText, { color: colors.placeholder }]}>
-              ¿Olvidaste tu contraseña?
+            <Text style={[styles.buttonText, { opacity: loading ? 0.7 : 1 }]}>
+              {loading ? "Iniciando sesión..." : "Iniciar Sesión"}
             </Text>
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity
-          style={[styles.button, { backgroundColor: colors.button }]}
-          onPress={handleLogin}
-          disabled={loading}
-        >
-          <Text style={styles.buttonText}>
-            {loading ? "Cargando..." : "Iniciar Sesión"}
+        {/* Sign up section */}
+        <View style={styles.signupContainer}>
+          <Text style={[styles.signupText, { color: colors.placeholder }]}>
+            ¿Aún no tienes cuenta?{" "}
           </Text>
-        </TouchableOpacity>
-
-        <Text style={[styles.signupText, { color: colors.placeholder }]}>
-          ¿Aún no tienes cuenta?{" "}
-          <Text
-            onPress={() => navigation.navigate("Register")}
-            style={{ color: "#EF7725", fontWeight: "bold" }}
-          >
-            Registrarse
-          </Text>
-        </Text>
+          <TouchableOpacity onPress={() => navigation.navigate("Register")}>
+            <Text style={styles.signupLink}>Registrarse</Text>
+          </TouchableOpacity>
+        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
+  container: { 
+    flex: 1,
+  },
   scrollContent: {
     flexGrow: 1,
     alignItems: "center",
     justifyContent: "center",
     padding: 24,
+    paddingTop: 60,
+    paddingBottom: 40,
   },
   logo: {
-    width: 100,
-    height: 100,
-    marginBottom: 20,
+    width: 70,
+    height: 70,
     resizeMode: "contain",
   },
   title: {
-    fontSize: 32,
-    fontWeight: "700",
+    fontSize: 36,
+    fontWeight: "800",
+    marginBottom: 8,
+    letterSpacing: -0.5,
+  },
+  subtitle: {
+    fontSize: 16,
+    fontWeight: "400",
+    marginBottom: 40,
+    opacity: 0.7,
+  },
+  cardContainer: {
+    width: '100%',
+    borderRadius: 24,
+    padding: 24,
     marginBottom: 32,
+    // Neumorphic effect
+    shadowColor: '#000',
+    shadowOffset: {
+      width: -8,
+      height: -8,
+    },
+    shadowOpacity: 0.05,
+    shadowRadius: 16,
+    elevation: 8,
+    // Additional shadow for depth
+    borderWidth: Platform.OS === 'ios' ? 1 : 0,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   inputContainer: {
     width: "100%",
-    marginBottom: 16,
+    marginBottom: 24,
+  },
+  inputWrapper: {
+    marginBottom: 20,
+    borderRadius: 16,
+    // Inner neumorphic effect
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 4,
+      height: 4,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+    // Inner shadow simulation
+    borderWidth: 1,
+    borderColor: 'rgba(0, 0, 0, 0.05)',
   },
   input: {
-    height: 48,
-    borderRadius: 10,
-    paddingHorizontal: 16,
+    height: 36,
+    borderRadius: 16,
+    paddingHorizontal: 20,
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  iconButton: {
+    padding: 4,
+  },
+  forgotContainer: {
+    alignItems: 'center',
+    marginTop: 8,
   },
   forgotText: {
-    paddingBottom: 30,
-    textAlign: "center",
     fontSize: 14,
+    fontWeight: "500",
   },
   button: {
     width: "100%",
-    paddingVertical: 16,
-    borderRadius: 10,
+    height: 56,
+    borderRadius: 16,
     alignItems: "center",
-    marginBottom: 20,
+    justifyContent: "center",
+    // Neumorphic button effect
+    shadowColor: '#EF7725',
+    shadowOffset: {
+      width: 0,
+      height: 8,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  buttonDisabled: {
+    shadowOpacity: 0.1,
   },
   buttonText: {
     color: "#fff",
     fontSize: 16,
-    fontWeight: "600",
+    fontWeight: "700",
+    letterSpacing: 0.5,
+  },
+  signupContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   signupText: {
     fontSize: 14,
-    textAlign: "center",
+    fontWeight: "400",
+  },
+  signupLink: {
+    color: "#EF7725", 
+    fontWeight: "700",
+    fontSize: 14,
   },
 });
 
