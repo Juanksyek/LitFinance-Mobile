@@ -3,8 +3,9 @@ import { View, Text, StyleSheet, Image, TouchableOpacity, Animated, Platform, St
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Toast from "react-native-toast-message";
 import { useNavigation } from "@react-navigation/native";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
-const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 
 const getResponsiveSpacing = () => {
   const baseWidth = 375;
@@ -28,11 +29,12 @@ const Header = () => {
   const [expanded, setExpanded] = useState(false);
   const [nombre, setNombre] = useState("Usuario");
   const [showLogoutModal, setShowLogoutModal] = useState(false);
-  const animatedHeight = useRef(new Animated.Value(92)).current;
+  const animatedHeight = useRef(new Animated.Value(100)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(-10)).current;
   const navigation = useNavigation();
   const spacing = getResponsiveSpacing();
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     const fetchNombre = async () => {
@@ -48,9 +50,15 @@ const Header = () => {
         setNombre("Error al cargar nombre");
       }
     };
-
     fetchNombre();
   }, []);
+
+  const topPad =
+    insets.top > 0
+      ? insets.top
+      : Platform.OS === "android"
+      ? Math.max((StatusBar.currentHeight ?? 0) * 0.8, 0)
+      : 0;
 
   const toggleExpand = () => {
     const expanding = !expanded;
@@ -99,99 +107,120 @@ const Header = () => {
   };
 
   return (
-    <View style={styles.headerWrapper}>
-      <TouchableOpacity
-        activeOpacity={0.9}
-        onPress={toggleExpand}
-        style={styles.expandableContainer}
-      >
-      </TouchableOpacity>
-      <Animated.View style={[styles.notchBar, styles.neumorphicLight, { height: animatedHeight }]}>
-        <View style={styles.headerTop}>
-          <View style={styles.logoContainer}>
-            <Image
-              source={require("../images/LitFinance.png")}
-              style={styles.logo}
-            />
-          </View>
-          <Text style={styles.welcomeText}>Bienvenido, {nombre}</Text>
-        </View>
+    <SafeAreaView edges={[]} style={styles.safeArea}>
+      {/* StatusBar translucido en Android para evitar empuje adicional */}
+      <StatusBar
+        translucent={Platform.OS === "android"}
+        backgroundColor="transparent"
+        barStyle={Platform.OS === "android" ? "dark-content" : "dark-content"}
+      />
+
+      <View style={styles.headerWrapper}>
+        <TouchableOpacity
+          activeOpacity={0.9}
+          onPress={toggleExpand}
+          style={styles.expandableContainer}
+        />
 
         <Animated.View
           style={[
-            styles.optionsContainer,
+            styles.notchBar,
+            styles.neumorphicContainer,
             {
-              opacity: opacityAnim,
-              transform: [{ translateY }],
+              height: animatedHeight,
+              minHeight: 100,
+              paddingTop: Math.max(topPad, 12),
             },
           ]}
-          pointerEvents={expanded ? "auto" : "none"}
         >
-          <TouchableOpacity style={styles.menuItem}>
-            <Text style={styles.menuText} onPress={() => navigation.navigate('MainAccount' as never)}>Mi Cuenta</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.menuItem}>
-            <Text style={styles.menuText}>Configuración</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.menuItem} onPress={() => setShowLogoutModal(true)}>
-            <Text style={[styles.menuText, styles.logoutText]}>Cerrar sesión</Text>
-          </TouchableOpacity>
+          <View style={styles.headerTop}>
+            <View style={[styles.logoContainer]}>
+              <Image source={require("../images/LitFinance.png")} style={styles.logo} />
+            </View>
+            <Text style={styles.welcomeText}>Bienvenido, {nombre}</Text>
+          </View>
+
+          <Animated.View
+            style={[
+              styles.optionsContainer,
+              {
+                opacity: opacityAnim,
+                transform: [{ translateY }],
+              },
+            ]}
+            pointerEvents={expanded ? "auto" : "none"}
+          >
+            <TouchableOpacity
+              style={[styles.menuItem, styles.neumorphicButton]}
+              onPress={() => navigation.navigate("MainAccount" as never)}
+            >
+              <Text style={styles.menuText}>Mi Cuenta</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.menuItem, styles.neumorphicButton]}>
+              <Text style={styles.menuText}>Configuración</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.menuItem, styles.neumorphicButton, styles.logoutButton]}
+              onPress={() => setShowLogoutModal(true)}
+            >
+              <Text style={[styles.menuText, styles.logoutText]}>Cerrar sesión</Text>
+            </TouchableOpacity>
+          </Animated.View>
         </Animated.View>
-      </Animated.View>
 
-      <TouchableOpacity
-        activeOpacity={0.9}
-        onPress={toggleExpand}
-        style={styles.expandTrigger}
-      >
-        <View style={styles.grabber} />
-      </TouchableOpacity>
+        <TouchableOpacity
+          activeOpacity={0.9}
+          onPress={toggleExpand}
+          style={[styles.expandTrigger]}
+        >
+          <View style={styles.grabber} />
+        </TouchableOpacity>
 
-      {/* Modal para confirmar cierre de sesión */}
-      <Modal
-        transparent={true}
-        visible={showLogoutModal}
-        animationType="fade"
-        onRequestClose={() => setShowLogoutModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContainer}>
-            <Text style={styles.modalTitle}>¿Estás seguro de que deseas salir?</Text>
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={styles.modalButton}
-                onPress={() => setShowLogoutModal(false)}
-              >
-                <Text style={styles.modalButtonTextNormal}>Cancelar</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.confirmButton]}
-                onPress={handleLogout}
-              >
-                <Text style={styles.confirmButton}>Salir</Text>
-              </TouchableOpacity>
+        {/* Modal para confirmar cierre de sesión */}
+        <Modal
+          transparent={true}
+          visible={showLogoutModal}
+          animationType="fade"
+          onRequestClose={() => setShowLogoutModal(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalContainer, styles.neumorphicContainer]}>
+              <Text style={styles.modalTitle}>¿Estás seguro de que deseas salir?</Text>
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.neumorphicButton]}
+                  onPress={() => setShowLogoutModal(false)}
+                >
+                  <Text style={styles.modalButtonTextNormal}>Cancelar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.neumorphicButton, styles.confirmButton]}
+                  onPress={handleLogout}
+                >
+                  <Text style={styles.confirmButtonText}>Salir</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
-        </View>
-      </Modal>
-    </View>
+        </Modal>
+      </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
+  safeArea: {
+    backgroundColor: "#f0f0f3",
+  },
   container: {
     alignItems: "center",
     width: "100%",
     backgroundColor: "#f0f0f3",
   },
   headerWrapper: {
-    marginTop: Platform.select({
-      android: Math.max((StatusBar.currentHeight ?? 24) * 0.3, 8),
-      ios: screenHeight > 800 ? 10 : 5,
-    }),
-    width: "100%",
     alignItems: "center",
     backgroundColor: "#f0f0f3",
+    width: 400,
   },
   expandableContainer: {
     width: "100%",
@@ -203,67 +232,72 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: Math.min(28, screenWidth * 0.075),
     borderBottomRightRadius: Math.min(28, screenWidth * 0.075),
     paddingHorizontal: Math.max(screenWidth * 0.05, 16),
-    paddingTop: Platform.select({
-      android: Math.max((StatusBar.currentHeight ?? 24) * 0.8, 16),
-      ios: screenHeight > 800 ? 36 : 24,
-    }),
     paddingBottom: Math.max(screenWidth * 0.04, 12),
   },
-  neumorphicLight: {
+  // Efecto neumorphism principal para contenedores
+  neumorphicContainer: {
     backgroundColor: "#f0f0f3",
+    borderRadius: 16,
     shadowColor: "#000",
-    shadowOffset: { width: 6, height: 6 },
-    shadowOpacity: 0.12,
-    shadowRadius: 14,
-    elevation: 8,
+    shadowOffset: {
+      width: 4,
+      height: 4,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
     borderWidth: 1,
-    borderColor: "#f0f0f3",
+    borderColor: "rgba(0, 0, 0, 0.05)",
   },
   neumorphicButton: {
     backgroundColor: "#f0f0f3",
+    borderRadius: 16,
     shadowColor: "#000",
-    shadowOffset: { width: 6, height: 6 },
-    shadowOpacity: 0.12,
-    shadowRadius: 14,
-    elevation: 8,
+    shadowOffset: {
+      width: 4,
+      height: 4,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
     borderWidth: 1,
-    borderColor: "#f0f0f3",
+    borderColor: "rgba(0, 0, 0, 0.05)",
+  },
+  neumorphicElement: {
+    backgroundColor: "#f0f0f3",
+    borderRadius: 16,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 4,
+      height: 4,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: "rgba(0, 0, 0, 0.05)",
   },
   headerTop: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
+    justifyContent: "center", // antes estaba "center"
     marginBottom: Math.max(screenWidth * 0.03, 8),
   },
   logoContainer: {
     width: Math.min(50, screenWidth * 0.13),
     height: Math.min(50, screenWidth * 0.13),
-    borderRadius: Math.min(25, screenWidth * 0.065),
+    borderRadius: 16,
     backgroundColor: "#f0f0f3",
     justifyContent: "center",
     alignItems: "center",
     marginRight: Math.max(screenWidth * 0.03, 10),
-    shadowColor: "#d1d9e6",
-    shadowOffset: { width: 4, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-
-    ...Platform.select({
-      ios: {
-        shadowColor: "#d1d9e6",
-        shadowOffset: { width: -2, height: -2 },
-        shadowOpacity: 0.8,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: -2,
-      },
-    }),
-
-    borderWidth: 1,
-    borderColor: "#d1d9e620",
-    borderBottomColor: "#d1d9e640",
-    borderRightColor: "#d1d9e640",
+  },
+  welcomeText: {
+    fontSize: Math.min(20, screenWidth * 0.05),
+    fontWeight: "600",
+    color: "#333",
+    flexShrink: 1,
+    textAlign: "left", // antes estaba "center"
   },
   logo: {
     width: Math.min(32, screenWidth * 0.085),
@@ -274,19 +308,13 @@ const styles = StyleSheet.create({
     width: "100%",
     alignItems: "center",
     paddingVertical: Math.max(screenWidth * 0.02, 6),
+    borderRadius: 16,
   },
   grabber: {
     width: Math.min(60, screenWidth * 0.16),
     height: Math.max(6, screenWidth * 0.015),
     backgroundColor: "#ccc",
     borderRadius: 2,
-  },
-  welcomeText: {
-    fontSize: Math.min(20, screenWidth * 0.05),
-    fontWeight: "600",
-    color: "#333",
-    flexShrink: 1,
-    textAlign: "center",
   },
   optionsContainer: {
     gap: Math.max(screenWidth * 0.02, 6),
@@ -299,11 +327,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: Math.max(screenWidth * 0.02, 8),
     paddingHorizontal: Math.max(screenWidth * 0.04, 12),
-    borderRadius: Math.min(12, screenWidth * 0.03),
+    borderRadius: 16,
   },
   logoutButton: {
     backgroundColor: "#f0f0f3",
-    borderColor: "rgba(244, 67, 54, 0.2)",
+    borderColor: "rgba(244, 67, 54, 0.1)",
   },
   menuText: {
     fontSize: Math.min(13, screenWidth * 0.035),
@@ -324,16 +352,9 @@ const styles = StyleSheet.create({
   modalContainer: {
     width: Math.min(screenWidth * 0.8, 320),
     backgroundColor: "#f0f0f3",
-    borderRadius: Math.min(12, screenWidth * 0.03),
+    borderRadius: 16,
     padding: Math.max(screenWidth * 0.05, 16),
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 4, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
-    elevation: 8,
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.6)",
   },
   modalTitle: {
     fontSize: Math.min(18, screenWidth * 0.045),
@@ -351,22 +372,18 @@ const styles = StyleSheet.create({
   modalButton: {
     flex: 1,
     padding: Math.max(screenWidth * 0.025, 10),
-    borderRadius: Math.min(10, screenWidth * 0.025),
+    borderRadius: 16,
     alignItems: "center",
     backgroundColor: "#f0f0f3",
-    shadowColor: "#000",
-    shadowOffset: { width: 2, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 6,
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.6)",
   },
   confirmButton: {
     backgroundColor: "#d32f2f",
-    shadowRadius: 4,
-    elevation: 6,
+    borderColor: "rgba(211, 47, 47, 0.1)",
+  },
+  confirmButtonText: {
     color: "#fff",
+    fontWeight: "bold",
+    fontSize: Math.min(14, screenWidth * 0.037),
   },
   modalButtonTextNormal: {
     color: "#000",
