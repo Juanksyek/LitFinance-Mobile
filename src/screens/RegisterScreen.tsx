@@ -62,10 +62,10 @@ const RegisterScreen: React.FC = () => {
 
   const strengthColor =
     passwordStrength === 'Fuerte'
-      ? '#EF6C00'
+      ? '#10B981'
       : passwordStrength === 'Media'
-      ? '#FFA726'
-      : '#FFE0B2';
+      ? '#EF7725'
+      : '#EF4444';
 
   const handleRegister = async () => {
     if (
@@ -121,127 +121,222 @@ const RegisterScreen: React.FC = () => {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+        {/* Header con logo */}
         <View style={styles.header}>
-          <Image source={require('../images/LitFinance.png')} style={styles.logo} />
+          <View style={styles.logoContainer}>
+            <Image source={require('../images/LitFinance.png')} style={styles.logo} />
+          </View>
           <Text style={[styles.title, { color: colors.text }]}>Crear cuenta</Text>
+          <Text style={[styles.subtitle, { color: colors.placeholder }]}>
+            Únete a la comunidad financiera
+          </Text>
         </View>
 
-        <View style={styles.form}>
-          <Text style={styles.sectionTitle}>Datos personales</Text>
-          <FormInput
-            placeholder="Nombre completo"
-            value={form.nombreCompleto}
-            onChangeText={(v) => handleChange('nombreCompleto', v)}
-            style={styles.input}
-          />
-          <View style={styles.row}>
-            <View style={styles.rowInput}>
-              <FormInput
-                placeholder="Edad"
-                keyboardType="numeric"
-                value={form.edad}
-                onChangeText={(v) => handleChange('edad', v)}
-              />
+        {/* Formulario principal */}
+        <View style={styles.formCard}>
+          {/* Sección: Datos personales */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionIcon}>
+                <Ionicons name="person-outline" size={20} color="#EF7725" />
+              </View>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Datos personales</Text>
             </View>
-            <View style={styles.rowInput}>
-              <FormInput
-                placeholder="Ocupación"
-                value={form.ocupacion}
-                onChangeText={(v) => handleChange('ocupacion', v)}
-              />
+            
+            <View style={styles.inputContainer}>
+              <View style={[styles.inputWrapper, { backgroundColor: colors.background }]}>
+                <FormInput
+                  placeholder="Nombre completo"
+                  value={form.nombreCompleto}
+                  onChangeText={(v) => handleChange('nombreCompleto', v)}
+                  style={[styles.input, { backgroundColor: 'transparent', borderWidth: 0 }]}
+                />
+              </View>
+            </View>
+            
+            <View style={styles.row}>
+              <View style={[styles.rowInput, styles.inputContainer]}>
+                <View style={[styles.inputWrapper, { backgroundColor: colors.background }]}>
+                  <FormInput
+                    placeholder="Edad"
+                    keyboardType="numeric"
+                    value={form.edad}
+                    onChangeText={(v) => handleChange('edad', v)}
+                    style={[styles.input, { backgroundColor: 'transparent', borderWidth: 0 }]}
+                  />
+                </View>
+              </View>
+              <View style={[styles.rowInput, styles.inputContainer]}>
+                <View style={[styles.inputWrapper, { backgroundColor: colors.background }]}>
+                  <FormInput
+                    placeholder="Ocupación"
+                    value={form.ocupacion}
+                    onChangeText={(v) => handleChange('ocupacion', v)}
+                    style={[styles.input, { backgroundColor: 'transparent', borderWidth: 0 }]}
+                  />
+                </View>
+              </View>
             </View>
           </View>
 
-          <Text style={styles.sectionTitle}>Datos de cuenta</Text>
-          <FormInput
-            placeholder="Correo electrónico"
-            keyboardType="email-address"
-            value={form.email}
-            onChangeText={(v) => handleChange('email', v)}
-            style={styles.input}
-          />
-          <FormInput
-            placeholder="Contraseña"
-            secureTextEntry={!showPassword}
-            value={form.password}
-            onChangeText={(v) => handleChange('password', v)}
-            style={styles.input}
-            rightIcon={
-              <Ionicons
-                name={showPassword ? 'eye-off-outline' : 'eye-outline'}
-                size={20}
-                color={colors.placeholder}
-              />
-            }
-            onRightIconPress={() => setShowPassword(!showPassword)}
-          />
-          <Text style={{ color: strengthColor, marginBottom: 8 }}>
-            Fortaleza: <Text style={{ fontWeight: 'bold' }}>{passwordStrength}</Text>
-          </Text>
-
-          <FormInput
-            placeholder="Confirmar contraseña"
-            secureTextEntry={!showConfirmPassword}
-            value={form.confirmPassword}
-            onChangeText={(v) => handleChange('confirmPassword', v)}
-            style={styles.input}
-            rightIcon={
-              <Ionicons
-                name={showConfirmPassword ? 'eye-off-outline' : 'eye-outline'}
-                size={20}
-                color={colors.placeholder}
-              />
-            }
-            onRightIconPress={() => setShowConfirmPassword(!showConfirmPassword)}
-          />
-          {form.confirmPassword.length > 0 && (
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
-              <Ionicons
-                name={passwordsMatch ? 'checkmark-circle-outline' : 'close-circle-outline'}
-                size={18}
-                color={passwordsMatch ? '#53F29D' : '#EF6C00'}
-              />
-              <Text style={{ marginLeft: 6, color: colors.placeholder }}>
-                {passwordsMatch ? 'Coinciden' : 'No coinciden'}
-              </Text>
+          {/* Sección: Datos de cuenta */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionIcon}>
+                <Ionicons name="shield-checkmark-outline" size={20} color="#EF7725" />
+              </View>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Datos de cuenta</Text>
             </View>
-          )}
+            
+            <View style={styles.inputContainer}>
+              <View style={[styles.inputWrapper, { backgroundColor: colors.background }]}>
+                <FormInput
+                  placeholder="Correo electrónico"
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  value={form.email}
+                  onChangeText={(v) => handleChange('email', v)}
+                  style={[styles.input, { backgroundColor: 'transparent', borderWidth: 0 }]}
+                />
+              </View>
+            </View>
+            
+            <View style={styles.inputContainer}>
+              <View style={[styles.inputWrapper, { backgroundColor: colors.background }]}>
+                <FormInput
+                  placeholder="Contraseña"
+                  secureTextEntry={!showPassword}
+                  value={form.password}
+                  onChangeText={(v) => handleChange('password', v)}
+                  style={[styles.input, { backgroundColor: 'transparent', borderWidth: 0 }]}
+                  rightIcon={
+                    <TouchableOpacity 
+                      style={styles.iconButton}
+                      onPress={() => setShowPassword(!showPassword)}
+                    >
+                      <Ionicons
+                        name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                        size={22}
+                        color={colors.placeholder}
+                      />
+                    </TouchableOpacity>
+                  }
+                />
+              </View>
+            </View>
+            
+            {form.password.length > 0 && (
+              <View style={styles.passwordStrengthContainer}>
+                <View style={[styles.strengthIndicator, { backgroundColor: strengthColor }]} />
+                <Text style={[styles.strengthText, { color: strengthColor }]}>
+                  Fortaleza: {passwordStrength}
+                </Text>
+              </View>
+            )}
 
-          <Text style={styles.sectionTitle}>Preferencias</Text>
+            <View style={styles.inputContainer}>
+              <View style={[styles.inputWrapper, { backgroundColor: colors.background }]}>
+                <FormInput
+                  placeholder="Confirmar contraseña"
+                  secureTextEntry={!showConfirmPassword}
+                  value={form.confirmPassword}
+                  onChangeText={(v) => handleChange('confirmPassword', v)}
+                  style={[styles.input, { backgroundColor: 'transparent', borderWidth: 0 }]}
+                  rightIcon={
+                    <TouchableOpacity 
+                      style={styles.iconButton}
+                      onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                    >
+                      <Ionicons
+                        name={showConfirmPassword ? 'eye-off-outline' : 'eye-outline'}
+                        size={22}
+                        color={colors.placeholder}
+                      />
+                    </TouchableOpacity>
+                  }
+                />
+              </View>
+            </View>
+            
+            {form.confirmPassword.length > 0 && (
+              <View style={styles.matchContainer}>
+                <View style={[styles.matchIcon, { backgroundColor: passwordsMatch ? '#10B981' : '#EF4444' }]}>
+                  <Ionicons
+                    name={passwordsMatch ? 'checkmark' : 'close'}
+                    size={14}
+                    color="white"
+                  />
+                </View>
+                <Text style={[styles.matchText, { color: passwordsMatch ? '#10B981' : '#EF4444' }]}>
+                  {passwordsMatch ? 'Las contraseñas coinciden' : 'Las contraseñas no coinciden'}
+                </Text>
+              </View>
+            )}
+          </View>
+
+          {/* Sección: Preferencias */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionIcon}>
+                <Ionicons name="settings-outline" size={20} color="#EF7725" />
+              </View>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Preferencias</Text>
+            </View>
+            
+            <TouchableOpacity 
+              style={[styles.monedaSelector, styles.neumorphicSelector]}
+              onPress={() => setMonedaModalVisible(true)}
+            >
+              <View style={styles.monedaSelectorContent}>
+                <Ionicons name="card-outline" size={20} color="#6B7280" style={styles.monedaIcon} />
+                <Text style={[styles.monedaText, { color: colors.text }]}>
+                  {monedas.find(m => m.codigo === form.monedaPreferencia)?.nombre || form.monedaPreferencia}
+                </Text>
+              </View>
+              <View style={styles.chevronContainer}>
+                <Ionicons name="chevron-down" size={20} color={colors.placeholder} />
+              </View>
+            </TouchableOpacity>
+          </View>
+
+          {/* Botón de registro */}
           <TouchableOpacity 
-            style={styles.monedaSelector}
-            onPress={() => setMonedaModalVisible(true)}
+            style={[styles.button, styles.neumorphicButton]} 
+            onPress={handleRegister}
+            activeOpacity={0.8}
           >
-            <Text style={styles.monedaText}>
-              Moneda preferida: {monedas.find(m => m.codigo === form.monedaPreferencia)?.nombre || form.monedaPreferencia}
-            </Text>
-            <Ionicons name="chevron-down" size={20} color={colors.placeholder} />
+            <View style={styles.buttonContent}>
+              <Text style={styles.buttonText}>Crear mi cuenta</Text>
+              <Ionicons name="arrow-forward" size={20} color="white" />
+            </View>
           </TouchableOpacity>
 
-          <TouchableOpacity style={[styles.button, { backgroundColor: '#EF7725' }]} onPress={handleRegister}>
-            <Text style={styles.buttonText}>Registrarse</Text>
-          </TouchableOpacity>
-
-          <Text style={[styles.backText, { color: colors.placeholder }]}>
-            ¿Ya tienes cuenta?{' '}
-            <Text style={{ color: '#EF7725', fontWeight: 'bold' }} onPress={() => navigation.goBack()}>
-              Inicia sesión
+          {/* Link para login */}
+          <View style={styles.loginLinkContainer}>
+            <Text style={[styles.loginText, { color: colors.placeholder }]}>
+              ¿Ya tienes cuenta?
             </Text>
-          </Text>
+            <TouchableOpacity onPress={() => navigation.goBack()}>
+              <Text style={styles.loginLink}>Inicia sesión</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Modal para seleccionar moneda */}
         <Modal
           visible={monedaModalVisible}
-          animationType="slide"
+          animationType="fade"
           transparent
           onRequestClose={() => setMonedaModalVisible(false)}
         >
           <View style={styles.modalOverlay}>
-            <View style={styles.modalContainer}>
+            <View style={[styles.modalContainer, styles.neumorphicModal]}>
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Seleccionar Moneda</Text>
-                <TouchableOpacity onPress={() => setMonedaModalVisible(false)}>
+                <Text style={[styles.modalTitle, { color: colors.text }]}>Seleccionar Moneda</Text>
+                <TouchableOpacity 
+                  style={styles.closeButton}
+                  onPress={() => setMonedaModalVisible(false)}
+                >
                   <Ionicons name="close" size={24} color={colors.text} />
                 </TouchableOpacity>
               </View>
@@ -249,17 +344,32 @@ const RegisterScreen: React.FC = () => {
                 {monedas.map((moneda) => (
                   <TouchableOpacity
                     key={moneda.codigo}
-                    style={styles.monedaOption}
+                    style={[
+                      styles.monedaOption,
+                      form.monedaPreferencia === moneda.codigo && styles.selectedMonedaOption
+                    ]}
                     onPress={() => {
                       handleChange('monedaPreferencia', moneda.codigo);
                       setMonedaModalVisible(false);
                     }}
                   >
-                    <Text style={styles.monedaOptionText}>
-                      {moneda.simbolo} {moneda.nombre} ({moneda.codigo})
-                    </Text>
+                    <View style={styles.monedaOptionContent}>
+                      <View style={styles.monedaSymbol}>
+                        <Text style={styles.symbolText}>{moneda.simbolo}</Text>
+                      </View>
+                      <View style={styles.monedaInfo}>
+                        <Text style={[styles.monedaOptionText, { color: colors.text }]}>
+                          {moneda.nombre}
+                        </Text>
+                        <Text style={[styles.monedaCode, { color: colors.placeholder }]}>
+                          {moneda.codigo}
+                        </Text>
+                      </View>
+                    </View>
                     {form.monedaPreferencia === moneda.codigo && (
-                      <Ionicons name="checkmark" size={20} color="#EF7725" />
+                      <View style={styles.checkIcon}>
+                        <Ionicons name="checkmark" size={20} color="#10B981" />
+                      </View>
                     )}
                   </TouchableOpacity>
                 ))}
@@ -273,104 +383,270 @@ const RegisterScreen: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
+  container: { 
+    flex: 1,
+    backgroundColor: '#F8FAFC',
+  },
   scroll: {
     flexGrow: 1,
-    justifyContent: 'center',
-    paddingHorizontal: 24,
-    paddingBottom: 40,
+    paddingHorizontal: 20,
+    paddingVertical: 32,
   },
   header: {
     alignItems: 'center',
     marginBottom: 32,
   },
+  logoContainer: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+    elevation: 12,
+  },
   logo: {
-    width: 100,
-    height: 100,
-    marginBottom: 12,
+    width: 80,
+    height: 80,
     resizeMode: 'contain',
   },
   title: {
-    fontSize: 28,
-    fontWeight: '700',
+    fontSize: 32,
+    fontWeight: '800',
+    marginBottom: 8,
+    letterSpacing: -0.5,
   },
-  form: {
-    width: '100%',
+  subtitle: {
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  formCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 24,
+    shadowColor: '#64748B',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  section: {
+    marginBottom: 28,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  sectionIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+    shadowColor: '#64748B',
+    shadowOffset: { width: 2, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 8,
-    marginTop: 12,
+    fontSize: 18,
+    fontWeight: '700',
+    letterSpacing: -0.3,
+  },
+  inputContainer: {
+    marginBottom: 16,
   },
   row: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 16,
   },
   rowInput: {
     flex: 1,
   },
   input: {
-    height: 48,
-    borderRadius: 10,
-    marginBottom: 10,
-    paddingHorizontal: 16,
-  },
-  button: {
-    paddingVertical: 16,
-    borderRadius: 10,
-    alignItems: 'center',
-    marginTop: 8,
-    marginBottom: 20,
-  },
-  buttonText: {
-    color: '#fff',
+    height: 36,
+    borderRadius: 16,
+    paddingHorizontal: 20,
     fontSize: 16,
+    fontWeight: '500',
+  },
+  inputWrapper: {
+    marginBottom: 20,
+    borderRadius: 16,
+    // Inner neumorphic effect
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 4,
+      height: 4,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+    // Inner shadow simulation
+    borderWidth: 1,
+    borderColor: 'rgba(0, 0, 0, 0.05)',
+  },
+  iconButton: {
+    padding: 4,
+  },
+  passwordStrengthContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  strengthIndicator: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    marginRight: 8,
+  },
+  strengthText: {
+    fontSize: 14,
     fontWeight: '600',
   },
-  backText: {
+  matchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  matchIcon: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
+  },
+  matchText: {
     fontSize: 14,
-    textAlign: 'center',
+    fontWeight: '600',
   },
   monedaSelector: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    height: 48,
-    borderRadius: 10,
-    marginBottom: 10,
-    paddingHorizontal: 16,
-    backgroundColor: '#F8F9FA',
+    height: 56,
+    borderRadius: 16,
+    paddingHorizontal: 20,
+  },
+  neumorphicSelector: {
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#E9ECEF',
+    borderColor: '#E2E8F0',
+    shadowColor: '#64748B',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  monedaSelectorContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  monedaIcon: {
+    marginRight: 12,
   },
   monedaText: {
     fontSize: 16,
-    color: '#495057',
+    fontWeight: '500',
+  },
+  chevronContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#F8FAFC',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  button: {
+    height: 56,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 16,
+    marginBottom: 24,
+  },
+  neumorphicButton: {
+    backgroundColor: '#EF7725',
+    shadowColor: '#EF7725',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  buttonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  buttonText: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '700',
+    letterSpacing: -0.3,
+  },
+  loginLinkContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  loginText: {
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  loginLink: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#EF7725',
   },
   modalOverlay: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    paddingHorizontal: 20,
   },
   modalContainer: {
-    width: '90%',
+    width: '100%',
     maxHeight: '70%',
-    backgroundColor: 'white',
-    borderRadius: 16,
-    padding: 20,
+    borderRadius: 24,
+    padding: 24,
+  },
+  neumorphicModal: {
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#64748B',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2,
+    shadowRadius: 24,
+    elevation: 16,
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 20,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
   },
   modalTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1F2937',
+    fontSize: 20,
+    fontWeight: '700',
+    letterSpacing: -0.3,
+  },
+  closeButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   modalScroll: {
     maxHeight: 300,
@@ -379,14 +655,55 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 12,
+    paddingVertical: 16,
     paddingHorizontal: 16,
-    borderRadius: 8,
-    marginBottom: 4,
+    borderRadius: 12,
+    marginBottom: 8,
+    backgroundColor: '#FAFAFA',
+  },
+  selectedMonedaOption: {
+    backgroundColor: '#EEF2FF',
+    borderWidth: 1,
+    borderColor: '#C7D2FE',
+  },
+  monedaOptionContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  monedaSymbol: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#E2E8F0',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  symbolText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  monedaInfo: {
+    flex: 1,
   },
   monedaOptionText: {
     fontSize: 16,
-    color: '#374151',
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  monedaCode: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  checkIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#DCFCE7',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
 
