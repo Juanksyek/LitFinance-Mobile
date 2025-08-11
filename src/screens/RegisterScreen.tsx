@@ -64,7 +64,7 @@ const RegisterScreen: React.FC = () => {
     passwordStrength === 'Fuerte'
       ? '#10B981'
       : passwordStrength === 'Media'
-      ? '#F59E0B'
+      ? '#EF7725'
       : '#EF4444';
 
   const handleRegister = async () => {
@@ -138,7 +138,7 @@ const RegisterScreen: React.FC = () => {
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <View style={styles.sectionIcon}>
-                <Ionicons name="person-outline" size={20} color="#F59E0B" />
+                <Ionicons name="person-outline" size={20} color="#EF7725" />
               </View>
               <Text style={[styles.sectionTitle, { color: colors.text }]}>Datos personales</Text>
             </View>
@@ -183,7 +183,7 @@ const RegisterScreen: React.FC = () => {
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <View style={styles.sectionIcon}>
-                <Ionicons name="shield-checkmark-outline" size={20} color="#F59E0B" />
+                <Ionicons name="shield-checkmark-outline" size={20} color="#EF7725" />
               </View>
               <Text style={[styles.sectionTitle, { color: colors.text }]}>Datos de cuenta</Text>
             </View>
@@ -278,7 +278,7 @@ const RegisterScreen: React.FC = () => {
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <View style={styles.sectionIcon}>
-                <Ionicons name="settings-outline" size={20} color="#F59E0B" />
+                <Ionicons name="settings-outline" size={20} color="#EF7725" />
               </View>
               <Text style={[styles.sectionTitle, { color: colors.text }]}>Preferencias</Text>
             </View>
@@ -572,8 +572,8 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   neumorphicButton: {
-    backgroundColor: '#F59E0B',
-    shadowColor: '#F59E0B',
+    backgroundColor: '#EF7725',
+    shadowColor: '#EF7725',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 12,
@@ -603,7 +603,7 @@ const styles = StyleSheet.create({
   loginLink: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#F59E0B',
+    color: '#EF7725',
   },
   modalOverlay: {
     flex: 1,
