@@ -1078,4 +1078,3 @@ const styles = StyleSheet.create({
 });
 
 export default SmartNumber;
-// Path: src/components/DataPrivacyModal.tsx

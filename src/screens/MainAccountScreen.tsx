@@ -6,7 +6,6 @@ import { Ionicons } from '@expo/vector-icons';
 import Toast from 'react-native-toast-message';
 import DataPrivacyModal from '../components/DataPrivacyModal';
 import SmartNumber from '../components/SmartNumber';
-import { formatForCard, formatForDetail } from '../utils/numberFormatter';
 
 interface CuentaPrincipal {
   esPrincipal: boolean;

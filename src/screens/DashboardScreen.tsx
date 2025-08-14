@@ -1,4 +1,3 @@
-// commnt
 import React, { useEffect, useState, useCallback } from "react";
 import { View, StyleSheet, ScrollView, RefreshControl } from "react-native";
 import { StatusBar } from "expo-status-bar";
@@ -26,7 +25,6 @@ export default function DashboardScreen() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastRefreshTime, setLastRefreshTime] = useState(0);
 
-  // 🆕 Función para actualizar todos los componentes cuando cambia la moneda
   const handleCurrencyChange = useCallback(() => {
     console.log('💱 [DashboardScreen] === INICIO ACTUALIZACIÓN POR CAMBIO DE MONEDA ===');
     console.log('💱 [DashboardScreen] Actualizando todos los componentes por cambio de moneda');
