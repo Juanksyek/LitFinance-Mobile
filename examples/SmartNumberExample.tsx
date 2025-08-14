@@ -5,7 +5,7 @@ import SmartNumber from '../src/components/SmartNumber';
 const SmartNumberExample = () => {
   const [currentCurrency, setCurrentCurrency] = useState('MXN');
   const [accountData, setAccountData] = useState({
-    amount: 1500000, // $1,500,000
+    amount: 1500000,
     currency: 'MXN'
   });
 
