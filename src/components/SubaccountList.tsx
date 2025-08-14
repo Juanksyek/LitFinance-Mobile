@@ -376,4 +376,3 @@ const styles = StyleSheet.create({
 });
 
 export default SubaccountsList;
-// Path: src/components/SubaccountList.tsx
