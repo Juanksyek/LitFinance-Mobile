@@ -5,8 +5,6 @@ import { API_BASE_URL } from "../constants/api";
 import { useNavigation, NavigationProp } from "@react-navigation/native";
 import { RootStackParamList } from "../navigation/AppNavigator";
 import { Ionicons } from "@expo/vector-icons";
-// ✅ NUEVO: Importar SmartNumber para mostrar cifras grandes de forma segura
-import SmartNumber from './SmartNumber';
 
 const { width } = Dimensions.get("window");
 const LIMIT = 4;
