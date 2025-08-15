@@ -208,3 +208,4 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
 });
+// Comentario de ejemplo
