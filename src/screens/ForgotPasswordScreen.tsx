@@ -211,7 +211,7 @@ const styles = StyleSheet.create({
     fontWeight: '400',
   },
   iconButton: {
-    padding: 4,                    // Espaciado mínimo para área táctil
+    padding: 4,
   },
 });
 

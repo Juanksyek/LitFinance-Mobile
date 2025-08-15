@@ -262,7 +262,6 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
-    // Neumorphic button effect
     shadowColor: '#EF7725',
     shadowOffset: {
       width: 0,
