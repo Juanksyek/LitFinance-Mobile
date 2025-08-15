@@ -1652,7 +1652,6 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     fontStyle: 'italic',
   },
-  // Estilos para edición
   editButton: {
     flexDirection: 'row',
     alignItems: 'center',
