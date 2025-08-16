@@ -317,15 +317,21 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
   }, [reloadTrigger, periodo]);
 
   return (
-    <View style={[styles.card, styles.neumorphicLight]}>
+    <View style={styles.card}>
+      {/* Header con título y configuración */}
       <View style={styles.headerRow}>
         <Text style={styles.title}>Saldo total</Text>
-        <TouchableOpacity onPress={() => setSettingsVisible(true)}>
-          <Ionicons name="settings-outline" size={20} color="#999" />
+        <TouchableOpacity 
+          style={styles.settingsButton}
+          onPress={() => setSettingsVisible(true)}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="settings-outline" size={18} color="#8E8E93" />
         </TouchableOpacity>
       </View>
 
-      <View style={styles.amountContainer}>
+      {/* Contenedor del saldo principal */}
+      <View style={styles.balanceWrapper}>
         <SmartNumber
           value={saldo}
           currentCurrency={monedaActual}
@@ -342,7 +348,7 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
             console.log('🚀 [BalanceCard] Ejecutando handleCurrencyChange desde SmartNumber (Saldo)...');
             handleCurrencyChange(moneda);
           }}
-          textStyle={styles.amount}
+          textStyle={styles.balanceAmount}
           options={{
             context: 'card',
             currency: monedaActual,
@@ -351,91 +357,118 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
         />
       </View>
 
-      <View style={styles.row}>
-        <View style={styles.infoItem}>
-          <Ionicons name="arrow-up-outline" size={16} color="#4CAF50" />
-          <Text style={[styles.infoText, { color: "#4CAF50" }]}>
-            Ingreso: 
-          </Text>
-          <SmartNumber
-            value={ingresos}
-            currentCurrency={monedaActual}
-            allowCurrencyChange={!isChangingCurrency}
-            refreshPreferences={refreshPreferences}
-            onCurrencyChange={(moneda: string) => {
-              console.log('🎯 [BalanceCard] SmartNumber (Ingresos) - Cambio de moneda solicitado:', {
-                from: monedaActual,
-                to: moneda,
-                value: ingresos,
-                component: 'Ingresos',
-                timestamp: new Date().toISOString()
-              });
-              console.log('🚀 [BalanceCard] Ejecutando handleCurrencyChange desde SmartNumber (Ingresos)...');
-              handleCurrencyChange(moneda);
-            }}
-            textStyle={[styles.infoText, { color: "#4CAF50", marginLeft: 4 }]}
-            options={{
-              context: 'list',
-              currency: monedaActual,
-              maxLength: 15
-            }}
-          />
+      {/* Contenedor de ingresos y egresos */}
+      <View style={styles.statsContainer}>
+        <View style={styles.statItem}>
+          <View style={styles.statIconWrapper}>
+            <Ionicons name="arrow-up" size={14} color="#34C759" />
+          </View>
+          <View style={styles.statTextContainer}>
+            <Text style={styles.statLabel}>Ingreso</Text>
+            <SmartNumber
+              value={ingresos}
+              currentCurrency={monedaActual}
+              allowCurrencyChange={!isChangingCurrency}
+              refreshPreferences={refreshPreferences}
+              onCurrencyChange={(moneda: string) => {
+                console.log('🎯 [BalanceCard] SmartNumber (Ingresos) - Cambio de moneda solicitado:', {
+                  from: monedaActual,
+                  to: moneda,
+                  value: ingresos,
+                  component: 'Ingresos',
+                  timestamp: new Date().toISOString()
+                });
+                console.log('🚀 [BalanceCard] Ejecutando handleCurrencyChange desde SmartNumber (Ingresos)...');
+                handleCurrencyChange(moneda);
+              }}
+              textStyle={styles.statValue}
+              options={{
+                context: 'list',
+                currency: monedaActual,
+                maxLength: 15
+              }}
+            />
+          </View>
         </View>
 
-        <View style={styles.infoItem}>
-          <Ionicons name="arrow-down-outline" size={16} color="#F44336" />
-          <Text style={[styles.infoText, { color: "#F44336" }]}>
-            Egreso: 
-          </Text>
-          <SmartNumber
-            value={egresos}
-            currentCurrency={monedaActual}
-            allowCurrencyChange={!isChangingCurrency}
-            refreshPreferences={refreshPreferences}
-            onCurrencyChange={(moneda: string) => {
-              console.log('🎯 [BalanceCard] SmartNumber (Egresos) - Cambio de moneda solicitado:', {
-                from: monedaActual,
-                to: moneda,
-                value: egresos,
-                component: 'Egresos',
-                timestamp: new Date().toISOString()
-              });
-              console.log('🚀 [BalanceCard] Ejecutando handleCurrencyChange desde SmartNumber (Egresos)...');
-              handleCurrencyChange(moneda);
-            }}
-            textStyle={[styles.infoText, { color: "#F44336", marginLeft: 4 }]}
-            options={{
-              context: 'list',
-              currency: monedaActual,
-              maxLength: 15
-            }}
-          />
+        <View style={styles.statItem}>
+          <View style={styles.statIconWrapper}>
+            <Ionicons name="arrow-down" size={14} color="#FF3B30" />
+          </View>
+          <View style={styles.statTextContainer}>
+            <Text style={styles.statLabel}>Egreso</Text>
+            <SmartNumber
+              value={egresos}
+              currentCurrency={monedaActual}
+              allowCurrencyChange={!isChangingCurrency}
+              refreshPreferences={refreshPreferences}
+              onCurrencyChange={(moneda: string) => {
+                console.log('🎯 [BalanceCard] SmartNumber (Egresos) - Cambio de moneda solicitado:', {
+                  from: monedaActual,
+                  to: moneda,
+                  value: egresos,
+                  component: 'Egresos',
+                  timestamp: new Date().toISOString()
+                });
+                console.log('🚀 [BalanceCard] Ejecutando handleCurrencyChange desde SmartNumber (Egresos)...');
+                handleCurrencyChange(moneda);
+              }}
+              textStyle={styles.statValue}
+              options={{
+                context: 'list',
+                currency: monedaActual,
+                maxLength: 15
+              }}
+            />
+          </View>
         </View>
       </View>
 
-      <View style={styles.filtroContainer}>
-        <TouchableOpacity style={styles.filtroToggle} onPress={toggleFiltros}>
-          <Ionicons name="funnel-outline" size={18} color="#EF6C00" />
-          <Text style={styles.filtroTexto}>{etiquetasFiltro[periodo] || 'Filtrar'}</Text>
-          <Ionicons name={mostrarFiltros ? 'chevron-up' : 'chevron-down'} size={18} color="#EF6C00" />
+      {/* Sección de filtros */}
+      <View style={styles.filterSection}>
+        <TouchableOpacity 
+          style={styles.filterToggle} 
+          onPress={toggleFiltros}
+          activeOpacity={0.8}
+        >
+          <View style={styles.filterContent}>
+            <View style={styles.filterIconWrapper}>
+              <Ionicons name="funnel" size={16} color="#FF9500" />
+            </View>
+            <Text style={styles.filterText}>{etiquetasFiltro[periodo]}</Text>
+            <Ionicons 
+              name={mostrarFiltros ? 'chevron-up' : 'chevron-down'} 
+              size={16} 
+              color="#8E8E93" 
+            />
+          </View>
         </TouchableOpacity>
 
         {mostrarFiltros && (
-          <Animated.View style={styles.filtroOpciones}>
+          <View style={styles.filterOptions}>
             {Object.entries(etiquetasFiltro).map(([key, label]) => (
               <TouchableOpacity
                 key={key}
-                style={[styles.filtroOpcion, periodo === key && styles.filtroActivo]}
+                style={[
+                  styles.filterOption,
+                  periodo === key && styles.filterOptionActive
+                ]}
                 onPress={() => {
                   console.log('📅 [BalanceCard] Cambiando período de filtro:', { from: periodo, to: key });
                   setPeriodo(key);
                   setMostrarFiltros(false);
                 }}
+                activeOpacity={0.7}
               >
-                <Text style={periodo === key ? styles.filtroActivoTexto : styles.filtroTexto}>{label}</Text>
+                <Text style={[
+                  styles.filterOptionText,
+                  periodo === key && styles.filterOptionTextActive
+                ]}>
+                  {label}
+                </Text>
               </TouchableOpacity>
             ))}
-          </Animated.View>
+          </View>
         )}
       </View>
 
@@ -446,104 +479,196 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
 
 const styles = StyleSheet.create({
   card: {
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 24,
-    backgroundColor: "#f0f0f3",
+    backgroundColor: "#F2F2F7", 
+    borderRadius: 20,
+    padding: 12,
+    marginBottom: 12,
+    // Efecto neumorphic principal
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 3,
+      height: 3,
+    },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
+    // Sombra interna simulada
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.8)",
   },
   headerRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    marginBottom: 8,
   },
   title: {
-    fontSize: 16,
-    fontWeight: "500",
-    color: "#EF6C00",
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#1D1D1F",
+    letterSpacing: -0.2,
   },
-  amount: {
+  settingsButton: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: "#F2F2F7",
+    justifyContent: "center",
+    alignItems: "center",
+    // Efecto neumorphic para botón
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 1,
+      height: 1,
+    },
+    shadowOpacity: 0.03,
+    shadowRadius: 3,
+    elevation: 1,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.9)",
+  },
+  balanceWrapper: {
+    marginBottom: 10,
+    paddingVertical: 2,
+  },
+  balanceAmount: {
     fontSize: 28,
     fontWeight: "700",
-    color: "#333",
-    marginBottom: 16,
-    marginTop: 8,
+    color: "#1D1D1F",
+    letterSpacing: -1,
+    lineHeight: 32,
   },
-  amountContainer: {
-    marginBottom: 16,
-    marginTop: 8,
-  },
-  row: {
+  statsContainer: {
     flexDirection: "row",
     justifyContent: "space-between",
+    marginBottom: 10,
+    paddingHorizontal: 1,
   },
-  infoItem: {
+  statItem: {
     flexDirection: "row",
     alignItems: "center",
-  },
-  infoText: {
-    fontSize: 14,
-    marginLeft: 6,
-    fontWeight: "500",
-  },
-  filtroContainer: {
-    marginTop: 16,
-  },
-  filtroToggle: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    backgroundColor: '#f0f0f3',
-    borderRadius: 12,
-    padding: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 4, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 5,
-    borderWidth: 1,
-    borderColor: '#f0f0f3',
-  },
-  filtroTexto: {
-    marginLeft: 8,
-    fontSize: 14,
-    color: '#555',
     flex: 1,
   },
-  filtroOpciones: {
-    marginTop: 10,
-    borderWidth: 1,
-    padding: 8,
-    backgroundColor: '#f0f0f3',
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 4, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 5,
-    borderColor: '#f0f0f3',
-  },
-  filtroOpcion: {
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    borderRadius: 6,
-  },
-  filtroActivo: {
-    backgroundColor: '#EF772520',
-  },
-  filtroActivoTexto: {
-    color: '#EF6C00',
-    fontWeight: '600',
-  },
-  neumorphicLight: {
-    backgroundColor: "#f0f0f3",
+  statIconWrapper: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: "#F2F2F7",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 6,
+    // Efecto neumorphic sutil
     shadowColor: "#000",
-    shadowOffset: { width: 6, height: 6 },
-    shadowOpacity: 0.12,
-    shadowRadius: 14,
-    elevation: 8,
+    shadowOffset: {
+      width: 1,
+      height: 1,
+    },
+    shadowOpacity: 0.03,
+    shadowRadius: 3,
+    elevation: 1,
     borderWidth: 1,
-    borderColor: "#f0f0f3",
+    borderColor: "rgba(255, 255, 255, 0.9)",
+  },
+  statTextContainer: {
+    flex: 1,
+  },
+  statLabel: {
+    fontSize: 10,
+    fontWeight: "500",
+    color: "#8E8E93",
+    marginBottom: 0.5,
+    letterSpacing: -0.1,
+  },
+  statValue: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#1D1D1F",
+    letterSpacing: -0.3,
+  },
+  filterSection: {
+    marginTop: 4,
+  },
+  filterToggle: {
+    backgroundColor: "#F2F2F7",
+    borderRadius: 12,
+    // Efecto neumorphic
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 2,
+      height: 2,
+    },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 1,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.8)",
+  },
+  filterContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  filterIconWrapper: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: "rgba(255, 149, 0, 0.1)",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 6,
+  },
+  filterText: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: "500",
+    color: "#1D1D1F",
+    letterSpacing: -0.2,
+  },
+  filterOptions: {
+    marginTop: 6,
+    backgroundColor: "#F2F2F7",
+    borderRadius: 12,
+    padding: 4,
+    // Efecto neumorphic interno
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.02,
+    shadowRadius: 3,
+    elevation: 1,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.9)",
+  },
+  filterOption: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    marginVertical: 0.5,
+  },
+  filterOptionActive: {
+    backgroundColor: "rgba(255, 149, 0, 0.15)",
+    // Efecto neumorphic para opción activa
+    shadowColor: "rgba(255, 149, 0, 0.3)",
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  filterOptionText: {
+    fontSize: 12,
+    fontWeight: "500",
+    color: "#8E8E93",
+    letterSpacing: -0.1,
+  },
+  filterOptionTextActive: {
+    color: "#FF9500",
+    fontWeight: "600",
   },
 });
 
