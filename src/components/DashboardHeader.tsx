@@ -234,7 +234,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: Math.max(screenWidth * 0.05, 16),
     paddingBottom: Math.max(screenWidth * 0.04, 12),
   },
-  // Efecto neumorphism principal para contenedores
   neumorphicContainer: {
     backgroundColor: "#f0f0f3",
     borderRadius: 16,
@@ -280,7 +279,7 @@ const styles = StyleSheet.create({
   headerTop: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center", // antes estaba "center"
+    justifyContent: "center",
     marginBottom: Math.max(screenWidth * 0.03, 8),
   },
   logoContainer: {
@@ -296,7 +295,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#333",
     flexShrink: 1,
-    textAlign: "left", // antes estaba "center"
+    textAlign: "left",
   },
   logo: {
     width: Math.min(32, screenWidth * 0.085),
