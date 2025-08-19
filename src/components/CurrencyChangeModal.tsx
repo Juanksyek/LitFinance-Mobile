@@ -62,7 +62,6 @@ const CurrencyChangeModal: React.FC<CurrencyChangeModalProps> = ({
   const [converting, setConverting] = useState(false);
   const [step, setStep] = useState<'preview' | 'confirm' | 'result'>('preview');
 
-  // Cargar vista previa cuando se abre el modal
   useEffect(() => {
     if (visible && newCurrency) {
       loadPreview();
@@ -145,7 +144,6 @@ const CurrencyChangeModal: React.FC<CurrencyChangeModalProps> = ({
       
       console.log('🔑 [CurrencyChangeModal] Token obtenido:', token ? 'Existe' : 'No encontrado');
       
-      // Primero, vamos a ver el estado actual de la cuenta
       console.log('🔍 [CurrencyChangeModal] Verificando estado actual de la cuenta...');
       try {
         const currentAccountResponse = await fetch(`${API_BASE_URL}/cuenta/principal`, {
@@ -154,7 +152,6 @@ const CurrencyChangeModal: React.FC<CurrencyChangeModalProps> = ({
         const currentAccount = await currentAccountResponse.json();
         console.log('📊 [CurrencyChangeModal] Estado actual de la cuenta:', currentAccount);
         
-        // Analizar el monto para detectar problemas potenciales
         const amount = currentAccount.cantidad;
         console.log('🔍 [CurrencyChangeModal] Análisis del monto:', {
           valor: amount,

@@ -483,7 +483,6 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 12,
     marginBottom: 12,
-    // Efecto neumorphic principal
     shadowColor: "#000",
     shadowOffset: {
       width: 3,
@@ -492,7 +491,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 6,
     elevation: 2,
-    // Sombra interna simulada
     borderWidth: 1,
     borderColor: "rgba(255, 255, 255, 0.8)",
   },
@@ -515,7 +513,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#F2F2F7",
     justifyContent: "center",
     alignItems: "center",
-    // Efecto neumorphic para botón
     shadowColor: "#000",
     shadowOffset: {
       width: 1,
@@ -557,7 +554,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginRight: 6,
-    // Efecto neumorphic sutil
     shadowColor: "#000",
     shadowOffset: {
       width: 1,
@@ -591,7 +587,6 @@ const styles = StyleSheet.create({
   filterToggle: {
     backgroundColor: "#F2F2F7",
     borderRadius: 12,
-    // Efecto neumorphic
     shadowColor: "#000",
     shadowOffset: {
       width: 2,
@@ -630,7 +625,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#F2F2F7",
     borderRadius: 12,
     padding: 4,
-    // Efecto neumorphic interno
     shadowColor: "#000",
     shadowOffset: {
       width: 0,
@@ -650,7 +644,6 @@ const styles = StyleSheet.create({
   },
   filterOptionActive: {
     backgroundColor: "rgba(255, 149, 0, 0.15)",
-    // Efecto neumorphic para opción activa
     shadowColor: "rgba(255, 149, 0, 0.3)",
     shadowOffset: {
       width: 0,
