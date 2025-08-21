@@ -194,7 +194,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 8,
     borderRadius: 12,
-    // Efecto neumorphic sutil para el link
     shadowColor: '#D1D1D6',
     shadowOffset: {
       width: 2,
