@@ -1767,7 +1767,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
   },
-  // Estilos para modal de moneda
   modalContainer: {
     flex: 1,
     backgroundColor: '#F8FAFC',
