@@ -12,7 +12,6 @@ interface Props {
 const AccountSettingsModal: React.FC<Props> = ({ visible, onClose }) => {
   const [showFullNumbers, setShowFullNumbers] = useState(false);
 
-  // Cargar preferencia al abrir el modal
   useEffect(() => {
     if (visible) {
       loadNumberPreference();
