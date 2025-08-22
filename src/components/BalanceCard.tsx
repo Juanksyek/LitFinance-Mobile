@@ -302,7 +302,6 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
 
   const handleSettingsClose = () => {
     setSettingsVisible(false);
-    // Trigger refresh para que SmartNumber recargue las preferencias
     setRefreshPreferences(prev => prev + 1);
   };
 
