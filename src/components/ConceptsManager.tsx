@@ -82,7 +82,6 @@ const ConceptsManager: React.FC<Props> = ({ onClose }) => {
     return () => clearTimeout(delay);
   }, [busqueda]);
 
-  // Emoji aleatorio al abrir
   useEffect(() => {
     const random = EMOJIS[Math.floor(Math.random() * EMOJIS.length)];
     setEmojiSeleccionado(random);
