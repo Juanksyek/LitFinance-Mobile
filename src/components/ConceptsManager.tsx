@@ -73,7 +73,6 @@ const ConceptsManager: React.FC<Props> = ({ onClose }) => {
     }
   };
 
-  // Debounce de búsqueda
   useEffect(() => {
     const delay = setTimeout(() => {
       fetchConceptos();
