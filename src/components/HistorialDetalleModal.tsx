@@ -1,7 +1,6 @@
 import React from 'react';
 import { Modal, View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-// ✅ NUEVO: Importar SmartNumber para mostrar cifras grandes de forma segura
 import SmartNumber from './SmartNumber';
 
 type Detalles = {
