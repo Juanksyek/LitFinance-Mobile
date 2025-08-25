@@ -31,7 +31,7 @@ const FormInput: React.FC<FormInputProps> = ({
         {
           backgroundColor: colors.inputBackground,
           shadowColor: shadowColor,
-          shadowOffset: { width: -3, height: -3 }, // Invertimos la dirección
+          shadowOffset: { width: -3, height: -3 },
         },
         style,
       ]}
