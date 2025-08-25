@@ -32,7 +32,6 @@ interface Concepto {
 }
 
 const MovementModal: React.FC<Props> = ({ visible, onClose, tipo, cuentaId, onSuccess, isSubcuenta, subcuentaId, onRefresh }) => {
-  // ✅ NUEVO: Estados para manejo inteligente de números
   const [montoNumerico, setMontoNumerico] = useState<number | null>(null);
   const [montoValido, setMontoValido] = useState(false);
   const [erroresMonto, setErroresMonto] = useState<string[]>([]);

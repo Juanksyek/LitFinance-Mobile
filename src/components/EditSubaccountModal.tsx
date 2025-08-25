@@ -42,7 +42,6 @@ const EditSubaccountModal: React.FC<Props> = ({
   const [nombre, setNombre] = useState(subcuenta.nombre);
   const [moneda, setMoneda] = useState(subcuenta.moneda);
   const [simbolo, setSimbolo] = useState(subcuenta.simbolo);
-  // ✅ NUEVO: Estados para manejar cifras grandes de forma segura
   const [cantidadNumerica, setCantidadNumerica] = useState<number | null>(subcuenta.cantidad || null);
   const [cantidadValida, setCantidadValida] = useState(true);
   const [erroresCantidad, setErroresCantidad] = useState<string[]>([]);

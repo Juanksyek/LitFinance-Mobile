@@ -45,7 +45,6 @@ const RecurrentesList = ({
 
     const navigation = useNavigation<RecurrenteNavigationProp>();
 
-    // Delay para el search
     useEffect(() => {
         const timeout = setTimeout(() => setDebouncedSearch(search), 400);
         return () => clearTimeout(timeout);
