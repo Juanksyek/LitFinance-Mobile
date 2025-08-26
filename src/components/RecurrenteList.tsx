@@ -50,7 +50,6 @@ const RecurrentesList = ({
         return () => clearTimeout(timeout);
     }, [search]);
 
-    // Fetch principal
     const fetchRecurrentes = async () => {
         console.log('📋 [RecurrentesList] Iniciando fetch de recurrentes:', {
             userId,
