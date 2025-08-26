@@ -50,7 +50,6 @@ const EditSubaccountModal: React.FC<Props> = ({
   const [monedas, setMonedas] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // ✅ NUEVO: Funciones para manejar cambios de cantidad de forma segura
   const getLimitesSubcuenta = () => ({
     min: 0,
     max: 999999999999, // 999 mil millones

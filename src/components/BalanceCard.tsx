@@ -282,7 +282,6 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
         timestamp: new Date().toISOString()
       });
       
-      // Revertir cambio local y recargar desde backend
       console.log('🔄 [BalanceCard] Revirtiendo cambio y recargando desde backend');
       await reloadAllData();
       

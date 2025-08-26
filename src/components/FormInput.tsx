@@ -1,12 +1,5 @@
 import React from 'react';
-import {
-  TextInput,
-  StyleSheet,
-  View,
-  TextInputProps,
-  TouchableOpacity,
-  useColorScheme,
-} from 'react-native';
+import { TextInput, StyleSheet, View, TextInputProps, TouchableOpacity, useColorScheme } from 'react-native';
 import { useThemeColors } from '../theme/useThemeColors';
 
 interface FormInputProps extends TextInputProps {
