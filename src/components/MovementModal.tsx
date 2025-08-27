@@ -50,7 +50,7 @@ const MovementModal: React.FC<Props> = ({ visible, onClose, tipo, cuentaId, onSu
   const navigation = useNavigation<any>();
 
   const getLimitesPorTipo = () => {
-    const baseLimit = isSubcuenta ? 1000000 : 10000000; // Límites menores para subcuentas
+    const baseLimit = isSubcuenta ? 1000000 : 10000000;
     
     if (tipo === 'egreso') {
       return {

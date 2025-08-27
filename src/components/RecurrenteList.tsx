@@ -94,7 +94,6 @@ const RecurrentesList = ({
         }
     };
 
-    // Efecto principal al cambiar page o debouncedSearch
     useEffect(() => {
         fetchRecurrentes();
     }, [page, debouncedSearch]);
