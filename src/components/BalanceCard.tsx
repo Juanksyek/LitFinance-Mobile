@@ -178,7 +178,6 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
   const reloadAllData = async () => {
     console.log('🔄 [BalanceCard] Iniciando recarga completa de datos...');
     try {
-      // Ejecutar ambas cargas en paralelo para mayor velocidad
       await Promise.all([
         fetchDatosCuenta(),
         fetchTransacciones()
