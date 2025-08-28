@@ -200,7 +200,6 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
       timestamp: new Date().toISOString()
     });
 
-    // Verificar si realmente necesitamos cambiar
     if (monedaActual === nuevaMoneda) {
       console.log('⚠️ [BalanceCard] La moneda solicitada es igual a la actual, cancelando cambio');
       return;
