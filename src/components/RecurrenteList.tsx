@@ -98,7 +98,6 @@ const RecurrentesList = ({
         fetchRecurrentes();
     }, [page, debouncedSearch]);
 
-    // Si se pasa refreshKey (por editar o crear), se reinicia la búsqueda
     useEffect(() => {
         if (refreshKey) {
             console.log('🔄 [RecurrentesList] RefreshKey cambió, recargando datos:', refreshKey);

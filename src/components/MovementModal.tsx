@@ -56,7 +56,7 @@ const MovementModal: React.FC<Props> = ({ visible, onClose, tipo, cuentaId, onSu
       return {
         maxValue: baseLimit,
         minValue: 0.01,
-        warningThreshold: baseLimit * 0.1 // 10% del límite como advertencia
+        warningThreshold: baseLimit * 0.1
       };
     } else {
       return {
