@@ -5,7 +5,6 @@ import Ionicons from "react-native-vector-icons/Ionicons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Toast from "react-native-toast-message";
 import { API_BASE_URL } from "../constants/api";
-// ✅ NUEVO: Importar componentes para manejar cifras grandes
 import SmartInput from './SmartInput';
 import SmartNumber from './SmartNumber';
 
