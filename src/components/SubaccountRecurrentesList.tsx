@@ -8,7 +8,6 @@ import DeleteModal from './DeleteModal';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../navigation/AppNavigator';
-// ✅ NUEVO: Importar SmartNumber para mostrar cifras grandes de forma segura
 import SmartNumber from './SmartNumber';
 
 const { width } = Dimensions.get('window');
