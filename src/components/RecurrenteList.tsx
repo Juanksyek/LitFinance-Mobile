@@ -103,7 +103,6 @@ const RecurrentesList = ({
             console.log('🔄 [RecurrentesList] RefreshKey cambió, recargando datos:', refreshKey);
             setPage(1);
             setDebouncedSearch(""); // Reiniciar búsqueda también
-            // Recargar inmediatamente los datos
             fetchRecurrentes();
         }
     }, [refreshKey]);
