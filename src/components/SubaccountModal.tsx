@@ -38,7 +38,6 @@ const SubaccountModal: React.FC<Props> = ({
   const [monedas, setMonedas] = useState<any[]>([]);
   const [monedaModalVisible, setMonedaModalVisible] = useState(false);
   const [loading, setLoading] = useState(false);
-  // ✅ NUEVO: Estados para manejar cifras grandes de forma segura
   const [cantidadNumerica, setCantidadNumerica] = useState<number | null>(0);
   const [cantidadValida, setCantidadValida] = useState(true);
   const [erroresCantidad, setErroresCantidad] = useState<string[]>([]);

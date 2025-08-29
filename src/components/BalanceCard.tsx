@@ -209,7 +209,6 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
     
     try {
       console.log('🔄 [BalanceCard] Actualizando moneda local para sincronización visual');
-      // Actualizar inmediatamente para sincronización visual
       setMonedaActual(nuevaMoneda);
       
       console.log('🔄 [BalanceCard] Esperando procesamiento del backend...');

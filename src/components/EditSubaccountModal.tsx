@@ -80,7 +80,6 @@ const EditSubaccountModal: React.FC<Props> = ({
   };
 
   const handleUpdate = async () => {
-    // ✅ NUEVO: Validar cantidad numérica antes de enviar
     if (!cantidadValida || cantidadNumerica === null) {
       Toast.show({
         type: "error",
