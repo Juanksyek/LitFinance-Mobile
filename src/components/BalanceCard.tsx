@@ -212,7 +212,6 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
       setMonedaActual(nuevaMoneda);
       
       console.log('🔄 [BalanceCard] Esperando procesamiento del backend...');
-      // Esperar un poco para asegurar que el backend procesó el cambio
       await new Promise(resolve => setTimeout(resolve, 500));
       
       console.log('🔄 [BalanceCard] Recargando todos los datos...');

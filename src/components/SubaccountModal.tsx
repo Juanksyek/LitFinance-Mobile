@@ -42,7 +42,6 @@ const SubaccountModal: React.FC<Props> = ({
   const [cantidadValida, setCantidadValida] = useState(true);
   const [erroresCantidad, setErroresCantidad] = useState<string[]>([]);
 
-  // ✅ NUEVO: Funciones para manejar cambios de cantidad de forma segura
   const getLimitesSubcuenta = () => ({
     min: 0,
     max: 999999999999, // 999 mil millones (subcuentas pueden ser muy grandes)

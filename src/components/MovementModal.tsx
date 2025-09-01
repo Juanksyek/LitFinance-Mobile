@@ -67,7 +67,6 @@ const MovementModal: React.FC<Props> = ({ visible, onClose, tipo, cuentaId, onSu
     }
   };
 
-  // ✅ NUEVO: Handlers para el manejo inteligente de números
   const handleMontoChange = (value: number | null) => {
     setMontoNumerico(value);
   };

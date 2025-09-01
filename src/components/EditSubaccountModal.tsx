@@ -98,7 +98,7 @@ const EditSubaccountModal: React.FC<Props> = ({
         simbolo,
         color,
         afectaCuenta,
-        cantidad: cantidadNumerica, // ✅ NUEVO: Usar valor numérico validado
+        cantidad: cantidadNumerica,
       };
 
       const res = await fetch(`${API_BASE_URL}/subcuenta/${subcuenta.subCuentaId}`, {
