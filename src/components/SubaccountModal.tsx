@@ -44,7 +44,7 @@ const SubaccountModal: React.FC<Props> = ({
 
   const getLimitesSubcuenta = () => ({
     min: 0,
-    max: 999999999999, // 999 mil millones (subcuentas pueden ser muy grandes)
+    max: 999999999999,
     warning: 100000000, // Advertencia a partir de 100 millones
   });
 
