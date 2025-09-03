@@ -217,7 +217,6 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
       console.log('🔄 [BalanceCard] Recargando todos los datos...');
       await reloadAllData();
       
-      // Verificación adicional para asegurar sincronización
       let retries = 0;
       const maxRetries = 3;
       
