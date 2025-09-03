@@ -375,7 +375,6 @@ const RecurrentModal: React.FC<Props> = ({ visible, onClose, onSubmit, cuentaId,
         setPlataforma(recurrente.plataforma || null);
         setFrecuenciaTipo(recurrente.frecuenciaTipo || 'dia_semana');
         setFrecuenciaValor(recurrente.frecuenciaValor || '');
-        // ✅ NUEVO: Setear valor numérico del recurrente
         setMontoNumerico(recurrente.monto || null);
         setMoneda(recurrente.moneda || 'USD');
         setAfectaCuentaPrincipal(recurrente.afectaCuentaPrincipal ?? true);
