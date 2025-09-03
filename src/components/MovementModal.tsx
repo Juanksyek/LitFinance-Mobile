@@ -76,7 +76,6 @@ const MovementModal: React.FC<Props> = ({ visible, onClose, tipo, cuentaId, onSu
     setErroresMonto(errors);
   };
 
-  // ✅ NUEVO: Función auxiliar para símbolos de moneda
   const getSymbolForCurrency = (currency: string): string => {
     const symbols: Record<string, string> = {
       'MXN': '$',
