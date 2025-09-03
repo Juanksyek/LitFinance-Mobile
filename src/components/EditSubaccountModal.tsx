@@ -193,7 +193,6 @@ const EditSubaccountModal: React.FC<Props> = ({
           />
         </View>
 
-        {/* ✅ NUEVO: Mostrar advertencia si hay errores */}
         {erroresCantidad.length > 0 && (
           <View style={styles.warningContainer}>
             <Ionicons name="warning-outline" size={20} color="#F59E0B" />

@@ -131,7 +131,6 @@ const RecurrentesList = ({
           >
             <View>
               <Text style={styles.nombre} numberOfLines={1}>{item.nombre}</Text>
-              {/* ✅ NUEVO: Formato de miles para cifras grandes */}
               <Text style={styles.monto}>
                 ${item.monto >= 1000000 
                   ? `${(item.monto / 1000000).toFixed(1)}M`
