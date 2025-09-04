@@ -103,9 +103,6 @@ const daysUntil = (iso: string, tipo?: string, valor?: string) => {
   } catch { return 0; }
 };
 
-/* =========================
-   UI helpers
-========================= */
 const withAlpha = (hex: string, alpha: number) => {
   try {
     const a = Math.round(clamp(alpha) * 255).toString(16).padStart(2, "0");
