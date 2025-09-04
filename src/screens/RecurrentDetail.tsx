@@ -35,9 +35,6 @@ type RecurrenteDetailRouteProp = RouteProp<
   "RecurrenteDetail"
 >;
 
-/* =========================
-   Utilidades de formato
-========================= */
 const DIAS_SEMANA = ["domingo","lunes","martes","miércoles","jueves","viernes","sábado"];
 const MESES = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
 

@@ -32,7 +32,6 @@ export const useNumericInput = (options: UseNumericInputOptions = {}) => {
   const [isFocused, setIsFocused] = useState(false);
   const [hasBeenTouched, setHasBeenTouched] = useState(false);
 
-  // Validación en tiempo real
   const validation = useMemo(() => {
     if (!hasBeenTouched && displayValue === initialValue.toString()) {
       return { isValid: true, errors: [], numericValue: initialValue };

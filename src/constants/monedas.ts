@@ -1,6 +1,3 @@
-// Lista de monedas predefinidas para usar cuando el backend no esté disponible
-// o cuando no se requiera autenticación (como en el registro)
-
 export interface Moneda {
   codigo: string;
   nombre: string;

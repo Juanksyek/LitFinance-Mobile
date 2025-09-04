@@ -486,7 +486,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 3,
-    // Inner shadow simulation
     borderWidth: 1,
     borderColor: 'rgba(0, 0, 0, 0.05)',
   },

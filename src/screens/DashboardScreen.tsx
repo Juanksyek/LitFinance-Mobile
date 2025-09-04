@@ -108,7 +108,6 @@ export default function DashboardScreen() {
     try {
       console.log('Iniciando refresh de datos...');
       
-      // Recargar los datos de la cuenta principal
       await fetchCuentaId();
       
       // Actualizar el trigger para recargar todos los componentes
@@ -208,4 +207,3 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
 });
-// Comentario de ejemplo
