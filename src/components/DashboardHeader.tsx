@@ -108,7 +108,6 @@ const Header = () => {
 
   return (
     <SafeAreaView edges={[]} style={styles.safeArea}>
-      {/* StatusBar translucido en Android para evitar empuje adicional */}
       <StatusBar
         translucent={Platform.OS === "android"}
         backgroundColor="transparent"
