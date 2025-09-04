@@ -128,7 +128,6 @@ const MovementModal: React.FC<Props> = ({ visible, onClose, tipo, cuentaId, onSu
   };
 
   const handleSend = async () => {
-    // ✅ NUEVO: Validación mejorada con números inteligentes
     if (!montoNumerico || !montoValido || !motivo.trim()) {
       return Toast.show({
         type: 'error',

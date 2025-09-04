@@ -178,7 +178,6 @@ const EditSubaccountModal: React.FC<Props> = ({
           </View>
         </View>
 
-        {/* ✅ NUEVO: SmartInput en lugar de TextInput básico */}
         <View style={styles.smartInputContainer}>
           <SmartInput
             type="currency"

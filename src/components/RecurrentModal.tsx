@@ -368,7 +368,6 @@ const RecurrentModal: React.FC<Props> = ({ visible, onClose, onSubmit, cuentaId,
   }, [recurrenteExistente]);
 
   useEffect(() => {
-    // Si no hay edición de recurrenteExistente, usar recurrente como fallback
     if (!recurrenteExistente) {
       if (recurrente) {
         setNombre(recurrente.nombre || '');

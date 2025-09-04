@@ -93,7 +93,6 @@ const HistorialDetalleModal = ({ visible, onClose, historialItem }: Props) => {
 
             <View style={styles.section}>
               <Text style={styles.label}>Monto</Text>
-              {/* ✅ NUEVO: SmartNumber en lugar de toFixed para cifras grandes */}
               <Text style={[styles.value, { color: colorTipo }]}>
                 <SmartNumber 
                   value={monto} 
