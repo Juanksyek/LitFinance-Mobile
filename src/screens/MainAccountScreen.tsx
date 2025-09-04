@@ -1824,7 +1824,6 @@ const styles = StyleSheet.create({
     color: '#475569',
     marginRight: 12,
   },
-  // Estilos para información opcional
   sectionTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
