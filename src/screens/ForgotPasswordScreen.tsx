@@ -180,7 +180,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 6,
-    // Gradiente simulado con border
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.2)',
   },
