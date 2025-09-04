@@ -29,7 +29,7 @@ interface SmartInputProps extends Omit<UseNumericInputOptions, 'onValueChange' |
   onValidationChange?: (isValid: boolean, errors: string[]) => void;
   disabled?: boolean;
   clearable?: boolean;
-  autoFix?: boolean; // Auto-corregir valores cuando sea posible
+  autoFix?: boolean;
 }
 
 const SmartInput: React.FC<SmartInputProps> = ({
