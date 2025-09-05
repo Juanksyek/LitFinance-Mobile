@@ -1859,7 +1859,6 @@ const styles = StyleSheet.create({
     color: '#94A3B8',
     marginTop: 4,
   },
-  // Estilos para el modal de cambio de moneda
   currencyInfo: {
     backgroundColor: '#F8FAFC',
     padding: 16,

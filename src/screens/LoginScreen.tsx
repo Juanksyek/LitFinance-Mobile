@@ -214,7 +214,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 16,
     elevation: 8,
-    // Additional shadow for depth
     borderWidth: Platform.OS === 'ios' ? 1 : 0,
     borderColor: 'rgba(255, 255, 255, 0.1)',
   },

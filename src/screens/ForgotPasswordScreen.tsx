@@ -171,7 +171,6 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     paddingTop: 20,
     paddingBottom: 20,
-    // Efecto neumorphic para botón
     shadowColor: '#EF7725',
     shadowOffset: {
       width: 0,

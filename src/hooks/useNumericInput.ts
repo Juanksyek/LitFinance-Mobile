@@ -41,7 +41,6 @@ export const useNumericInput = (options: UseNumericInputOptions = {}) => {
     const errors = [...baseValidation.errors];
     let isValid = baseValidation.isValid;
 
-    // Validaciones adicionales
     if (baseValidation.numericValue !== undefined) {
       const value = baseValidation.numericValue;
 
