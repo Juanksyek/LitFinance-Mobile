@@ -91,7 +91,6 @@ export default function DashboardScreen() {
     const now = Date.now();
     const minInterval = 2000; // Mínimo 2 segundos entre refreshes
     
-    // Evitar refreshes muy frecuentes
     if (now - lastRefreshTime < minInterval) {
       console.log('Refresh bloqueado: muy pronto desde el último refresh');
       return;
