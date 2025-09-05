@@ -477,7 +477,6 @@ const styles = StyleSheet.create({
   inputWrapper: {
     marginBottom: 20,
     borderRadius: 16,
-    // Inner neumorphic effect
     shadowColor: '#000',
     shadowOffset: {
       width: 4,
