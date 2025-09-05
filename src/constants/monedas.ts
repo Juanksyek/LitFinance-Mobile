@@ -27,7 +27,6 @@ export const monedasPredefinidas: Moneda[] = [
   { codigo: 'CZK', nombre: 'Corona Checa', simbolo: 'Kč' },
 ];
 
-// Función para buscar una moneda por código
 export const buscarMonedaPorCodigo = (codigo: string): Moneda | undefined => {
   return monedasPredefinidas.find(moneda => moneda.codigo === codigo);
 };
