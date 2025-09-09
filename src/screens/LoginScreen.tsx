@@ -205,7 +205,6 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     padding: 24,
     marginBottom: 32,
-    // Neumorphic effect
     shadowColor: '#000',
     shadowOffset: {
       width: -8,

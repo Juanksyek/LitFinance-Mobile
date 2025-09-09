@@ -109,7 +109,6 @@ export default function DashboardScreen() {
       
       await fetchCuentaId();
       
-      // Actualizar el trigger para recargar todos los componentes
       setReloadTrigger(Date.now());
       setRefreshKey(Date.now());
       

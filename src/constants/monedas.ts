@@ -31,7 +31,6 @@ export const buscarMonedaPorCodigo = (codigo: string): Moneda | undefined => {
   return monedasPredefinidas.find(moneda => moneda.codigo === codigo);
 };
 
-// Función para obtener monedas más comunes (top 10)
 export const getMonedasComunes = (): Moneda[] => {
   return monedasPredefinidas.slice(0, 10);
 };

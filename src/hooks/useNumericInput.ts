@@ -64,7 +64,6 @@ export const useNumericInput = (options: UseNumericInputOptions = {}) => {
         isValid = false;
       }
 
-      // Verificar decimales
       const decimalPlaces = (value.toString().split('.')[1] || '').length;
       if (decimalPlaces > maxDecimals) {
         errors.push(`Máximo ${maxDecimals} decimales permitidos`);

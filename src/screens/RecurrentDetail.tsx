@@ -259,7 +259,7 @@ const RecurrenteDetail = () => {
   // progreso ancho
   const progressW = progressAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [0, width - 48], // padding 24*2
+    outputRange: [0, width - 48],
     extrapolate: "clamp",
   });
 
