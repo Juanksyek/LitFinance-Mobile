@@ -1089,7 +1089,6 @@ const MainAccountScreen = () => {
   );
 };
 
-// Función auxiliar para obtener tasas de cambio
 const getExchangeRate = (fromCurrency: string, toCurrency: string): number => {
   const exchangeRates: { [key: string]: { [key: string]: number } } = {
     'USD': { 'MXN': 17.5, 'EUR': 0.85, 'GBP': 0.75, 'JPY': 110, 'CAD': 1.25 },
