@@ -159,7 +159,7 @@ const styles = StyleSheet.create({
     fontSize: 16,                  // Tamaño de fuente
     fontWeight: '500',             // Peso de fuente medio
     backgroundColor: 'transparent', // Fondo transparente
-    borderWidth: 0,                // Sin borde propio
+    borderWidth: 0,
     margin: 0,
     paddingTop: 0,
     paddingBottom: 0,
