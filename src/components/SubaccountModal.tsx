@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, Switch, Dimensions, KeyboardAvoidingView, Platform, ScrollView } from "react-native";
+import React, { useState } from "react";
+import { View, Text, TextInput, StyleSheet, TouchableOpacity, Switch, Dimensions, KeyboardAvoidingView, Platform } from "react-native";
 import Modal from "react-native-modal";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -7,6 +7,7 @@ import Toast from "react-native-toast-message";
 import { API_BASE_URL } from "../constants/api";
 import SmartInput from './SmartInput';
 import SmartNumber from './SmartNumber';
+import { CurrencyField, Moneda } from "../components/CurrencyPicker"; // ✅ reutilizable
 
 const SCREEN_HEIGHT = Dimensions.get("window").height;
 
@@ -35,12 +36,11 @@ const SubaccountModal: React.FC<Props> = ({
   const [simbolo, setSimbolo] = useState("$");
   const [color, setColor] = useState("#4CAF50");
   const [afectaCuenta, setAfectaCuenta] = useState(true);
-  const [monedas, setMonedas] = useState<any[]>([]);
-  const [monedaModalVisible, setMonedaModalVisible] = useState(false);
   const [loading, setLoading] = useState(false);
   const [cantidadNumerica, setCantidadNumerica] = useState<number | null>(0);
   const [cantidadValida, setCantidadValida] = useState(true);
   const [erroresCantidad, setErroresCantidad] = useState<string[]>([]);
+  const [selectedMonedaObj, setSelectedMonedaObj] = useState<Moneda | null>(null);
 
   const getLimitesSubcuenta = () => ({
     min: 0,
@@ -57,25 +57,6 @@ const SubaccountModal: React.FC<Props> = ({
     setErroresCantidad(errors);
   };
 
-  const fetchMonedas = async () => {
-    try {
-      const token = await AsyncStorage.getItem("authToken");
-      const res = await fetch(`${API_BASE_URL}/monedas`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
-      if (Array.isArray(data)) {
-        setMonedas(data);
-        const actual = data.find(
-          (m) => m.codigo === moneda || m.clave === moneda
-        );
-        if (actual) setSimbolo(actual.simbolo || "$");
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
   const handleCreate = async () => {
     if (!nombre.trim()) {
       Toast.show({
@@ -86,7 +67,6 @@ const SubaccountModal: React.FC<Props> = ({
       return;
     }
 
-    // ✅ NUEVO: Validar cantidad numérica
     if (!cantidadValida || cantidadNumerica === null) {
       Toast.show({
         type: "error",
@@ -96,7 +76,6 @@ const SubaccountModal: React.FC<Props> = ({
       return;
     }
 
-    // ✅ NUEVO: Advertencia para cantidades muy grandes
     if (erroresCantidad.some(error => error.includes('muy grande'))) {
       Toast.show({
         type: "info",
@@ -111,7 +90,7 @@ const SubaccountModal: React.FC<Props> = ({
 
       const payload = {
         nombre: nombre.trim(),
-        cantidad: cantidadNumerica, // ✅ NUEVO: Usar valor numérico validado
+        cantidad: cantidadNumerica,
         moneda,
         simbolo,
         color,
@@ -130,13 +109,12 @@ const SubaccountModal: React.FC<Props> = ({
 
       const responseData = await res.json().catch(() => null);
       if (!res.ok) {
-        const msg =
-          responseData?.message || "Error desconocido al crear subcuenta";
+        const msg = responseData?.message || "Error desconocido al crear subcuenta";
         throw new Error(msg);
       }
 
       Toast.show({ type: "success", text1: "Subcuenta creada" });
-      // ✅ NUEVO: Limpiar todos los estados incluyendo los numéricos
+      // limpiar estado
       setNombre("");
       setCantidadNumerica(0);
       setCantidadValida(true);
@@ -154,10 +132,6 @@ const SubaccountModal: React.FC<Props> = ({
       setLoading(false);
     }
   };
-
-  useEffect(() => {
-    if (visible) fetchMonedas();
-  }, [visible]);
 
   return (
     <Modal
@@ -188,22 +162,23 @@ const SubaccountModal: React.FC<Props> = ({
           style={styles.input}
         />
 
-        <View style={styles.row}>
-          <TouchableOpacity
-            style={styles.monedaBox}
-            onPress={() => setMonedaModalVisible(true)}
-          >
-            <Text style={styles.monedaText}>{moneda}</Text>
-            <Ionicons name="chevron-down" size={16} color="#666" />
-          </TouchableOpacity>
-
-          <View style={styles.symbolBox}>
-            <Text style={styles.switchLabel}>Símbolo:</Text>
-            <Text style={styles.symbolValue}>{simbolo}</Text>
-          </View>
+        {/* ✅ CurrencyPicker reutilizable */}
+        <View style={{ marginBottom: 10 }}>
+          <CurrencyField
+            label="Moneda"
+            value={selectedMonedaObj}
+            currentCode={moneda}
+            allowFavorites
+            showSearch
+            onChange={(m) => {
+              setSelectedMonedaObj(m);
+              setMoneda(m.codigo);
+              setSimbolo(m.simbolo);
+            }}
+          />
         </View>
 
-        {/* ✅ NUEVO: SmartInput en lugar de TextInput básico */}
+        {/* ✅ SmartInput para cantidad inicial */}
         <View style={styles.smartInputContainer}>
           <SmartInput
             type="currency"
@@ -218,7 +193,7 @@ const SubaccountModal: React.FC<Props> = ({
           />
         </View>
 
-        {/* ✅ NUEVO: Mostrar advertencia si hay errores */}
+        {/* ✅ Advertencia si hay errores */}
         {erroresCantidad.length > 0 && (
           <View style={styles.warningContainer}>
             <Ionicons name="warning-outline" size={20} color="#F59E0B" />
@@ -268,34 +243,6 @@ const SubaccountModal: React.FC<Props> = ({
             {loading ? "Guardando..." : "Crear Subcuenta"}
           </Text>
         </TouchableOpacity>
-
-        <Modal
-          isVisible={monedaModalVisible}
-          onBackdropPress={() => setMonedaModalVisible(false)}
-          style={{ justifyContent: "flex-end", margin: 0 }}
-          backdropOpacity={0.5}
-        >
-          <View style={styles.monedaModal}>
-            <Text style={styles.monedaModalTitle}>Selecciona una moneda</Text>
-            <ScrollView style={{ maxHeight: 300 }}>
-              {monedas.map((m) => (
-                <TouchableOpacity
-                  key={m.codigo}
-                  onPress={() => {
-                    setMoneda(m.codigo || m.clave);
-                    setSimbolo(m.simbolo || "$");
-                    setMonedaModalVisible(false);
-                  }}
-                  style={styles.monedaOption}
-                >
-                  <Text style={{ fontSize: 16 }}>
-                    {m.nombre} ({m.codigo}) {m.simbolo}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        </Modal>
       </KeyboardAvoidingView>
     </Modal>
   );
@@ -341,37 +288,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#eee",
     marginBottom: 10,
-  },
-  row: { flexDirection: "row", alignItems: "center" },
-  monedaBox: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#f8f8f8",
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    height: 44,
-    borderWidth: 1,
-    borderColor: "#eee",
-    marginBottom: 10,
-  },
-  monedaText: { fontSize: 14, color: "#333", marginRight: 4 },
-  monedaModal: {
-    backgroundColor: "#fff",
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    padding: 20,
-    maxHeight: "60%",
-  },
-  monedaModalTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    marginBottom: 12,
-    textAlign: "center",
-  },
-  monedaOption: {
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderColor: "#eee",
   },
   switchRow: {
     flexDirection: "row",
@@ -426,9 +342,9 @@ const styles = StyleSheet.create({
     color: "#333",
     marginLeft: 4,
   },
-  // ✅ NUEVO: Estilos para SmartInput y advertencias
+  // ✅ Estilos para SmartInput y advertencias
   smartInputContainer: {
-    marginBottom: 0, // SmartInput ya tiene su propio margin
+    marginBottom: 0,
   },
   warningContainer: {
     flexDirection: 'row',
