@@ -18,6 +18,7 @@ interface PreviewData {
   };
   advertencia: string;
   reversible: boolean;
+  intentosRestantes: number;
 }
 
 interface ConversionResult {
@@ -42,6 +43,7 @@ interface ConversionResult {
       totalElementos: number;
     };
   };
+  intentosRestantes: number;
 }
 
 interface CurrencyChangeModalProps {
@@ -61,6 +63,7 @@ const CurrencyChangeModal: React.FC<CurrencyChangeModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [converting, setConverting] = useState(false);
   const [step, setStep] = useState<'preview' | 'confirm' | 'result'>('preview');
+  const [intentosRestantes, setIntentosRestantes] = useState<number | null>(null);
 
   useEffect(() => {
     if (visible && newCurrency) {
@@ -87,6 +90,7 @@ const CurrencyChangeModal: React.FC<CurrencyChangeModalProps> = ({
       if (response.ok) {
         const data = await response.json();
         setPreview(data);
+        setIntentosRestantes(data.intentosRestantes); // Guardar intentos restantes
       } else {
         const errorData = await response.json();
         Toast.show({
@@ -190,6 +194,7 @@ const CurrencyChangeModal: React.FC<CurrencyChangeModalProps> = ({
 
       if (response.ok) {
         const result = await response.json();
+        setIntentosRestantes(result.intentosRestantes); // Actualizar intentos restantes
         
         console.log('🎯 [CurrencyChangeModal] === CONVERSIÓN EXITOSA ===');
         console.log('🎯 [CurrencyChangeModal] Resultado de conversión:', {
@@ -201,7 +206,7 @@ const CurrencyChangeModal: React.FC<CurrencyChangeModalProps> = ({
         Toast.show({
           type: 'success',
           text1: 'Conversión Exitosa',
-          text2: `Moneda cambiada a ${newCurrency}`,
+          text2: `Moneda cambiada a ${newCurrency}. Intentos restantes: ${result.intentosRestantes}`,
         });
 
         console.log('📞 [CurrencyChangeModal] Llamando onSuccess callback');
@@ -292,6 +297,14 @@ const CurrencyChangeModal: React.FC<CurrencyChangeModalProps> = ({
           </Text>
         </View>
       </View>
+
+      {intentosRestantes !== null && (
+        <View style={styles.attemptsContainer}>
+          <Text style={styles.attemptsText}>
+            Intentos realizados: {3 - intentosRestantes}, Intentos restantes: {intentosRestantes}.
+          </Text>
+        </View>
+      )}
 
       <View style={styles.warningContainer}>
         <Ionicons name="warning" size={24} color="#F59E0B" />
@@ -531,6 +544,17 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
+    textAlign: 'center',
+  },
+  attemptsContainer: {
+    marginTop: 16,
+    padding: 12,
+    backgroundColor: '#FEF3C7',
+    borderRadius: 8,
+  },
+  attemptsText: {
+    fontSize: 14,
+    color: '#92400E',
     textAlign: 'center',
   },
 });
