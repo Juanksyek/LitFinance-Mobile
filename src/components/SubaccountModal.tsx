@@ -16,6 +16,15 @@ interface Props {
   onClose: () => void;
   cuentaPrincipalId: string;
   onSuccess: () => void;
+  subcuentaToEdit?: {
+    id: string;
+    nombre: string;
+    cantidad: number;
+    moneda: string;
+    simbolo: string;
+    color: string;
+    afectaCuenta: boolean;
+  };
 }
 
 const presetColors = [
@@ -30,17 +39,38 @@ const SubaccountModal: React.FC<Props> = ({
   onClose,
   cuentaPrincipalId,
   onSuccess,
+  subcuentaToEdit, // Nueva prop para editar
 }) => {
-  const [nombre, setNombre] = useState("");
-  const [moneda, setMoneda] = useState("MXN");
-  const [simbolo, setSimbolo] = useState("$");
-  const [color, setColor] = useState("#4CAF50");
-  const [afectaCuenta, setAfectaCuenta] = useState(true);
+  const [nombre, setNombre] = useState(subcuentaToEdit?.nombre || "");
+  const [moneda, setMoneda] = useState(subcuentaToEdit?.moneda || "MXN");
+  const [simbolo, setSimbolo] = useState(subcuentaToEdit?.simbolo || "$");
+  const [color, setColor] = useState(subcuentaToEdit?.color || "#4CAF50");
+  const [afectaCuenta, setAfectaCuenta] = useState(subcuentaToEdit?.afectaCuenta ?? true);
   const [loading, setLoading] = useState(false);
-  const [cantidadNumerica, setCantidadNumerica] = useState<number | null>(0);
+  const [cantidadNumerica, setCantidadNumerica] = useState<number | null>(subcuentaToEdit?.cantidad || 0);
   const [cantidadValida, setCantidadValida] = useState(true);
   const [erroresCantidad, setErroresCantidad] = useState<string[]>([]);
   const [selectedMonedaObj, setSelectedMonedaObj] = useState<Moneda | null>(null);
+
+  // Prellenar campos al abrir el modal para edición
+  React.useEffect(() => {
+    if (subcuentaToEdit) {
+      setNombre(subcuentaToEdit.nombre);
+      setCantidadNumerica(subcuentaToEdit.cantidad);
+      setMoneda(subcuentaToEdit.moneda);
+      setSimbolo(subcuentaToEdit.simbolo);
+      setColor(subcuentaToEdit.color);
+      setAfectaCuenta(subcuentaToEdit.afectaCuenta);
+    } else {
+      // Resetear campos si no hay subcuenta para editar
+      setNombre("");
+      setCantidadNumerica(0);
+      setMoneda("MXN");
+      setSimbolo("$");
+      setColor("#4CAF50");
+      setAfectaCuenta(true);
+    }
+  }, [subcuentaToEdit]);
 
   const getLimitesSubcuenta = () => ({
     min: 0,
@@ -98,8 +128,14 @@ const SubaccountModal: React.FC<Props> = ({
         cuentaPrincipalId,
       };
 
-      const res = await fetch(`${API_BASE_URL}/subcuenta`, {
-        method: "POST",
+      const url = subcuentaToEdit
+        ? `${API_BASE_URL}/subcuenta/${subcuentaToEdit.id}` // Endpoint para editar
+        : `${API_BASE_URL}/subcuenta`; // Endpoint para crear
+
+      const method = subcuentaToEdit ? "PUT" : "POST"; // Usar PUT para editar, POST para crear
+
+      const res = await fetch(url, {
+        method,
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
@@ -109,12 +145,16 @@ const SubaccountModal: React.FC<Props> = ({
 
       const responseData = await res.json().catch(() => null);
       if (!res.ok) {
-        const msg = responseData?.message || "Error desconocido al crear subcuenta";
+        const msg = responseData?.message || "Error desconocido al guardar subcuenta";
         throw new Error(msg);
       }
 
-      Toast.show({ type: "success", text1: "Subcuenta creada" });
-      // limpiar estado
+      Toast.show({
+        type: "success",
+        text1: subcuentaToEdit ? "Subcuenta actualizada" : "Subcuenta creada",
+      });
+
+      // Limpiar estado
       setNombre("");
       setCantidadNumerica(0);
       setCantidadValida(true);
@@ -188,7 +228,6 @@ const SubaccountModal: React.FC<Props> = ({
             {...getLimitesSubcuenta()}
             onValueChange={handleCantidadChange}
             onValidationChange={handleCantidadValidation}
-            style={styles.input}
             autoFix={true}
           />
         </View>
