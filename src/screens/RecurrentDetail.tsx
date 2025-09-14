@@ -231,10 +231,11 @@ const RecurrenteDetail = () => {
   }, [recurrente.recurrenteId, navigateToDashboard, showToast]);
 
   const handleModalSubmit = useCallback((data: any) => {
-    setRecurrente(data);
+    setRecurrente(prev => ({ ...prev, ...data }));
     setModalVisible(false);
     showToast("success", "Recurrente actualizado");
-  }, [showToast]);
+    navigateToDashboard();
+  }, [showToast, navigateToDashboard]);
 
   // Colores basados en plataforma
   const getPlatformColor = () => {
