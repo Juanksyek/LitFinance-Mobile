@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, Switch, Dimensions, KeyboardAvoidingView, Platform, ScrollView } from "react-native";
+import { View, Text, TextInput, StyleSheet, TouchableOpacity, Switch, Dimensions, KeyboardAvoidingView, Platform } from "react-native";
 import Modal from "react-native-modal";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Toast from "react-native-toast-message";
 import { API_BASE_URL } from "../constants/api";
-import SmartInput from './SmartInput';
-import SmartNumber from './SmartNumber';
+import SmartInput from "./SmartInput";
+import SmartNumber from "./SmartNumber";
+import { CurrencyField, Moneda } from "../components/CurrencyPicker";
 
 const SCREEN_HEIGHT = Dimensions.get("window").height;
 
@@ -42,13 +43,39 @@ const EditSubaccountModal: React.FC<Props> = ({
   const [nombre, setNombre] = useState(subcuenta.nombre);
   const [moneda, setMoneda] = useState(subcuenta.moneda);
   const [simbolo, setSimbolo] = useState(subcuenta.simbolo);
-  const [cantidadNumerica, setCantidadNumerica] = useState<number | null>(subcuenta.cantidad || null);
+  const [cantidadNumerica, setCantidadNumerica] = useState<number | null>(
+    subcuenta.cantidad || null
+  );
   const [cantidadValida, setCantidadValida] = useState(true);
   const [erroresCantidad, setErroresCantidad] = useState<string[]>([]);
   const [color, setColor] = useState(subcuenta.color);
   const [afectaCuenta, setAfectaCuenta] = useState(subcuenta.afectaCuenta);
-  const [monedas, setMonedas] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+
+  // Moneda seleccionada para el CurrencyField (min seeding con datos de la subcuenta)
+  const [selectedMoneda, setSelectedMoneda] = useState<Moneda | null>({
+    id: "seed",
+    codigo: subcuenta.moneda,
+    nombre: subcuenta.moneda, // el picker mostrará el nombre real al abrirse
+    simbolo: subcuenta.simbolo || "$",
+  });
+
+  // Si cambian props (p. ej. abres otra subcuenta), sincroniza el estado
+  useEffect(() => {
+    if (!visible) return;
+    setNombre(subcuenta.nombre);
+    setMoneda(subcuenta.moneda);
+    setSimbolo(subcuenta.simbolo);
+    setCantidadNumerica(subcuenta.cantidad || null);
+    setColor(subcuenta.color);
+    setAfectaCuenta(subcuenta.afectaCuenta);
+    setSelectedMoneda({
+      id: "seed",
+      codigo: subcuenta.moneda,
+      nombre: subcuenta.moneda,
+      simbolo: subcuenta.simbolo || "$",
+    });
+  }, [visible, subcuenta]);
 
   const getLimitesSubcuenta = () => ({
     min: 0,
@@ -63,20 +90,6 @@ const EditSubaccountModal: React.FC<Props> = ({
   const handleCantidadValidation = (isValid: boolean, errors: string[]) => {
     setCantidadValida(isValid);
     setErroresCantidad(errors);
-  };
-  const [monedaModalVisible, setMonedaModalVisible] = useState(false);
-
-  const fetchMonedas = async () => {
-    try {
-      const token = await AsyncStorage.getItem("authToken");
-      const res = await fetch(`${API_BASE_URL}/monedas`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
-      setMonedas(data);
-    } catch (err) {
-      console.error(err);
-    }
   };
 
   const handleUpdate = async () => {
@@ -101,19 +114,24 @@ const EditSubaccountModal: React.FC<Props> = ({
         cantidad: cantidadNumerica,
       };
 
-      const res = await fetch(`${API_BASE_URL}/subcuenta/${subcuenta.subCuentaId}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(payload),
-      });
+      const res = await fetch(
+        `${API_BASE_URL}/subcuenta/${subcuenta.subCuentaId}`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(payload),
+        }
+      );
 
       const responseData = await res.json().catch(() => null);
 
       if (!res.ok) {
-        throw new Error(responseData?.message || "Error al actualizar la subcuenta");
+        throw new Error(
+          responseData?.message || "Error al actualizar la subcuenta"
+        );
       }
 
       Toast.show({ type: "success", text1: "Subcuenta actualizada" });
@@ -129,10 +147,6 @@ const EditSubaccountModal: React.FC<Props> = ({
       setLoading(false);
     }
   };
-
-  useEffect(() => {
-    if (visible) fetchMonedas();
-  }, [visible]);
 
   return (
     <Modal
@@ -163,15 +177,21 @@ const EditSubaccountModal: React.FC<Props> = ({
           style={styles.input}
         />
 
-        <View style={styles.row}>
-          <TouchableOpacity
-            style={styles.monedaBox}
-            onPress={() => setMonedaModalVisible(true)}
-          >
-            <Text style={styles.monedaText}>{moneda}</Text>
-            <Ionicons name="chevron-down" size={16} color="#666" />
-          </TouchableOpacity>
+        {/* Selector reutilizable con favoritas + toggle */}
+        <CurrencyField
+          label="Moneda"
+          value={selectedMoneda}
+          onChange={(m) => {
+            setSelectedMoneda(m);
+            setMoneda(m.codigo);
+            setSimbolo(m.simbolo || "$");
+          }}
+          // Si quieres inyectar tu getter de token:
+          // getAuthToken={async () => await AsyncStorage.getItem('authToken')}
+          showSearch
+        />
 
+        <View style={styles.row}>
           <View style={styles.symbolBox}>
             <Text style={styles.switchLabel}>Símbolo:</Text>
             <Text style={styles.symbolValue}>{simbolo}</Text>
@@ -188,7 +208,7 @@ const EditSubaccountModal: React.FC<Props> = ({
             onValueChange={handleCantidadChange}
             onValidationChange={handleCantidadValidation}
             style={styles.input}
-            autoFix={true}
+            autoFix
           />
         </View>
 
@@ -198,11 +218,13 @@ const EditSubaccountModal: React.FC<Props> = ({
             <View style={styles.warningContent}>
               <Text style={styles.warningTitle}>Cantidad muy grande</Text>
               <Text style={styles.warningText}>
-                Cantidad: <SmartNumber value={cantidadNumerica || 0} options={{ context: 'modal', symbol: simbolo }} />
+                Cantidad:{" "}
+                <SmartNumber
+                  value={cantidadNumerica || 0}
+                  options={{ context: "modal", symbol: simbolo }}
+                />
               </Text>
-              <Text style={styles.warningSubtext}>
-                {erroresCantidad[0]}
-              </Text>
+              <Text style={styles.warningSubtext}>{erroresCantidad[0]}</Text>
             </View>
           </View>
         )}
@@ -236,32 +258,6 @@ const EditSubaccountModal: React.FC<Props> = ({
             {loading ? "Guardando..." : "Guardar Cambios"}
           </Text>
         </TouchableOpacity>
-
-        <Modal
-          isVisible={monedaModalVisible}
-          onBackdropPress={() => setMonedaModalVisible(false)}
-          style={{ justifyContent: "flex-end", margin: 0 }}
-          backdropOpacity={0.5}
-        >
-          <View style={styles.monedaModal}>
-            <Text style={styles.monedaModalTitle}>Selecciona una moneda</Text>
-            <ScrollView style={{ maxHeight: 300 }}>
-              {monedas.map((m) => (
-                <TouchableOpacity
-                  key={m.codigo}
-                  onPress={() => {
-                    setMoneda(m.codigo || m.clave);
-                    setSimbolo(m.simbolo || "$");
-                    setMonedaModalVisible(false);
-                  }}
-                  style={styles.monedaOption}
-                >
-                  <Text>{m.nombre} ({m.codigo}) {m.simbolo}</Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        </Modal>
       </KeyboardAvoidingView>
     </Modal>
   );
@@ -310,24 +306,11 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: "row",
     alignItems: "center",
+    marginBottom: 6,
   },
-  monedaBox: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#f8f8f8",
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    height: 44,
-    borderWidth: 1,
-    borderColor: "#eee",
-    marginBottom: 10,
-  },
-  monedaText: { fontSize: 14, color: "#333", marginRight: 4 },
   symbolBox: {
     flexDirection: "row",
     alignItems: "center",
-    marginLeft: 8,
-    marginBottom: 10,
     paddingHorizontal: 10,
     paddingVertical: 8,
     backgroundColor: "#f0f0f0",
@@ -376,37 +359,20 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: "#000",
   },
-  monedaModal: {
-    backgroundColor: "#fff",
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    padding: 20,
-    maxHeight: "60%",
-  },
-  monedaModalTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    marginBottom: 12,
-    textAlign: "center",
-  },
-  monedaOption: {
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderColor: "#eee",
-  },
-  // ✅ NUEVO: Estilos para SmartInput y advertencias
+
+  // SmartInput & warnings
   smartInputContainer: {
-    marginBottom: 0, // SmartInput ya tiene su propio margin
+    marginBottom: 0,
   },
   warningContainer: {
-    flexDirection: 'row',
-    backgroundColor: '#FEF3C7',
+    flexDirection: "row",
+    backgroundColor: "#FEF3C7",
     padding: 12,
     borderRadius: 8,
     marginBottom: 16,
     marginTop: 8,
     borderLeftWidth: 4,
-    borderLeftColor: '#F59E0B',
+    borderLeftColor: "#F59E0B",
   },
   warningContent: {
     flex: 1,
@@ -414,19 +380,19 @@ const styles = StyleSheet.create({
   },
   warningTitle: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#92400E',
+    fontWeight: "600",
+    color: "#92400E",
     marginBottom: 4,
   },
   warningText: {
     fontSize: 12,
-    color: '#92400E',
+    color: "#92400E",
     marginBottom: 2,
   },
   warningSubtext: {
     fontSize: 11,
-    color: '#A16207',
-    fontStyle: 'italic',
+    color: "#A16207",
+    fontStyle: "italic",
   },
 });
 
