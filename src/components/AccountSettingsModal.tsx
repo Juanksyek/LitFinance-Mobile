@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, Switch } from "react-native";
+import { CurrencyField, Moneda } from "../components/CurrencyPicker";
 import Modal from "react-native-modal";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Toast from "react-native-toast-message";
@@ -9,42 +10,96 @@ interface Props {
   onClose: () => void;
 }
 
+const PREFERRED_CURRENCY_KEY = "preferredCurrency";
+const SHOW_FULL_NUMBERS_KEY = "showFullNumbers";
+
 const AccountSettingsModal: React.FC<Props> = ({ visible, onClose }) => {
   const [showFullNumbers, setShowFullNumbers] = useState(false);
+  const [selectedMoneda, setSelectedMoneda] = useState<Moneda | null>({
+    id: "init",
+    codigo: "USD",
+    nombre: "US Dollar",
+    simbolo: "$",
+  });
 
+  // ====== Efectos de carga ======
   useEffect(() => {
     if (visible) {
       loadNumberPreference();
+      loadPreferredCurrency();
     }
   }, [visible]);
 
-  const loadNumberPreference = async () => {
+  const loadNumberPreference = useCallback(async () => {
     try {
-      const preference = await AsyncStorage.getItem('showFullNumbers');
-      setShowFullNumbers(preference === 'true');
+      const preference = await AsyncStorage.getItem(SHOW_FULL_NUMBERS_KEY);
+      setShowFullNumbers(preference === "true");
     } catch (error) {
-      console.error('Error cargando preferencia de números:', error);
+      console.error("Error cargando preferencia de números:", error);
     }
-  };
+  }, []);
 
+  const loadPreferredCurrency = useCallback(async () => {
+    try {
+      const raw = await AsyncStorage.getItem(PREFERRED_CURRENCY_KEY);
+      if (raw) {
+        const parsed: Moneda = JSON.parse(raw);
+        if (parsed?.codigo) setSelectedMoneda(parsed);
+      }
+    } catch (error) {
+      console.error("Error cargando moneda preferida:", error);
+    }
+  }, []);
+
+  // ====== Handlers ======
   const toggleNumberFormat = async (value: boolean) => {
     try {
       setShowFullNumbers(value);
-      await AsyncStorage.setItem('showFullNumbers', value.toString());
-      
+      await AsyncStorage.setItem(SHOW_FULL_NUMBERS_KEY, value.toString());
       Toast.show({
-        type: 'success',
-        text1: 'Formato actualizado',
-        text2: value ? 'Mostrando números completos' : 'Mostrando números abreviados',
+        type: "success",
+        text1: "Formato actualizado",
+        text2: value
+          ? "Mostrando números completos"
+          : "Mostrando números abreviados",
       });
     } catch (error) {
-      console.error('Error guardando preferencia de números:', error);
+      console.error("Error guardando preferencia de números:", error);
       Toast.show({
-        type: 'error',
-        text1: 'Error al guardar preferencia',
+        type: "error",
+        text1: "Error al guardar preferencia",
       });
     }
   };
+
+  const handleChangeCurrency = async (m: Moneda) => {
+    try {
+      setSelectedMoneda(m);
+      // Guarda localmente la selección para reutilizar en toda la app
+      await AsyncStorage.setItem(PREFERRED_CURRENCY_KEY, JSON.stringify(m));
+      Toast.show({
+        type: "success",
+        text1: "Moneda actualizada",
+        text2: `${m.nombre} (${m.codigo}) ${m.simbolo}`,
+      });
+
+      // 👉 Si quieres persistir en backend, hazlo aquí:
+      // const token = await AsyncStorage.getItem('authToken');
+      // await fetch(`${API_BASE_URL}/cuenta/principal/moneda`, {
+      //   method: 'PATCH',
+      //   headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      //   body: JSON.stringify({ moneda: m.codigo })
+      // });
+
+    } catch (err) {
+      console.error(err);
+      Toast.show({
+        type: "error",
+        text1: "No se pudo guardar la moneda",
+      });
+    }
+  };
+
   return (
     <Modal
       isVisible={visible}
@@ -53,36 +108,40 @@ const AccountSettingsModal: React.FC<Props> = ({ visible, onClose }) => {
       backdropOpacity={0}
       style={styles.modalWrapper}
       onBackdropPress={onClose}
-      propagateSwipe={true}
+      propagateSwipe
     >
       <View style={styles.modal}>
         <View style={styles.grabber} />
 
         <Text style={styles.title}>Ajustes de cuenta</Text>
 
-        <TouchableOpacity style={styles.option}>
-          <Text style={styles.optionText}>Renombrar cuenta</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.option}>
-          <Text style={styles.optionText}>Cambiar moneda</Text>
-        </TouchableOpacity>
-
-        {/* Nueva opción para formato de números */}
+        {/* Formato de números */}
         <View style={styles.switchOption}>
           <View style={styles.switchTextContainer}>
             <Text style={styles.optionText}>Números completos</Text>
             <Text style={styles.optionSubtext}>
-              {showFullNumbers 
-                ? 'Muestra cantidades completas (ej: $1,234,567.89)' 
-                : 'Abrevia cantidades grandes (ej: $1.2M)'
-              }
+              {showFullNumbers
+                ? "Muestra cantidades completas (ej: $1,234,567.89)"
+                : "Abrevia cantidades grandes (ej: $1.2M)"}
             </Text>
           </View>
           <Switch
             value={showFullNumbers}
             onValueChange={toggleNumberFormat}
-            trackColor={{ false: '#E0E0E0', true: '#EF6C00' }}
-            thumbColor={showFullNumbers ? '#FF8F00' : '#F5F5F5'}
+            trackColor={{ false: "#E0E0E0", true: "#EF6C00" }}
+            thumbColor={showFullNumbers ? "#FF8F00" : "#F5F5F5"}
+          />
+        </View>
+
+        {/* Selector reutilizable de Moneda */}
+        <View style={{ marginTop: 12 }}>
+          <CurrencyField
+            label="Moneda de la cuenta"
+            value={selectedMoneda}
+            onChange={handleChangeCurrency}
+            // Si quieres inyectar tu propio getter de token:
+            // getAuthToken={async () => await AsyncStorage.getItem('authToken')}
+            showSearch
           />
         </View>
 
@@ -133,9 +192,9 @@ const styles = StyleSheet.create({
     color: "#444",
   },
   switchOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: "#ddd",
