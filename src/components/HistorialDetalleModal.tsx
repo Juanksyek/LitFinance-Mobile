@@ -22,6 +22,7 @@ type HistorialItem = {
   metadata?: any;
   detalles?: Detalles;
   motivo?: string;
+  conceptoId?: string;
 };
 
 type Props = {
@@ -42,6 +43,7 @@ const HistorialDetalleModal = ({ visible, onClose, historialItem }: Props) => {
     subcuentaId,
     detalles = {},
     motivo,
+    conceptoId, // <-- agregar aquí
   } = historialItem;
 
   const iconoTipo = tipo === 'ingreso'
@@ -73,6 +75,13 @@ const HistorialDetalleModal = ({ visible, onClose, historialItem }: Props) => {
               <Text style={styles.label}>Descripción</Text>
               <Text style={styles.value}>{descripcion}</Text>
             </View>
+
+            {conceptoId && (
+              <View style={styles.section}>
+                <Text style={styles.label}>Concepto ID</Text>
+                <Text style={styles.value}>{conceptoId}</Text>
+              </View>
+            )}
 
             {detalles.conceptoNombre && (
               <View style={styles.section}>

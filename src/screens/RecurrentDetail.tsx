@@ -121,7 +121,7 @@ const shape246 = {
   borderTopLeftRadius: 24,
   borderTopRightRadius: 24,
   borderBottomRightRadius: 24,
-  borderBottomLeftRadius: 6,
+  borderBottomLeftRadius: 24,
 };
 
 const PressableScale: React.FC<{
@@ -274,13 +274,12 @@ const RecurrenteDetail = () => {
     </View>
   );
 
-  const ActionTile: React.FC<{ icon: keyof typeof Ionicons.glyphMap; label: string; onPress: () => void; danger?: boolean; disabled?: boolean; }> =
-    ({ icon, label, onPress, danger, disabled }) => (
+  const ActionTile: React.FC<{ icon: keyof typeof Ionicons.glyphMap; onPress: () => void; danger?: boolean; disabled?: boolean; }> =
+    ({ icon, onPress, danger, disabled }) => (
       <PressableScale onPress={onPress} disabled={disabled} style={[styles.tile, danger && styles.tileDanger]}>
         <View style={[styles.tileIconWrap, danger && styles.tileIconDanger]}>
           <Ionicons name={icon} size={20} color={danger ? "#DC2626" : theme.text} />
         </View>
-        <Text style={styles.tileLabel} numberOfLines={1}>{label}</Text>
       </PressableScale>
     );
 
@@ -344,14 +343,13 @@ const RecurrenteDetail = () => {
 
           {/* Acciones (3 tiles como en el mock) */}
           <View style={styles.tilesRow}>
-            <ActionTile icon="create-outline" label="Editar" onPress={() => setModalVisible(true)} />
+            <ActionTile icon="create-outline" onPress={() => setModalVisible(true)} />
             <ActionTile
               icon={recurrente.pausado ? "play" : "pause"}
-              label={recurrente.pausado ? "Reanudar" : "Pausar"}
               onPress={toggleEstadoRecurrente}
               disabled={isUpdating}
             />
-            <ActionTile icon="trash-outline" label="Eliminar" onPress={() => setDeleteVisible(true)} danger />
+            <ActionTile icon="trash-outline" onPress={() => setDeleteVisible(true)} danger />
           </View>
 
           {/* Info “sin recordatorios” / lista de recordatorios */}
@@ -521,7 +519,6 @@ const styles = StyleSheet.create({
     alignItems: "center", justifyContent: "center",
     backgroundColor: "#F8FAFC",
     borderWidth: 1, borderColor: "#E5E7EB",
-    marginBottom: 8,
   },
   tileIconDanger: {
     backgroundColor: "#FFF1F2",

@@ -1,8 +1,8 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView, Modal,
   KeyboardAvoidingView, Platform, StyleSheet, Pressable, ActivityIndicator,
-  Animated, Dimensions, Keyboard, StyleProp, ViewStyle
+  Animated, Dimensions, Keyboard, PanResponder, GestureResponderEvent, PanResponderGestureState
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
@@ -94,7 +94,7 @@ const RecurrentModal: React.FC<Props> = ({
     return () => clearTimeout(timer);
   }, [search]);
 
-  // Animation effects
+  // Animation effects (sin cambios de lógica)
   useEffect(() => {
     if (visible) {
       Animated.parallel([
@@ -270,16 +270,23 @@ const RecurrentModal: React.FC<Props> = ({
 
   // Prefill si editas
   useEffect(() => {
-    if (recurrenteExistente) {
+    if (recurrenteExistente && visible) {
       setNombre(recurrenteExistente.nombre || '');
       setPlataforma(recurrenteExistente.plataforma || null);
-      setMontoNumerico(recurrenteExistente.monto || null);
-      setMontoValido(true); // Si viene de un recurrente existente, asumimos que es válido
+
+      const montoParsed = toNumber(
+        recurrenteExistente.monto ?? recurrenteExistente.amount ?? recurrenteExistente.cantidad
+      );
+      setMontoNumerico(montoParsed);
+      setMontoValido(!!montoParsed && montoParsed > 0);
+
       setFrecuenciaTipo(recurrenteExistente.frecuenciaTipo || 'dia_semana');
       setFrecuenciaValor(recurrenteExistente.frecuenciaValor || '');
-      setRecordatorios(recurrenteExistente.recordatorios || []);
-      setRecordatoriosSeleccionados(recurrenteExistente.recordatorios || []);
-      const code = recurrenteExistente.moneda || 'USD';
+      const recs = recurrenteExistente.recordatorios || [];
+      setRecordatorios(recs);
+      setRecordatoriosSeleccionados(recs);
+
+      const code = recurrenteExistente.moneda || recurrenteExistente.currency || 'USD';
       setMoneda(code);
       setSelectedMoneda({
         id: 'seed',
@@ -287,10 +294,11 @@ const RecurrentModal: React.FC<Props> = ({
         nombre: code,
         simbolo: recurrenteExistente.simbolo || '$',
       });
+
       setAfectaCuentaPrincipal(recurrenteExistente.afectaCuentaPrincipal ?? true);
       setAfectaSubcuenta(recurrenteExistente.afectaSubcuenta ?? false);
     }
-  }, [recurrenteExistente]);
+  }, [recurrenteExistente, visible]);
 
   // Prefill si vienes con props "recurrente" o reseteo
   useEffect(() => {
@@ -318,7 +326,7 @@ const RecurrentModal: React.FC<Props> = ({
     if (!error) return null;
     return (
       <Animated.View style={[styles.errorContainer, { opacity: fadeAnim }]}>
-        <Ionicons name="alert-circle" size={16} color="#ef4444" />
+        <Ionicons name="alert-circle" size={16} color="#92400E" />
         <Text style={styles.errorText}>{error}</Text>
       </Animated.View>
     );
@@ -335,7 +343,7 @@ const RecurrentModal: React.FC<Props> = ({
       key={platform.plataformaId}
       onPress={() => handlePlatformSelect(platform)}
       style={[styles.listItem, plataforma?.plataformaId === platform.plataformaId && styles.listItemSelected]}
-      activeOpacity={0.7}
+      activeOpacity={0.8}
     >
       <View style={styles.listItemContent}>
         <View style={[styles.colorIndicator, { backgroundColor: platform.color }]} />
@@ -344,7 +352,7 @@ const RecurrentModal: React.FC<Props> = ({
           <Text style={styles.listItemSubtitle}>{platform.categoria}</Text>
         </View>
         {plataforma?.plataformaId === platform.plataformaId && (
-          <Ionicons name="checkmark-circle" size={20} color="#f59e0b" />
+          <Ionicons name="checkmark-circle" size={20} color="#EF7725" />
         )}
       </View>
     </TouchableOpacity>
@@ -364,7 +372,7 @@ const RecurrentModal: React.FC<Props> = ({
             key={freq.tipo}
             onPress={() => handleFrecuenciaChange(freq.tipo as any)}
             style={[styles.chip, frecuenciaTipo === freq.tipo && styles.chipSelected]}
-            activeOpacity={0.8}
+            activeOpacity={0.9}
           >
             <Ionicons
               name={freq.icon as any}
@@ -381,37 +389,99 @@ const RecurrentModal: React.FC<Props> = ({
     );
   };
 
+  // PanResponder para deslizar hacia abajo y cerrar el modal
+  const panY = useRef(new Animated.Value(0)).current;
+  const panResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        // Solo activar si el usuario desliza verticalmente hacia abajo
+        return Math.abs(gestureState.dy) > 10 && gestureState.dy > 0;
+      },
+      onPanResponderMove: (_, gestureState) => {
+        if (gestureState.dy > 0) {
+          panY.setValue(gestureState.dy);
+        }
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        if (gestureState.dy > 80) {
+          Animated.timing(slideAnim, { toValue: SCREEN_HEIGHT, duration: 200, useNativeDriver: true }).start(() => {
+            panY.setValue(0);
+            handleClose();
+          });
+        } else {
+          Animated.spring(panY, { toValue: 0, useNativeDriver: true }).start();
+        }
+      },
+      onPanResponderTerminate: () => {
+        Animated.spring(panY, { toValue: 0, useNativeDriver: true }).start();
+      },
+    })
+  ).current;
+
   if (!visible) return null;
+
+  // Convierte varios formatos de número a number o null
+  const toNumber = (v: any): number | null => {
+    if (v === null || v === undefined) return null;
+    if (typeof v === 'number' && !isNaN(v)) return v;
+    // soporta "1,234.56", "$1,234.56", "1 234,56", etc.
+    const s = String(v).replace(/\s/g, '').replace(/[^0-9,.-]/g, '');
+    // si hay coma y punto, intenta detectar formato "1.234,56" -> 1234.56
+    if (s.includes(',') && s.includes('.')) {
+      const lastComma = s.lastIndexOf(',');
+      const normalized = s
+        .replace(/\./g, '')        // miles
+        .replace(',', '.');        // decimal
+      return parseFloat(normalized);
+    }
+    // si solo hay coma, trátala como decimal
+    const normalized = s.replace(',', '.');
+    const n = parseFloat(normalized);
+    return isNaN(n) ? null : n;
+  };
 
   return (
     <Modal visible={visible} animationType="none" transparent statusBarTranslucent>
       <View style={styles.overlay}>
-        <Animated.View style={[styles.backdrop, { opacity: fadeAnim }]}>
-          <Pressable style={StyleSheet.absoluteFillObject} onPress={handleClose} />
+        <Animated.View style={[styles.backdrop, { opacity: fadeAnim }]} pointerEvents="none">
+          <Pressable style={StyleSheet.absoluteFillObject} onPress={handleClose} pointerEvents="auto" />
         </Animated.View>
 
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.keyboardAvoid}>
           <Animated.View
             style={[
               styles.modal,
-              { transform: [{ translateY: slideAnim }, { scale: scaleAnim }] },
+              {
+                transform: [
+                  { translateY: Animated.add(slideAnim, panY) },
+                  { scale: scaleAnim }
+                ],
+              },
             ]}
           >
-            <View style={styles.dragIndicator} />
+            {/* Handle con PanResponder */}
+            <View
+              style={styles.handle}
+              {...panResponder.panHandlers}
+            />
 
             <View style={styles.header}>
-              <Text style={styles.title}>
-                {isEditing ? 'Editar Recurrente' : 'Nuevo Recurrente'}
-              </Text>
-              <TouchableOpacity onPress={handleClose} style={styles.closeButton} activeOpacity={0.7}>
-                <Ionicons name="close" size={24} color="#64748b" />
+              {/* Icono de recurrente al lado del título */}
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Ionicons name="repeat" size={20} color="#EF7725" style={{ marginRight: 8 }} />
+                <Text style={styles.title}>
+                  {isEditing ? 'Editar Recurrente' : 'Nuevo Recurrente'}
+                </Text>
+              </View>
+              <TouchableOpacity onPress={handleClose} style={styles.closeButton} activeOpacity={0.8}>
+                <Ionicons name="close" size={22} color="#999" />
               </TouchableOpacity>
             </View>
 
             <ScrollView
               showsVerticalScrollIndicator={false}
               style={styles.scrollView}
-              contentContainerStyle={styles.scrollContent}
+              contentContainerStyle={[styles.scrollContent, { flexGrow: 1 }]}
               keyboardShouldPersistTaps="handled"
             >
               {/* Nombre */}
@@ -425,7 +495,7 @@ const RecurrentModal: React.FC<Props> = ({
                     if (errors.nombre) setErrors(prev => ({ ...prev, nombre: undefined }));
                   }}
                   placeholder="Ej. Spotify Premium, Netflix, Gym..."
-                  placeholderTextColor="#94a3b8"
+                  placeholderTextColor="#aaa"
                   maxLength={50}
                 />
                 {renderError(errors.nombre)}
@@ -437,7 +507,7 @@ const RecurrentModal: React.FC<Props> = ({
                 <TouchableOpacity
                   style={[styles.selectorButton, errors.plataforma && styles.inputError]}
                   onPress={() => setShowPlatformSearch(!showPlatformSearch)}
-                  activeOpacity={0.8}
+                  activeOpacity={0.9}
                 >
                   {plataforma ? (
                     <View style={styles.selectedItemContainer}>
@@ -460,7 +530,7 @@ const RecurrentModal: React.FC<Props> = ({
                         value={search}
                         onChangeText={setSearch}
                         placeholder="Buscar plataforma..."
-                        placeholderTextColor="#94a3b8"
+                        placeholderTextColor="#999"
                       />
                     </View>
 
@@ -485,7 +555,7 @@ const RecurrentModal: React.FC<Props> = ({
                 )}
               </View>
 
-              {/* Moneda: CurrencyField reutilizable */}
+              {/* Moneda */}
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Moneda</Text>
                 <CurrencyField
@@ -496,7 +566,6 @@ const RecurrentModal: React.FC<Props> = ({
                     setMoneda(m.codigo);
                     if (errors.moneda) setErrors(prev => ({ ...prev, moneda: undefined }));
                   }}
-                  // getAuthToken={async () => await AsyncStorage.getItem('authToken')}
                   showSearch
                 />
                 {renderError(errors.moneda)}
@@ -505,13 +574,13 @@ const RecurrentModal: React.FC<Props> = ({
               {/* Monto */}
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Monto</Text>
-                <View style={styles.smartInputContainer}>
+                <View>
                   <SmartInput
-                    key={`monto-${recurrenteExistente?.recurrenteId || 'new'}-${montoNumerico}`} // Forzar re-render cuando cambie el valor
+                    key={`monto-${recurrenteExistente?.recurrenteId || 'new'}-${montoNumerico ?? 'nil'}`}
                     type="currency"
                     placeholder="0.00"
                     prefix={selectedMoneda?.simbolo || '$'}
-                    initialValue={montoNumerico || undefined}
+                    initialValue={montoNumerico ?? undefined}
                     {...getLimitesRecurrente()}
                     onValueChange={handleMontoChange}
                     onValidationChange={handleMontoValidation}
@@ -523,7 +592,7 @@ const RecurrentModal: React.FC<Props> = ({
 
                 {erroresMonto.length > 0 && (
                   <View style={styles.warningContainer}>
-                    <Ionicons name="warning-outline" size={20} color="#F59E0B" />
+                    <Ionicons name="warning-outline" size={16} color="#F59E0B" />
                     <View style={styles.warningContent}>
                       <Text style={styles.warningTitle}>Monto muy grande</Text>
                       <Text style={styles.warningText}>
@@ -552,7 +621,7 @@ const RecurrentModal: React.FC<Props> = ({
                         key={index}
                         onPress={() => setFrecuenciaValor(String(index))}
                         style={[styles.dayChip, frecuenciaValor === String(index) && styles.chipSelected]}
-                        activeOpacity={0.8}
+                        activeOpacity={0.9}
                       >
                         <Text style={[styles.chipText, frecuenciaValor === String(index) && styles.chipTextSelected]}>
                           {day}
@@ -569,7 +638,7 @@ const RecurrentModal: React.FC<Props> = ({
                         key={day}
                         onPress={() => setFrecuenciaValor(String(day))}
                         style={[styles.dayChip, frecuenciaValor === String(day) && styles.chipSelected]}
-                        activeOpacity={0.8}
+                        activeOpacity={0.9}
                       >
                         <Text style={[styles.chipText, frecuenciaValor === String(day) && styles.chipTextSelected]}>
                           {day}
@@ -588,7 +657,7 @@ const RecurrentModal: React.FC<Props> = ({
                           key={mes}
                           onPress={() => setFrecuenciaValor(`${index + 1}-1`)}
                           style={[styles.chip, frecuenciaValor.startsWith(`${index + 1}-`) && styles.chipSelected]}
-                          activeOpacity={0.8}
+                          activeOpacity={0.9}
                         >
                           <Text style={[styles.chipText, frecuenciaValor.startsWith(`${index + 1}-`) && styles.chipTextSelected]}>
                             {mes}
@@ -609,7 +678,7 @@ const RecurrentModal: React.FC<Props> = ({
                                 key={day}
                                 onPress={() => setFrecuenciaValor(nuevaFecha)}
                                 style={[styles.dayChip, frecuenciaValor === nuevaFecha && styles.chipSelected]}
-                                activeOpacity={0.8}
+                                activeOpacity={0.9}
                               >
                                 <Text style={[styles.chipText, frecuenciaValor === nuevaFecha && styles.chipTextSelected]}>
                                   {day}
@@ -634,6 +703,7 @@ const RecurrentModal: React.FC<Props> = ({
                       key={dias}
                       onPress={() => toggleRecordatorio(dias)}
                       style={[styles.reminderButton, recordatoriosSeleccionados.includes(dias) && styles.reminderButtonSelected]}
+                      activeOpacity={0.9}
                     >
                       <Ionicons
                         name="alarm-outline"
@@ -662,7 +732,7 @@ const RecurrentModal: React.FC<Props> = ({
                     <Switch
                       value={afectaCuentaPrincipal}
                       onValueChange={setAfectaCuentaPrincipal}
-                      trackColor={{ false: '#e2e8f0', true: '#f59e0b' }}
+                      trackColor={{ false: '#e2e8f0', true: '#EF7725' }}
                       thumbColor={afectaCuentaPrincipal ? '#ffffff' : '#f1f5f9'}
                     />
                   </View>
@@ -677,7 +747,7 @@ const RecurrentModal: React.FC<Props> = ({
                     <Switch
                       value={afectaSubcuenta}
                       onValueChange={setAfectaSubcuenta}
-                      trackColor={{ false: '#e2e8f0', true: '#f59e0b' }}
+                      trackColor={{ false: '#e2e8f0', true: '#EF7725' }}
                       thumbColor={afectaSubcuenta ? '#ffffff' : '#f1f5f9'}
                     />
                   </View>
@@ -685,17 +755,13 @@ const RecurrentModal: React.FC<Props> = ({
               </View>
             </ScrollView>
 
-            {/* Acciones */}
+            {/* Acciones (solo botón guardar, sin cancelar) */}
             <View style={styles.actionContainer}>
-              <TouchableOpacity style={styles.cancelButton} onPress={handleClose} activeOpacity={0.8}>
-                <Text style={styles.cancelButtonText}>Cancelar</Text>
-              </TouchableOpacity>
-
               <TouchableOpacity
                 style={[styles.saveButton, saving && styles.saveButtonDisabled]}
                 onPress={handleGuardar}
                 disabled={saving}
-                activeOpacity={0.8}
+                activeOpacity={0.95}
               >
                 {saving ? (
                   <ActivityIndicator size="small" color="#ffffff" />
@@ -717,54 +783,95 @@ const RecurrentModal: React.FC<Props> = ({
 };
 
 const styles = StyleSheet.create({
-  overlay: { flex: 1, justifyContent: 'flex-end' },
-  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0, 0, 0, 0.6)' },
+  /** Overlay/backdrop como MovementModal */
+  overlay: { flex: 1, justifyContent: 'flex-end', margin: 0 },
+  backdrop: { 
+    ...StyleSheet.absoluteFillObject, 
+    backgroundColor: 'rgba(0,0,0,0.15)',
+    zIndex: -1,                               // ✅ por detrás del sheet
+  },
+  /** Sheet principal: bordes & paddings como MovementModal */
   keyboardAvoid: { flex: 1, justifyContent: 'flex-end' },
   modal: {
     backgroundColor: '#ffffff',
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 24,
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
     maxHeight: SCREEN_HEIGHT * 0.95,
     minHeight: SCREEN_HEIGHT * 0.6,
-    paddingTop: 6,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -8 },
-    shadowOpacity: 0.08,
-    shadowRadius: 20,
-    elevation: 10,
   },
-  dragIndicator: {
-    width: 44, height: 4, borderRadius: 2, backgroundColor: '#e2e8f0',
-    alignSelf: 'center', marginBottom: 14,
+
+  /** Handle y header (idéntico look) */
+  handle: {
+    width: 40,
+    height: 5,
+    backgroundColor: '#ccc',
+    borderRadius: 5,
+    alignSelf: 'center',
+    marginBottom: 8,
   },
   header: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingHorizontal: 20, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: '#f1f5f9',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
   },
-  title: { fontSize: 20, fontWeight: '700', color: '#0f172a', letterSpacing: -0.3 },
-  closeButton: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#f8fafc', justifyContent: 'center', alignItems: 'center' },
+  title: { fontSize: 18, fontWeight: '600', color: '#333' },
+  closeButton: {
+    width: 36, height: 36, borderRadius: 18,
+    alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8f8f8',
+  },
+
+  /** Scroll & grupos */
   scrollView: { flex: 1 },
-  scrollContent: { paddingHorizontal: 20, paddingBottom: 20 },
+  scrollContent: { 
+    paddingHorizontal: 20, 
+    paddingBottom: 20, 
+    flexGrow: 1,
+  },
   inputGroup: { marginBottom: 22 },
+
+  /** Tipografías e inputs como MovementModal */
   label: { fontSize: 15, fontWeight: '600', color: '#334155', marginBottom: 8 },
   subLabel: { fontSize: 13, fontWeight: '500', color: '#64748b', marginTop: 12, marginBottom: 8 },
   description: { fontSize: 13, color: '#64748b', marginBottom: 10, lineHeight: 18 },
   input: {
-    backgroundColor: '#f8fafc', borderWidth: 1.5, borderColor: '#e2e8f0', borderRadius: 14,
-    paddingVertical: 12, paddingHorizontal: 14, fontSize: 14, color: '#0f172a', fontWeight: '500',
+    backgroundColor: '#f8f8f8',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    height: 44,
+    fontSize: 14,
+    borderWidth: 1,
+    borderColor: '#eee',
+    marginBottom: 10,
+    color: '#0f172a',
   },
   inputError: { borderColor: '#ef4444', backgroundColor: '#fef2f2' },
+
+  /** Selector de plataforma */
   selectorButton: {
-    backgroundColor: '#f8fafc', borderWidth: 1.5, borderColor: '#e2e8f0', borderRadius: 14,
-    paddingVertical: 12, paddingHorizontal: 14, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    backgroundColor: '#f8f8f8',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    height: 44,
+    borderWidth: 1,
+    borderColor: '#eee',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   selectedItemContainer: { flexDirection: 'row', alignItems: 'center', flex: 1 },
   selectedItemText: { fontSize: 14, color: '#0f172a', fontWeight: '500', marginLeft: 10 },
   placeholderText: { fontSize: 14, color: '#94a3b8' },
   colorIndicator: { width: 20, height: 20, borderRadius: 10, marginRight: 6 },
 
+  /** Buscador de plataformas */
   searchContainer: {
-    marginTop: 12, borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 14,
+    marginTop: 12, borderWidth: 1, borderColor: '#eee', borderRadius: 14,
     backgroundColor: '#ffffff', maxHeight: 280,
   },
   searchInputContainer: {
@@ -775,7 +882,7 @@ const styles = StyleSheet.create({
   searchInput: { flex: 1, fontSize: 14, color: '#0f172a' },
   listContainer: { maxHeight: 200 },
   listItem: { paddingVertical: 12, paddingHorizontal: 16 },
-  listItemSelected: { backgroundColor: '#f0fdf4' },
+  listItemSelected: { backgroundColor: '#f0f0f3' },
   listItemContent: { flexDirection: 'row', alignItems: 'center' },
   listItemTextContainer: { flex: 1, marginLeft: 10 },
   listItemTitle: { fontSize: 14, fontWeight: '500', color: '#0f172a', marginBottom: 1 },
@@ -784,72 +891,72 @@ const styles = StyleSheet.create({
   emptyStateText: { fontSize: 14, fontWeight: '500', color: '#64748b', marginTop: 10, marginBottom: 2 },
   emptyStateSubtext: { fontSize: 12, color: '#94a3b8', textAlign: 'center' },
 
-  amountInput: {
-    flex: 1, paddingVertical: 12, paddingHorizontal: 14, fontSize: 14,
-    color: '#0f172a', fontWeight: '600',
-  },
-
+  /** Chips y estados */
   chipContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 },
   chip: {
     flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 14,
-    borderRadius: 20, backgroundColor: '#f1f5f9', borderWidth: 1, borderColor: '#e2e8f0',
+    borderRadius: 20, backgroundColor: '#f0f0f0',
   },
-  chipSelected: { backgroundColor: '#f59e0b', borderColor: '#f59e0b' },
+  chipSelected: { backgroundColor: '#EF7725' },
   chipIcon: { marginRight: 6 },
-  chipText: { fontSize: 13, fontWeight: '500', color: '#475569' },
-  chipTextSelected: { color: '#ffffff', fontWeight: '600' },
+  chipText: { fontSize: 13, color: '#000' },
+  chipTextSelected: { color: '#fff', fontWeight: '700' },
   dayChip: {
     paddingVertical: 8, paddingHorizontal: 12, borderRadius: 20,
-    backgroundColor: '#f1f5f9', borderWidth: 1, borderColor: '#e2e8f0', minWidth: 40, alignItems: 'center',
+    backgroundColor: '#f0f0f0', minWidth: 40, alignItems: 'center',
   },
 
-  switchRow: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingVertical: 12, paddingHorizontal: 14, backgroundColor: '#f8fafc',
-    borderRadius: 14, borderWidth: 1, borderColor: '#e2e8f0',
-  },
+  /** Switches */
+  switchRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginVertical: 10 },
   switchLabelContainer: { flex: 1, marginRight: 12 },
   switchLabel: { fontSize: 14, fontWeight: '500', color: '#334155', marginBottom: 2 },
   switchDescription: { fontSize: 12, color: '#64748b' },
 
+  /** Botonera (idéntica) */
   actionContainer: {
-    flexDirection: 'row', paddingHorizontal: 20, paddingVertical: 16,
-    paddingBottom: Platform.OS === 'ios' ? 34 : 16, borderTopWidth: 1, borderTopColor: '#f1f5f9', gap: 12,
-    backgroundColor: '#ffffff',
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: Platform.OS === 'ios' ? 34 : 16,
+    gap: 12,
+    backgroundColor: '#fff',
   },
-  cancelButton: {
-    flex: 1, paddingVertical: 12, borderRadius: 14, backgroundColor: '#f8fafc',
-    borderWidth: 1.5, borderColor: '#e2e8f0', alignItems: 'center', justifyContent: 'center',
+  saveButton: {
+    flex: 2, flexDirection: 'row', paddingVertical: 12, borderRadius: 12,
+    backgroundColor: '#EF7725', alignItems: 'center', justifyContent: 'center'
   },
-  cancelButtonText: { fontSize: 14, fontWeight: '600', color: '#64748b' },
-  saveButton: { flex: 2, flexDirection: 'row', paddingVertical: 12, borderRadius: 14, backgroundColor: '#f59e0b', alignItems: 'center', justifyContent: 'center' },
   saveButtonDisabled: { backgroundColor: '#94a3b8' },
   saveButtonIcon: { marginRight: 6 },
   saveButtonText: { fontSize: 14, fontWeight: '700', color: '#ffffff' },
 
-  errorContainer: { flexDirection: 'row', alignItems: 'center', marginTop: 6, paddingHorizontal: 2 },
-  errorText: { fontSize: 13, color: '#ef4444', marginLeft: 4, fontWeight: '500' },
-
-  skeletonContainer: { paddingVertical: 10, paddingHorizontal: 16 },
-  skeleton: { backgroundColor: '#e2e8f0', borderRadius: 6, height: 18 },
-
-  reminderButton: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: '#f0f0f0',
-    paddingVertical: 6, paddingHorizontal: 12, borderRadius: 18, marginHorizontal: 4, elevation: 2,
-  },
-  reminderButtonSelected: { backgroundColor: '#f59e0b' },
-  reminderText: { fontSize: 10, color: '#333' },
-
-  // SmartInput & warnings
-  smartInputContainer: { marginBottom: 0 },
+  /** Warnings y errores iguales */
   warningContainer: {
-    flexDirection: 'row', backgroundColor: '#FEF3C7', padding: 12, borderRadius: 8,
-    marginBottom: 16, marginTop: 8, borderLeftWidth: 4, borderLeftColor: '#F59E0B',
+    flexDirection: 'row',
+    backgroundColor: '#FEF3C7',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+    marginTop: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: '#F59E0B',
   },
   warningContent: { flex: 1, marginLeft: 8 },
   warningTitle: { fontSize: 14, fontWeight: '600', color: '#92400E', marginBottom: 4 },
   warningText: { fontSize: 12, color: '#92400E', marginBottom: 2 },
   warningSubtext: { fontSize: 11, color: '#A16207', fontStyle: 'italic' },
+
+  errorContainer: { flexDirection: 'row', alignItems: 'center', marginTop: 6, paddingHorizontal: 2 },
+  errorText: { fontSize: 13, color: '#92400E', marginLeft: 4, fontWeight: '600' },
+
+  /** Skeleton como lista */
+  skeletonContainer: { paddingVertical: 10, paddingHorizontal: 16 },
+  skeleton: { backgroundColor: '#e2e8f0', borderRadius: 6, height: 18 },
+  reminderButton: {
+    flexDirection: 'row', alignItems: 'center', backgroundColor: '#f0f0f0',
+    paddingVertical: 6, paddingHorizontal: 12, borderRadius: 18, marginHorizontal: 4,
+  },
+  reminderButtonSelected: { backgroundColor: '#EF7725' },
+  reminderText: { fontSize: 10, color: '#333' },
 });
 
 export default RecurrentModal;
