@@ -149,7 +149,7 @@ const RegisterScreen: React.FC = () => {
                   placeholder="Nombre completo"
                   value={form.nombreCompleto}
                   onChangeText={(v) => handleChange('nombreCompleto', v)}
-                  style={[styles.input, { backgroundColor: 'transparent', borderWidth: 0 }]}
+                  style={[styles.input, { borderWidth: 0 }]}
                 />
               </View>
             </View>
@@ -162,7 +162,7 @@ const RegisterScreen: React.FC = () => {
                     keyboardType="numeric"
                     value={form.edad}
                     onChangeText={(v) => handleChange('edad', v)}
-                    style={[styles.input, { backgroundColor: 'transparent', borderWidth: 0 }]}
+                    style={[styles.input, { borderWidth: 0 }]}
                   />
                 </View>
               </View>
@@ -172,7 +172,7 @@ const RegisterScreen: React.FC = () => {
                     placeholder="Ocupación"
                     value={form.ocupacion}
                     onChangeText={(v) => handleChange('ocupacion', v)}
-                    style={[styles.input, { backgroundColor: 'transparent', borderWidth: 0 }]}
+                    style={[styles.input, { borderWidth: 0 }]}
                   />
                 </View>
               </View>
@@ -196,7 +196,7 @@ const RegisterScreen: React.FC = () => {
                   autoCapitalize="none"
                   value={form.email}
                   onChangeText={(v) => handleChange('email', v)}
-                  style={[styles.input, { backgroundColor: 'transparent', borderWidth: 0 }]}
+                  style={[styles.input, { borderWidth: 0 }]}
                 />
               </View>
             </View>
@@ -208,7 +208,7 @@ const RegisterScreen: React.FC = () => {
                   secureTextEntry={!showPassword}
                   value={form.password}
                   onChangeText={(v) => handleChange('password', v)}
-                  style={[styles.input, { backgroundColor: 'transparent', borderWidth: 0 }]}
+                  style={[styles.input, { borderWidth: 0 }]}
                   rightIcon={
                     <TouchableOpacity 
                       style={styles.iconButton}
@@ -241,7 +241,7 @@ const RegisterScreen: React.FC = () => {
                   secureTextEntry={!showConfirmPassword}
                   value={form.confirmPassword}
                   onChangeText={(v) => handleChange('confirmPassword', v)}
-                  style={[styles.input, { backgroundColor: 'transparent', borderWidth: 0 }]}
+                  style={[styles.input, { borderWidth: 0 }]}
                   rightIcon={
                     <TouchableOpacity 
                       style={styles.iconButton}
@@ -403,7 +403,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 20,
-    elevation: 12,
   },
   logo: {
     width: 80,
