@@ -104,7 +104,7 @@ const LoginScreen: React.FC = () => {
                 autoCapitalize="none"
                 value={email}
                 onChangeText={setEmail}
-                style={[styles.input, { backgroundColor: 'transparent', borderWidth: 0 }]}
+                style={[styles.input, { borderWidth: 0 }]}
               />
             </View>
             
@@ -114,7 +114,7 @@ const LoginScreen: React.FC = () => {
                 secureTextEntry={!showPassword}
                 value={password}
                 onChangeText={setPassword}
-                style={[styles.input, { backgroundColor: 'transparent', borderWidth: 0 }]}
+                style={[styles.input, { borderWidth: 0 }]}
                 rightIcon={
                   <TouchableOpacity 
                     style={styles.iconButton}
@@ -212,7 +212,6 @@ const styles = StyleSheet.create({
     },
     shadowOpacity: 0.05,
     shadowRadius: 16,
-    elevation: 8,
     borderWidth: Platform.OS === 'ios' ? 1 : 0,
     borderColor: 'rgba(255, 255, 255, 0.1)',
   },
@@ -230,7 +229,6 @@ const styles = StyleSheet.create({
     },
     shadowOpacity: 0.1,
     shadowRadius: 8,
-    elevation: 3,
     borderWidth: 1,
     borderColor: 'rgba(0, 0, 0, 0.05)',
   },
@@ -265,7 +263,6 @@ const styles = StyleSheet.create({
     },
     shadowOpacity: 0.3,
     shadowRadius: 16,
-    elevation: 8,
   },
   buttonDisabled: {
     shadowOpacity: 0.1,
