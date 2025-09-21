@@ -6,6 +6,7 @@ import SubaccountModal from './SubaccountModal';
 import RecurrentModal from './RecurrentModal';
 import { API_BASE_URL } from "../constants/api";
 import Toast from "react-native-toast-message";
+import { useNavigation } from '@react-navigation/native';
 
 const { width } = Dimensions.get("window");
 
@@ -14,6 +15,7 @@ const actions = [
   { icon: "arrow-down-outline", label: "Egreso" },
   { icon: "add-outline", label: "Subcuenta" },
   { icon: "refresh-outline", label: "Recurrente" },
+  { icon: "stats-chart-outline", label: "Analiticas"} // icono válido
 ];
 
 interface ActionButtonsProps {
@@ -43,6 +45,7 @@ const ActionButtons = ({
   const [recurrentModalVisible, setRecurrentModalVisible] = useState(false);
   const [tipo, setTipo] = useState<'ingreso' | 'egreso'>('ingreso');
   const [refreshKey, setRefreshKey] = useState(Date.now());
+  const navigation = useNavigation();
 
   const handlePress = (label: string) => {
     if (label === 'Ingreso' || label === 'Egreso') {
@@ -52,6 +55,8 @@ const ActionButtons = ({
       setSubcuentaModalVisible(true);
     } else if (label === 'Recurrente') {
       setRecurrentModalVisible(true);
+    } else if (label === 'Analiticas') {
+      navigation.navigate('Analytics' as never);
     }
   };
 
@@ -133,11 +138,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     marginBottom: 24,
-    paddingHorizontal: 20,
+    paddingHorizontal: 10,
   },
   buttonWrapper: {
     alignItems: "center",
-    width: width / 4 - 24,
+    width: width / 4 - 34,
   },
   button: {
     width: 56,
@@ -148,7 +153,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   label: {
-    fontSize: 12,
+    fontSize: 10,
     color: "#757575",
   },
   neumorphic: {
