@@ -35,7 +35,6 @@ const ResetPasswordScreen: React.FC = () => {
     const shadowDark = "rgba(0, 0, 0, 0.35)";
     const shadowLight = "rgba(255, 255, 255, 0.18)";
     const borderSoft = "rgba(255, 255, 255, 0.08)";
-    // superficies ligeramente elevadas
     const surface = colors.inputBackground ?? bg;
     const accent = "#EF7725";
     return { bg, surface, shadowDark, shadowLight, borderSoft, accent };
