@@ -50,7 +50,7 @@ export default function DashboardScreen() {
       
       const res = await axios.get(`${API_BASE_URL}/cuenta/principal`, {
         headers: { Authorization: `Bearer ${token}` },
-        timeout: 10000, // 10 segundos de timeout
+        timeout: 10000,
       });
       
       setCuentaId(res.data.id || res.data._id);
