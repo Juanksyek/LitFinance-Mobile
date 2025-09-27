@@ -1,4 +1,3 @@
-// SplashScreen.tsx
 import React, { useEffect, useRef } from "react";
 import { View, Animated, StyleSheet, useColorScheme } from "react-native";
 import { useNavigation } from "@react-navigation/native";
