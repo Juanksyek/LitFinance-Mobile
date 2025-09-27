@@ -146,9 +146,6 @@ const PressableScale: React.FC<{
   );
 };
 
-/* =========================
-   Componente principal
-========================= */
 const RecurrenteDetail = () => {
   const route = useRoute<RecurrenteDetailRouteProp>();
   const navigation = useNavigation<StackNavigationProp<RootStackParamList>>();
