@@ -58,7 +58,7 @@ const MainAccountScreen = () => {
   const [monedas, setMonedas] = useState<MonedaCatalogo[]>([]);
 
   // Un solo modal por funcionalidad
-  const [monedaModalVisible, setMonedaModalVisible] = useState(false);       // preferencia de perfil
+  const [monedaModalVisible, setMonedaModalVisible] = useState(false);
   const [currencyPickerVisible, setCurrencyPickerVisible] = useState(false); // cambio de moneda de la cuenta
 
   const [convertingCurrency, setConvertingCurrency] = useState(false);

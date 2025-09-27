@@ -31,7 +31,6 @@ const ResetPasswordScreen: React.FC = () => {
   // ====== Neumorphism tokens (derivados del tema) ======
   const theme = useMemo(() => {
     const bg = colors.background;
-    // sombritas claras/oscuras para relieve
     const shadowDark = "rgba(0, 0, 0, 0.35)";
     const shadowLight = "rgba(255, 255, 255, 0.18)";
     const borderSoft = "rgba(255, 255, 255, 0.08)";
