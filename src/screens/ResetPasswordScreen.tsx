@@ -1,13 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView
-} from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView } from "react-native";
 import FormInput from "../components/FormInput";
 import { useThemeColors } from "../theme/useThemeColors";
 import { useNavigation, useRoute, NavigationProp, RouteProp } from "@react-navigation/native";

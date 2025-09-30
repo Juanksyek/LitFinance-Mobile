@@ -11,7 +11,7 @@ import Toast from "react-native-toast-message";
 import ActionButtons from '../components/ActionButtons';
 import DeleteModal from '../components/DeleteModal';
 import SubaccountRecurrentesList from '../components/SubaccountRecurrentesList';
-
+//commit
 const { width } = Dimensions.get('window');
 
 type Subcuenta = {

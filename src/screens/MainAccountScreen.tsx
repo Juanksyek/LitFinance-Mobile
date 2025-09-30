@@ -59,7 +59,7 @@ const MainAccountScreen = () => {
 
   // Un solo modal por funcionalidad
   const [monedaModalVisible, setMonedaModalVisible] = useState(false);
-  const [currencyPickerVisible, setCurrencyPickerVisible] = useState(false); // cambio de moneda de la cuenta
+  const [currencyPickerVisible, setCurrencyPickerVisible] = useState(false);
 
   const [convertingCurrency, setConvertingCurrency] = useState(false);
   const [infoModalVisible, setInfoModalVisible] = useState(false);
