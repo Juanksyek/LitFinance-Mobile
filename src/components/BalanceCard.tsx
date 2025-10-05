@@ -659,4 +659,3 @@ const styles = StyleSheet.create({
 });
 
 export default BalanceCard;
-// commit
