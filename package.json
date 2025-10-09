@@ -11,36 +11,37 @@
     "web": "expo start --web"
   },
   "dependencies": {
-    "@react-native-async-storage/async-storage": "^2.1.2",
-    "@react-native-picker/picker": "^2.11.0",
+    "@expo/vector-icons": "^15.0.2",
+    "@react-native-async-storage/async-storage": "2.2.0",
+    "@react-native-picker/picker": "2.11.1",
     "@react-navigation/native": "^7.1.9",
     "@react-navigation/native-stack": "^7.3.13",
     "@react-navigation/stack": "^7.3.3",
     "axios": "^1.9.0",
     "date-fns": "^4.1.0",
-    "expo": "~53.0.9",
-    "expo-linear-gradient": "~14.1.5",
-    "expo-status-bar": "~2.2.3",
+    "expo": "^54.0.12",
+    "expo-linear-gradient": "~15.0.7",
+    "expo-status-bar": "~3.0.8",
     "jwt-decode": "^4.0.0",
-    "react": "19.0.0",
-    "react-native": "0.79.2",
+    "react": "19.1.0",
+    "react-native": "0.81.4",
     "react-native-animatable": "^1.4.0",
     "react-native-dotenv": "^3.4.11",
-    "react-native-gesture-handler": "~2.24.0",
+    "react-native-gesture-handler": "~2.28.0",
     "react-native-modal": "^14.0.0-rc.1",
-    "react-native-reanimated": "~3.17.4",
-    "react-native-safe-area-context": "5.4.0",
-    "react-native-screens": "~4.10.0",
+    "react-native-reanimated": "~4.1.1",
+    "react-native-safe-area-context": "~5.6.0",
+    "react-native-screens": "~4.16.0",
     "react-native-shadow-2": "^7.1.2",
     "react-native-toast-message": "^2.3.0",
-    "react-native-vector-icons": "^10.2.0"
+    "react-native-worklets": "0.5.1"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
-    "@types/react": "~19.0.10",
-    "@types/react-native-vector-icons": "^6.4.18",
+    "@types/react": "~19.1.10",
     "env-cmd": "^10.1.0",
-    "typescript": "~5.8.3"
+    "typescript": "~5.9.2"
   },
-  "private": true
+  "private": true,
+  "packageManager": "yarn@4.7.0+sha512.5a0afa1d4c1d844b3447ee3319633797bcd6385d9a44be07993ae52ff4facabccafb4af5dcd1c2f9a94ac113e5e9ff56f6130431905884414229e284e37bb7c9"
 }
