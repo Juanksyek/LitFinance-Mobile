@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, Dimensions } from "react-native";
-import Ionicons from "react-native-vector-icons/Ionicons";
+import { Ionicons } from "@expo/vector-icons";
 import MovementModal from './MovementModal';
 import SubaccountModal from './SubaccountModal';
 import RecurrentModal from './RecurrentModal';
