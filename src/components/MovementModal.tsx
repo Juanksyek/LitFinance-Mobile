@@ -15,7 +15,7 @@ import {
   ViewStyle
 } from 'react-native';
 import Modal from 'react-native-modal';
-import Ionicons from 'react-native-vector-icons/Ionicons';
+import { Ionicons } from "@expo/vector-icons";
 import { API_BASE_URL } from '../constants/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Toast from 'react-native-toast-message';
