@@ -10,7 +10,7 @@ import { useNavigation } from '@react-navigation/native';
 
 const { width } = Dimensions.get("window");
 
-const actions = [
+const actions: { icon: "arrow-up-outline" | "arrow-down-outline" | "add-outline" | "refresh-outline" | "stats-chart-outline", label: string }[] = [
   { icon: "arrow-up-outline", label: "Ingreso" },
   { icon: "arrow-down-outline", label: "Egreso" },
   { icon: "add-outline", label: "Subcuenta" },
@@ -179,3 +179,4 @@ const styles = StyleSheet.create({
 });
 
 export default ActionButtons;
+// commit 
