@@ -84,12 +84,15 @@ const AccountSettingsModal: React.FC<Props> = ({ visible, onClose }) => {
       });
 
       // 👉 Si quieres persistir en backend, hazlo aquí:
-      // const token = await AsyncStorage.getItem('authToken');
-      // await fetch(`${API_BASE_URL}/cuenta/principal/moneda`, {
-      //   method: 'PATCH',
-      //   headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      //   body: JSON.stringify({ moneda: m.codigo })
-      // });
+      const token = await AsyncStorage.getItem('authToken');
+      if (token) {
+        // Solo intenta persistir si hay token válido
+        // await fetch(`${API_BASE_URL}/cuenta/principal/moneda`, {
+        //   method: 'PATCH',
+        //   headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        //   body: JSON.stringify({ moneda: m.codigo })
+        // });
+      }
 
     } catch (err) {
       console.error(err);
@@ -218,4 +221,3 @@ const styles = StyleSheet.create({
 });
 
 export default AccountSettingsModal;
-// commit

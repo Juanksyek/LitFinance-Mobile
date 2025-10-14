@@ -6,7 +6,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { API_BASE_URL } from "../constants/api";
 import AccountSettingsModal from "./AccountSettingsModal";
 import SmartNumber from "./SmartNumber";
-import Toast from "react-native-toast-message";
+import Toast from "react-native-toast-message"; 
 
 interface Transaccion {
   tipo: 'ingreso' | 'egreso';
@@ -60,6 +60,11 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
       
       const url = `${API_BASE_URL}/cuenta/principal`;
       console.log('🌐 [BalanceCard] Realizando petición a:', url);
+
+      if (!token) {
+        console.log('⚠️ [BalanceCard] No hay token de autenticación, saltando fetch de cuenta');
+        return;
+      }
       
       const resCuenta = await axios.get(url, {
         headers: { Authorization: `Bearer ${token}` },
