@@ -1,5 +1,14 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, ActivityIndicator } from 'react-native';
+import React, { useState, useEffect, useMemo } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  SafeAreaView,
+  ActivityIndicator,
+  Platform,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { analyticsService, ResumenFinanciero, AnalyticsFilters } from '../services/analyticsService';
 import AnalyticsFiltersComponent from '../components/analytics/AnalyticsFilters';
@@ -8,8 +17,10 @@ import ChartSelector from '../components/analytics/ChartSelector';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface AnalyticsScreenProps {
-  navigation: any; // Add navigation prop
+  navigation: any;
 }
+
+const HEADER_H = Platform.OS === 'ios' ? 96 : 84;
 
 const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ navigation }) => {
   const [resumen, setResumen] = useState<ResumenFinanciero | null>(null);
@@ -21,6 +32,18 @@ const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ navigation }) => {
   });
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  const rangoLabel = useMemo(() => {
+    const map: Record<string, string> = {
+      dia: 'Día',
+      semana: 'Semana',
+      mes: 'Mes',
+      anio: 'Año',
+      año: 'Año',
+    };
+    // @ts-ignore
+    return map[filters.rangoTiempo] ?? 'Rango';
+  }, [filters.rangoTiempo]);
+
   useEffect(() => {
     loadResumenFinanciero();
   }, [filters]);
@@ -29,28 +52,24 @@ const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ navigation }) => {
     try {
       setLoading(true);
       setErrorMsg(null);
-  
-      const token = await AsyncStorage.getItem("authToken");
+
+      const token = await AsyncStorage.getItem('authToken');
       if (!token) {
         setErrorMsg('Tu sesión ha expirado. Por favor inicia sesión nuevamente.');
         setResumen(null);
         setLoading(false);
         return;
       }
-  
+
       const data = await analyticsService.getResumenFinanciero(filters);
       setResumen(data);
     } catch (error: any) {
-      if (error?.response?.status === 401) { 
-        await AsyncStorage.removeItem("authToken");
+      if (error?.response?.status === 401) {
+        await AsyncStorage.removeItem('authToken');
         setErrorMsg('Tu sesión ha expirado. Redirigiendo al login...');
-        
         setTimeout(() => {
-          navigation.reset({
-            index: 0,
-            routes: [{ name: 'Login' }],
-          });
-        }, 2000);
+          navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+        }, 1600);
       } else {
         setErrorMsg('Error cargando analytics. Intenta de nuevo.');
       }
@@ -65,67 +84,103 @@ const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ navigation }) => {
     setShowFilters(false);
   };
 
-  // Add retry function
-  const handleRetry = () => {
-    loadResumenFinanciero();
-  };
+  const handleRetry = () => loadResumenFinanciero();
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#6366f1" />
-          <Text style={styles.loadingText}>Cargando analytics...</Text>
-          {errorMsg && (
-            <Text style={styles.errorText}>{errorMsg}</Text>
-          )}
+      <SafeAreaView style={styles.root}>
+        <View style={styles.headerWrap}>
+          <View style={styles.headerBar}>
+            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerIconBtn}>
+              <Ionicons name="chevron-back" size={20} color="#0f172a" />
+            </TouchableOpacity>
+
+            <Text style={styles.headerTitle}>Analytics</Text>
+
+            <TouchableOpacity onPress={() => setShowFilters(true)} style={styles.headerChip}>
+              <Ionicons name="funnel-outline" size={14} color="#0f172a" />
+              <Text style={styles.headerChipText}>{rangoLabel}</Text>
+              <Ionicons name="chevron-down" size={12} color="#0f172a" />
+            </TouchableOpacity>
+          </View>
+          <View style={styles.headerHandle} />
+        </View>
+
+        <View style={[styles.loadingContainer, { paddingTop: HEADER_H + 8 }]}>
+          <ActivityIndicator size="small" />
+          <Text style={styles.muted}>Cargando analytics…</Text>
+          {errorMsg && <Text style={styles.errorText}>{errorMsg}</Text>}
         </View>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Analytics</Text>
-        <TouchableOpacity
-          style={styles.filterButton}
-          onPress={() => setShowFilters(true)}
-        >
-          <Ionicons name="filter" size={24} color="#6366f1" />
-        </TouchableOpacity>
+    <SafeAreaView style={styles.root}>
+      {/* Header fijo estilo app */}
+      <View style={styles.headerWrap}>
+        <View style={styles.headerBar}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerIconBtn}>
+            <Ionicons name="chevron-back" size={20} color="#0f172a" />
+          </TouchableOpacity>
+
+          <View style={styles.titleRow}>
+            <Ionicons name="flame" size={18} color="#fb923c" style={{ marginRight: 6 }} />
+            <Text style={styles.headerTitle}>Analytics</Text>
+          </View>
+
+          <TouchableOpacity onPress={() => setShowFilters(true)} style={styles.headerChip} activeOpacity={0.9}>
+            <Ionicons name="funnel-outline" size={14} color="#0f172a" />
+            <Text style={styles.headerChipText}>{rangoLabel}</Text>
+            <Ionicons name="chevron-down" size={12} color="#0f172a" />
+          </TouchableOpacity>
+        </View>
+        <View style={styles.headerHandle} />
       </View>
 
-      {errorMsg && (
-        <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>{errorMsg}</Text>
-          {!errorMsg.includes('expirado') && (
-            <TouchableOpacity style={styles.retryButton} onPress={handleRetry}>
-              <Text style={styles.retryButtonText}>Reintentar</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      )}
+      {/* Contenido */}
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={{ paddingBottom: 24 }}
+        showsVerticalScrollIndicator={false}
+      >
+        {!!errorMsg && (
+          <View style={styles.alertCard}>
+            <Ionicons name="warning-outline" size={18} color="#b45309" />
+            <Text style={styles.alertText}>{errorMsg}</Text>
+            {!errorMsg.includes('expirado') && (
+              <TouchableOpacity onPress={handleRetry} style={styles.retryGhost}>
+                <Text style={styles.retryGhostText}>Reintentar</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {resumen && (
           <>
-            <ResumenCard 
-              balance={{
-                balance: resumen.balance,
-                totalIngresos: {
-                  monto: resumen.ingresos,
-                  moneda: '$',
-                  esPositivo: resumen.ingresos >= 0,
-                },
-                totalGastos: {
-                  monto: resumen.gastos,
-                  moneda: '$',
-                  esPositivo: resumen.gastos >= 0,
-                },
-              }} 
-            />
-            <ChartSelector filters={filters} />
+            {/* Tarjeta de resumen ya existente */}
+            <View style={styles.cardWrap}>
+              <ResumenCard
+                balance={{
+                  balance: resumen.balance,
+                  totalIngresos: {
+                    monto: resumen.ingresos,
+                    moneda: '$',
+                    esPositivo: resumen.ingresos >= 0,
+                  },
+                  totalGastos: {
+                    monto: resumen.gastos,
+                    moneda: '$',
+                    esPositivo: resumen.gastos >= 0,
+                  },
+                }}
+              />
+            </View>
+
+            {/* Selector/Charts dentro de contenedor blanco */}
+            <View style={styles.card}>
+              <ChartSelector filters={filters} />
+            </View>
           </>
         )}
       </ScrollView>
@@ -142,66 +197,127 @@ const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
+  // Fondo global
+  root: {
+    flex: 1,
+    backgroundColor: '#f6f7fb',
+  },
+
+  // Header fijo tipo “pill”
+  headerWrap: {
+    position: 'absolute',
+    top: 0, left: 0, right: 0,
+    paddingTop: Platform.OS === 'ios' ? 10 : 6,
+    backgroundColor: '#f6f7fb',
+    zIndex: 100,
+  },
+  headerBar: {
+    marginHorizontal: 14,
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#e8ecf2',
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    shadowColor: '#111827',
+    shadowOffset: { width: 3, height: 6 },
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
+    elevation: 2,
+  },
+  titleRow: { flexDirection: 'row', alignItems: 'center', flex: 1, justifyContent: 'center' },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#0f172a',
+  },
+  headerIconBtn: {
+    width: 32, height: 32, borderRadius: 10,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#f8fafc',
+    borderWidth: 1, borderColor: '#e5e7eb',
+  },
+  headerChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: '#f8fafc',
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  headerChipText: { fontSize: 12, fontWeight: '800', color: '#0f172a' },
+  headerHandle: {
+    alignSelf: 'center',
+    marginTop: 8,
+    width: 90,
+    height: 6,
+    borderRadius: 999,
+    backgroundColor: '#e5e7eb',
+  },
+
+  // Scroll container deja espacio al header
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    paddingTop: HEADER_H + 8,
+    paddingHorizontal: 14,
   },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+
+  // Tarjetas contenedoras
+  cardWrap: {
+    // si tu ResumenCard ya pinta su tarjeta, puedes omitir este wrapper;
+    // lo dejo por consistencia de padding/espacio.
+    marginBottom: 12,
+  },
+  card: {
     backgroundColor: '#ffffff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e2e8f0',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#e8ecf2',
+    padding: 12,
+    shadowColor: '#111827',
+    shadowOffset: { width: 4, height: 8 },
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
+    elevation: 2,
+    marginBottom: 12,
   },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#1e293b',
-  },
-  filterButton: {
-    padding: 8,
-  },
-  content: {
-    flex: 1,
-    paddingHorizontal: 20,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
+
+  // Loading
+  loadingContainer: { alignItems: 'center', gap: 8, flex: 1 },
+  muted: { fontSize: 13, color: '#64748b' },
+
+  // Alert sutil
+  alertCard: {
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#fff7ed',
+    borderWidth: 1,
+    borderColor: '#fde68a',
+    borderRadius: 14,
+    padding: 12,
+    marginBottom: 12,
   },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: '#64748b',
+  alertText: { color: '#7c2d12', fontWeight: '700', flex: 1 },
+
+  // Retry “ghost”
+  retryGhost: {
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
   },
-  errorContainer: {
-    padding: 16,
-    backgroundColor: '#fee2e2',
-    borderRadius: 8,
-    margin: 16,
-  },
-  errorText: {
-    color: '#b91c1c',
-    fontSize: 16,
-    textAlign: 'center',
-  },
-  retryButton: {
-    marginTop: 12,
-    backgroundColor: '#6366f1',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 6,
-    alignSelf: 'center',
-  },
-  retryButtonText: {
-    color: '#ffffff',
-    fontSize: 14,
-    fontWeight: '600',
-  },
+  retryGhostText: { color: '#0f172a', fontWeight: '800', fontSize: 12 },
+
+  // Error directo (pantalla de loading)
+  errorText: { color: '#b91c1c', fontSize: 14, textAlign: 'center', paddingHorizontal: 16 },
 });
 
 export default AnalyticsScreen;

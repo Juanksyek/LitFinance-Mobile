@@ -9,8 +9,8 @@ import { Ionicons } from '@expo/vector-icons';
 import Toast from 'react-native-toast-message';
 import DataPrivacyModal from '../components/DataPrivacyModal';
 import SmartNumber from '../components/SmartNumber';
-import BackButton from '../components/BackButton';
 import { CurrencyPicker, Moneda as PickerMoneda } from '../components/CurrencyPicker';
+import { useNavigation } from '@react-navigation/native';
 
 interface CuentaPrincipal {
   esPrincipal: boolean;
@@ -48,8 +48,10 @@ interface MonedaCatalogo {
 }
 
 const { width } = Dimensions.get('window');
+const HEADER_H = Platform.OS === 'ios' ? 88 : 76;
 
 const MainAccountScreen = () => {
+  const navigation = useNavigation();
   const [cuenta, setCuenta] = useState<CuentaPrincipal | null>(null);
   const [usuario, setUsuario] = useState<Usuario | null>(null);
   const [loading, setLoading] = useState(true);
@@ -57,10 +59,9 @@ const MainAccountScreen = () => {
   const [saving, setSaving] = useState(false);
   const [monedas, setMonedas] = useState<MonedaCatalogo[]>([]);
 
-  // Un solo modal por funcionalidad
+  // Modales
   const [monedaModalVisible, setMonedaModalVisible] = useState(false);
   const [currencyPickerVisible, setCurrencyPickerVisible] = useState(false);
-
   const [convertingCurrency, setConvertingCurrency] = useState(false);
   const [infoModalVisible, setInfoModalVisible] = useState(false);
   const [formData, setFormData] = useState<Partial<Usuario>>({});
@@ -212,7 +213,6 @@ const MainAccountScreen = () => {
     if (m) await handleCurrencyChange(toMoneda(m));
   };
 
-  // Cierre seguro
   const forceCloseAllPickers = () => {
     setMonedaModalVisible(false);
     setCurrencyPickerVisible(false);
@@ -250,14 +250,35 @@ const MainAccountScreen = () => {
 
   return (
     <>
-      <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-        {/* BackButton fuera de la tarjeta */}
-        <View style={styles.backButtonWrapper}>
-          <BackButton />
+      {/* ---------- Header fijo (estilo de la app) ---------- */}
+      <View style={styles.headerWrap}>
+        <View style={styles.headerBar}>
+          <TouchableOpacity 
+            onPress={() => navigation.goBack()}
+            style={styles.backButton}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="chevron-back" size={20} color="#0f172a" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle} numberOfLines={1}>Cuenta Principal</Text>
+          <TouchableOpacity
+            onPress={() => { forceCloseAllPickers(); setCurrencyPickerVisible(true); }}
+            style={styles.headerChip}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="cash-outline" size={14} color="#0f172a" />
+            <Text style={styles.headerChipText}>{cuenta.moneda}</Text>
+          </TouchableOpacity>
         </View>
-        {/* Balance */}
-        <Animated.View style={[styles.card, styles.neu, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
-          {/* Elimina el BackButton de aquí */}
+      </View>
+
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={{ paddingBottom: 0 }}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* ---------- Balance Card ---------- */}
+        <Animated.View style={[styles.card, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
           <View style={styles.rowBetween}>
             <View style={styles.rowCenter}>
               <View style={[styles.iconChip, { backgroundColor: '#eef2ff' }]}>
@@ -265,7 +286,11 @@ const MainAccountScreen = () => {
               </View>
               <Text style={styles.title}>{cuenta.nombre}</Text>
             </View>
-            <TouchableOpacity onPress={() => { forceCloseAllPickers(); setCurrencyPickerVisible(true); }} style={styles.chipOutline}>
+
+            <TouchableOpacity
+              onPress={() => { forceCloseAllPickers(); setCurrencyPickerVisible(true); }}
+              style={styles.chipOutline}
+            >
               <Ionicons name="swap-horizontal" size={14} color="#334155" />
               <Text style={styles.chipText}>{cuenta.moneda}</Text>
             </TouchableOpacity>
@@ -292,7 +317,7 @@ const MainAccountScreen = () => {
           </View>
         </Animated.View>
 
-        {/* Grid esencial */}
+        {/* ---------- Grid esencial ---------- */}
         <View style={styles.grid}>
           <View style={[styles.cardSm, styles.neuInset]}>
             <Text style={styles.label}>ID Cuenta</Text>
@@ -312,16 +337,19 @@ const MainAccountScreen = () => {
           </View>
         </View>
 
-        {/* Perfil */}
+        {/* ---------- Perfil ---------- */}
         {usuario && (
-          <View style={[styles.card, styles.neu]}>
+          <View style={styles.card}>
             <View style={styles.rowBetween}>
               <Text style={styles.titleSm}>Mi perfil</Text>
               <View style={styles.rowCenter}>
                 <TouchableOpacity onPress={() => setInfoModalVisible(true)} style={styles.iconBtn}>
                   <Ionicons name="help-circle-outline" size={18} color="#64748b" />
                 </TouchableOpacity>
-                <TouchableOpacity onPress={() => setEditMode(!editMode)} style={[styles.btn, styles.btnLight, { height: 34, marginLeft: 6 }]}>
+                <TouchableOpacity
+                  onPress={() => setEditMode(!editMode)}
+                  style={[styles.btn, styles.btnLight, { height: 34, marginLeft: 6 }]}
+                >
                   <Ionicons name={editMode ? 'close' : 'pencil'} size={14} color="#0f172a" />
                   <Text style={styles.btnLightText}>{editMode ? 'Cancelar' : 'Editar'}</Text>
                 </TouchableOpacity>
@@ -330,7 +358,6 @@ const MainAccountScreen = () => {
 
             {editMode ? (
               <>
-                {/* Básico */}
                 <View style={styles.fieldRow}>
                   <Text style={styles.inputLabel}>Nombre</Text>
                   <TextInput style={styles.input} value={formData.nombreCompleto || ''} onChangeText={(t) => handleChange('nombreCompleto', t)} placeholder="Tu nombre" />
@@ -360,7 +387,6 @@ const MainAccountScreen = () => {
                   </TouchableOpacity>
                 </View>
 
-                {/* ⬇️ Datos personales extra */}
                 <View style={[styles.neuInset, { marginTop: 10 }]}>
                   <Text style={styles.sectionMinor}>Datos personales</Text>
 
@@ -377,11 +403,11 @@ const MainAccountScreen = () => {
                   <View style={styles.inline}>
                     <View style={[styles.fieldRow, styles.inlineItem]}>
                       <Text style={styles.inputLabel}>Estado</Text>
-                      <TextInput style={styles.input} value={formData.estado || ''} onChangeText={(t) => handleChange('estado', t)} placeholder="Ej. CDMX" />
+                      <TextInput style={styles.input} value={formData.estado || ''} onChangeText={(t) => handleChange('estado', t)} placeholder="Ej. Jalisco" />
                     </View>
                     <View style={[styles.fieldRow, styles.inlineItem]}>
                       <Text style={styles.inputLabel}>Ciudad</Text>
-                      <TextInput style={styles.input} value={formData.ciudad || ''} onChangeText={(t) => handleChange('ciudad', t)} placeholder="Ej. Coyoacán" />
+                      <TextInput style={styles.input} value={formData.ciudad || ''} onChangeText={(t) => handleChange('ciudad', t)} placeholder="Ej. Guzmán" />
                     </View>
                   </View>
 
@@ -415,7 +441,6 @@ const MainAccountScreen = () => {
                   <ItemRow icon="briefcase-outline" label="Ocupación" value={usuario.ocupacion} />
                   <ItemRow icon="cash-outline" label="Moneda preferida" value={usuario.monedaPreferencia} />
 
-                  {/* ⬇️ Datos personales extra (lectura compacta) */}
                   <View style={[styles.neuInset, { marginTop: 8 }]}>
                     <Text style={styles.sectionMinor}>Datos personales</Text>
                     <ItemRow icon="call-outline" label="Teléfono" value={usuario.telefono || '—'} />
@@ -436,8 +461,8 @@ const MainAccountScreen = () => {
           </View>
         )}
 
-        {/* Estado */}
-        <View style={[styles.card, styles.neu]}>
+        {/* ---------- Estado ---------- */}
+        <View style={styles.card}>
           <View style={styles.rowBetween}>
             <Text style={styles.titleSm}>Estado de la cuenta</Text>
           </View>
@@ -447,10 +472,9 @@ const MainAccountScreen = () => {
           </View>
         </View>
 
-        <View style={{ height: 16 }} />
       </ScrollView>
 
-      {/* Picker de moneda preferida (perfil) */}
+      {/* ---------- Modales ---------- */}
       <CurrencyPicker
         value={formData.monedaPreferencia || usuario?.monedaPreferencia || ''}
         visible={monedaModalVisible}
@@ -461,7 +485,6 @@ const MainAccountScreen = () => {
         }}
       />
 
-      {/* Picker de moneda de la cuenta */}
       <CurrencyPicker
         value={cuenta.moneda}
         visible={currencyPickerVisible}
@@ -469,7 +492,6 @@ const MainAccountScreen = () => {
         onSelect={(m: PickerMoneda) => handleCurrencyChange(m)}
       />
 
-      {/* Info datos opcionales */}
       <DataPrivacyModal visible={infoModalVisible} onClose={() => setInfoModalVisible(false)} />
 
       {convertingCurrency && (
@@ -520,106 +542,188 @@ const Dot = ({ color }: { color: string }) => (
 
 /** -------------------- Styles -------------------- */
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f6f7fb', paddingHorizontal: 14, paddingTop: 42 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#f6f7fb', gap: 6 },
-  neu: {
+  // Fondo y spacing general
+  container: {
+    flex: 1,
     backgroundColor: '#f6f7fb',
+    paddingHorizontal: 14,
+    paddingTop: HEADER_H + 12, // deja espacio al header fijo
+  },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#f6f7fb', gap: 6 },
+
+  // ---------- Header (como la captura) ----------
+  headerWrap: {
+    position: 'absolute',
+    top: 0, left: 0, right: 0,
+    paddingTop: Platform.OS === 'ios' ? 54 : 10,
+    backgroundColor: '#f6f7fb',
+    zIndex: 100,
+  },
+  headerBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginHorizontal: 14,
+    backgroundColor: '#ffffff',
     borderRadius: 16,
-    padding: 14,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: '#eceff4',
     shadowColor: '#111827',
-    shadowOffset: { width: 6, height: 6 },
-    shadowOpacity: 0.04,
+    shadowOffset: { width: 3, height: 6 },
+    shadowOpacity: 0.05,
     shadowRadius: 12,
     elevation: 2,
   },
-  neuInset: {
-    backgroundColor: '#f6f7fb',
-    borderRadius: 14,
-    padding: 12,
-    shadowColor: '#ffffff',
-    shadowOffset: { width: -4, height: -4 },
-    shadowOpacity: 1,
-    shadowRadius: 6,
-    elevation: 0,
+  headerTitle: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#0f172a',
+  },
+  headerChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: '#f8fafc',
+    borderRadius: 999,
     borderWidth: 1,
     borderColor: '#e5e7eb',
   },
-  card: { marginTop: 10 },
-  // Agrega un nuevo estilo para el wrapper del BackButton
-  backButtonWrapper: {
-    alignSelf: 'flex-start',
-    marginBottom: 8,
-    marginTop: 0, // Puedes ajustar el margen superior si lo deseas
-    zIndex: 10,
+  headerChipText: { fontSize: 12, fontWeight: '800', color: '#0f172a' },
+  headerHandle: {
+    alignSelf: 'center',
+    marginTop: 8,
+    width: 80,
+    height: 6,
+    borderRadius: 999,
+    backgroundColor: '#e5e7eb',
   },
-  cardSm: { minHeight: 66, justifyContent: 'center' },
 
+  // ---------- Tarjetas ----------
+  card: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#e8ecf2',
+    shadowColor: '#111827',
+    shadowOffset: { width: 4, height: 8 },
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
+    elevation: 2,
+    marginTop: 2,
+  },
+
+  neuInset: {
+    backgroundColor: '#ffffff',
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#e8ecf2',
+    shadowColor: '#111827',
+    shadowOffset: { width: 2, height: 3 },
+    shadowOpacity: 0.03,
+    shadowRadius: 6,
+  },
+
+  cardSm: { minHeight: 66, justifyContent: 'center', flexBasis: (width - 14 * 2 - 10) / 2 - 0.5, flexGrow: 1 },
+
+  // Filas
   rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   rowCenter: { flexDirection: 'row', alignItems: 'center' },
   rowEnd: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 8 },
 
-  title: { fontSize: 16, fontWeight: '700', color: '#0f172a', marginLeft: 8 },
-  titleSm: { fontSize: 15, fontWeight: '700', color: '#0f172a' },
+  // Tipografías
+  title: { fontSize: 16, fontWeight: '800', color: '#0f172a', marginLeft: 8 },
+  titleSm: { fontSize: 15, fontWeight: '800', color: '#0f172a' },
   muted: { fontSize: 13, color: '#64748b' },
   mutedXs: { fontSize: 12, color: '#94a3b8' },
 
+  // Chips / pills
   iconChip: { width: 28, height: 28, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
-
   chipOutline: {
     flexDirection: 'row', alignItems: 'center',
     borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 999,
-    paddingVertical: 6, paddingHorizontal: 10, gap: 6, backgroundColor: '#fff',
+    paddingVertical: 6, paddingHorizontal: 10, gap: 6, backgroundColor: '#f8fafc',
   },
-  chipText: { fontSize: 12, color: '#334155', fontWeight: '600' },
-
+  chipText: { fontSize: 12, color: '#334155', fontWeight: '800' },
   chipSoft: { flexDirection: 'row', alignItems: 'center', borderRadius: 999, paddingVertical: 4, paddingHorizontal: 8, gap: 6 },
-  chipSoftText: { fontSize: 12, color: '#166534', fontWeight: '700' },
+  chipSoftText: { fontSize: 12, color: '#166534', fontWeight: '800' },
 
+  // Balance
   balanceRow: { flexDirection: 'row', alignItems: 'flex-end', marginTop: 8, marginBottom: 8 },
-  currency: { fontSize: 18, fontWeight: '700', color: '#111827', marginRight: 4 },
-  amount: { fontSize: 28, fontWeight: '800', color: '#0f172a', flexShrink: 1 },
+  currency: { fontSize: 18, fontWeight: '800', color: '#111827', marginRight: 4 },
+  amount: { fontSize: 30, fontWeight: '900', color: '#0f172a', flexShrink: 1 },
 
+  // Grid
   grid: { marginTop: 10, flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
 
+  // Valores
   label: { fontSize: 11, color: '#94a3b8', marginBottom: 2, textTransform: 'uppercase', letterSpacing: 0.4 },
-  value: { fontSize: 14, color: '#0f172a', fontWeight: '600' },
+  value: { fontSize: 14, color: '#0f172a', fontWeight: '700' },
   valueMono: {
     fontSize: 13, color: '#0f172a',
     fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace', default: 'monospace' }),
+    fontWeight: '700',
   },
 
+  // Lista de items perfil
   items: { marginTop: 6 },
   itemRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 6 },
   itemLabel: { fontSize: 11, color: '#6b7280', marginBottom: 2 },
 
+  // Inputs
   fieldRow: { marginTop: 8 },
-  inputLabel: { fontSize: 12, color: '#6b7280', marginBottom: 6 },
+  inputLabel: { fontSize: 12, color: '#6b7280', marginBottom: 6, fontWeight: '700' },
   input: {
-    backgroundColor: '#fff', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 10,
-    paddingHorizontal: 10, paddingVertical: 10, fontSize: 14, color: '#0f172a',
+    backgroundColor: '#ffffff', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 12,
+    paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: '#0f172a',
+    shadowColor: '#111827', shadowOffset: { width: 2, height: 3 }, shadowOpacity: 0.02, shadowRadius: 4,
   },
   inline: { flexDirection: 'row', gap: 8 },
   inlineItem: { flex: 1 },
 
-  btn: { height: 38, paddingHorizontal: 14, borderRadius: 10, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  // Botones
+  btn: { height: 38, paddingHorizontal: 14, borderRadius: 12, flexDirection: 'row', alignItems: 'center', gap: 8 },
   btnLight: { backgroundColor: '#ffffff', borderWidth: 1, borderColor: '#e5e7eb' },
-  btnLightText: { color: '#0f172a', fontWeight: '700', fontSize: 13 },
+  btnLightText: { color: '#0f172a', fontWeight: '800', fontSize: 13 },
   btnGhost: { backgroundColor: 'transparent' },
-  btnGhostText: { color: '#64748b', fontWeight: '700', fontSize: 13 },
-  btnPrimary: { backgroundColor: '#111827' },
-  btnPrimaryText: { color: '#fff', fontWeight: '800', fontSize: 13 },
+  btnGhostText: { color: '#64748b', fontWeight: '800', fontSize: 13 },
+  btnPrimary: {
+    backgroundColor: '#111827',
+    shadowColor: '#111827', shadowOffset: { width: 2, height: 4 }, shadowOpacity: 0.12, shadowRadius: 8,
+  },
+  btnPrimaryText: { color: '#fff', fontWeight: '900', fontSize: 13 },
 
   iconBtn: { width: 28, height: 28, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8fafc' },
 
-  sectionMinor: { fontSize: 12, color: '#475569', fontWeight: '700', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.4 },
+  sectionMinor: { fontSize: 12, color: '#475569', fontWeight: '800', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.4 },
 
+  // Estado
   stateRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
   dot: { width: 8, height: 8, borderRadius: 4 },
 
+  // Overlay
   convertingOverlay: {
     position: 'absolute', left: 0, right: 0, bottom: 0,
     padding: 10, alignItems: 'center',
     backgroundColor: 'rgba(246,247,251,0.9)',
+  },
+
+  backButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
   },
 });
 
