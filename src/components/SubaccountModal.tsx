@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { View, Text, TextInput, StyleSheet, TouchableOpacity, Switch, Dimensions, KeyboardAvoidingView, Platform } from "react-native";
 import Modal from "react-native-modal";
-import Ionicons from "react-native-vector-icons/Ionicons";
+import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Toast from "react-native-toast-message";
 import { API_BASE_URL } from "../constants/api";
