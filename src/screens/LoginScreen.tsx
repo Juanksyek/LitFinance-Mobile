@@ -8,7 +8,7 @@ import { useThemeColors } from "../theme/useThemeColors";
 import { useNavigation, NavigationProp, StackActions } from "@react-navigation/native";
 import { RootStackParamList } from "../navigation/AppNavigator";
 import { API_BASE_URL } from "../constants/api";
-import Ionicons from "react-native-vector-icons/Ionicons";
+import { Ionicons } from "@expo/vector-icons";
 
 const LoginScreen: React.FC = () => {
   const colors = useThemeColors();
