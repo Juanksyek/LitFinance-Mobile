@@ -281,3 +281,4 @@ const styles = StyleSheet.create({
 });
 
 export default ResumenCard;
+// commit
