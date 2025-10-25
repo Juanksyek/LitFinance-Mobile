@@ -216,3 +216,4 @@ const styles = StyleSheet.create({
 });
 
 export default EstadisticasRecurrentes;
+// commit
