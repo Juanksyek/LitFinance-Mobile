@@ -20,7 +20,6 @@ const ResetPasswordScreen: React.FC = () => {
   const [timer, setTimer] = useState(60);
   const [canResend, setCanResend] = useState(false);
 
-  // ====== Neumorphism tokens (derivados del tema) ======
   const theme = useMemo(() => {
     const bg = colors.background;
     const shadowDark = "rgba(0, 0, 0, 0.35)";

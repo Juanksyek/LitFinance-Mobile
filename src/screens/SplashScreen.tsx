@@ -2,7 +2,6 @@ import React, { useEffect, useRef } from "react";
 import { View, Animated, StyleSheet, useColorScheme } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { darkColors, lightColors } from "../constants/colors";
-// commit
 const SplashScreen: React.FC = () => {
   const navigation = useNavigation();
   const scheme = useColorScheme();

@@ -11,7 +11,6 @@ import { RootStackParamList } from "../navigation/AppNavigator";
 import DeleteModal from "../components/DeleteModal";
 
 const { width } = Dimensions.get("window");
-// commit
 type RecurrenteDetailRouteProp = RouteProp<
   {
     RecurrenteDetail: {
