@@ -8,7 +8,6 @@ import { useThemeColors } from '../theme/useThemeColors';
 import { useNavigation } from '@react-navigation/native';
 import { API_BASE_URL } from '../constants/api';
 import { monedasPredefinidas, Moneda } from '../constants/monedas';
-// commit
 const getPasswordStrength = (password: string) => {
   if (password.length < 6) return 'Débil';
   if (!/[A-Z]/.test(password) || !/[0-9]/.test(password)) return 'Media';
