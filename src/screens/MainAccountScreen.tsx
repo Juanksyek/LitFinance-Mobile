@@ -59,7 +59,6 @@ const MainAccountScreen = () => {
   const [saving, setSaving] = useState(false);
   const [monedas, setMonedas] = useState<MonedaCatalogo[]>([]);
 
-  // Modales
   const [monedaModalVisible, setMonedaModalVisible] = useState(false);
   const [currencyPickerVisible, setCurrencyPickerVisible] = useState(false);
   const [convertingCurrency, setConvertingCurrency] = useState(false);
