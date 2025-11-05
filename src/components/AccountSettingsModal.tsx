@@ -22,7 +22,6 @@ const AccountSettingsModal: React.FC<Props> = ({ visible, onClose }) => {
     simbolo: "$",
   });
 
-  // ====== Efectos de carga ======
   useEffect(() => {
     if (visible) {
       loadNumberPreference();
