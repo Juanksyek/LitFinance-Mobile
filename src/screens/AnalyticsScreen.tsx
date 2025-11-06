@@ -108,7 +108,6 @@ const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.root}>
-      {/* Header fijo estilo app */}
       <View style={styles.headerWrap}>
         <View style={styles.headerBar}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerIconBtn}>
