@@ -233,7 +233,6 @@ const RecurrenteDetail = () => {
     navigateToDashboard();
   }, [showToast, navigateToDashboard]);
 
-  // Colores basados en plataforma
   const getPlatformColor = () => {
     const c = recurrente.plataforma?.color;
     if (c) return c;
