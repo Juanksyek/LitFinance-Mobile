@@ -336,7 +336,6 @@ const SubaccountDetail = () => {
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
-      {/* Header */}
       <View style={styles.headerContainer}>
         <View style={styles.headerContent}>
           <TouchableOpacity

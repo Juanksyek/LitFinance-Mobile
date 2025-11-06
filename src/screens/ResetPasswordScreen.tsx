@@ -76,7 +76,6 @@ const ResetPasswordScreen: React.FC = () => {
     }
   };
 
-  // (opcional) enmascarado visual del correo
   const maskedEmail = useMemo(() => {
     if (!email) return "";
     const [user, domain] = email.split("@");
