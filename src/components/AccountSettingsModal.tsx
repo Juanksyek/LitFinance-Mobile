@@ -50,7 +50,6 @@ const AccountSettingsModal: React.FC<Props> = ({ visible, onClose }) => {
     }
   }, []);
 
-  // ====== Handlers ======
   const toggleNumberFormat = async (value: boolean) => {
     try {
       setShowFullNumbers(value);
