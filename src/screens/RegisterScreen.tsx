@@ -120,7 +120,6 @@ const RegisterScreen: React.FC = () => {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-        {/* Header con logo */}
         <View style={styles.header}>
           <View style={styles.logoContainer}>
             <Image source={require('../images/LitFinance.png')} style={styles.logo} />
