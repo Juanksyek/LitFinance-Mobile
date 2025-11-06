@@ -65,7 +65,6 @@ const MainAccountScreen = () => {
   const [infoModalVisible, setInfoModalVisible] = useState(false);
   const [formData, setFormData] = useState<Partial<Usuario>>({});
 
-  // Animaciones
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(10)).current;
 
