@@ -128,7 +128,6 @@ const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ navigation }) => {
         <View style={styles.headerHandle} />
       </View>
 
-      {/* Contenido */}
       <ScrollView
         style={styles.container}
         contentContainerStyle={{ paddingBottom: 24 }}
