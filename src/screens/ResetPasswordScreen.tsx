@@ -90,7 +90,6 @@ const ResetPasswordScreen: React.FC = () => {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-        {/* Tarjeta principal Neumorphic */}
         <View
           style={[
             styles.neuCard,

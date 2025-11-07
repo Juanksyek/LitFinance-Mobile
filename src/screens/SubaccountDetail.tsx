@@ -371,7 +371,6 @@ const SubaccountDetail = () => {
         </View>
       </View>
 
-      {/* Body */}
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         <View style={styles.balanceCard} key={subcuenta.updatedAt}>
           <Text style={styles.balanceLabel}>Saldo actual</Text>
