@@ -73,7 +73,6 @@ const AccountSettingsModal: React.FC<Props> = ({ visible, onClose }) => {
   const handleChangeCurrency = async (m: Moneda) => {
     try {
       setSelectedMoneda(m);
-      // Guarda localmente la selección para reutilizar en toda la app
       await AsyncStorage.setItem(PREFERRED_CURRENCY_KEY, JSON.stringify(m));
       Toast.show({
         type: "success",
