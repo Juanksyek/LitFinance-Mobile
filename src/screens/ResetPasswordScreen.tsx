@@ -111,7 +111,6 @@ const ResetPasswordScreen: React.FC = () => {
             </Text>
           </View>
 
-          {/* Input: Código */}
           <View
             style={[
               styles.neuInputWrapper,
