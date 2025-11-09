@@ -258,7 +258,6 @@ const RecurrenteDetail = () => {
     extrapolate: "clamp",
   });
 
-  // UI auxiliares
   const StatusPill = () => (
     <View style={[styles.statusPill, { borderColor: "#F9DFA9", backgroundColor: "#FFF7E6" }]}>
       <Ionicons name={recurrente.pausado ? "pause" : "checkmark-circle"} size={14} color={recurrente.pausado ? "#A16207" : "#2563EB"} />
