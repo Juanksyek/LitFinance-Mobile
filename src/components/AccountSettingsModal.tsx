@@ -80,7 +80,6 @@ const AccountSettingsModal: React.FC<Props> = ({ visible, onClose }) => {
         text2: `${m.nombre} (${m.codigo}) ${m.simbolo}`,
       });
 
-      // 👉 Si quieres persistir en backend, hazlo aquí:
       const token = await AsyncStorage.getItem('authToken');
       if (token) {
         // Solo intenta persistir si hay token válido

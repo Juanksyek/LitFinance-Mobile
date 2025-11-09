@@ -68,7 +68,6 @@ const MainAccountScreen = () => {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(10)).current;
 
-  // Adaptador
   const toMoneda = (m: MonedaCatalogo): PickerMoneda => ({
     id: m.codigo, codigo: m.codigo, nombre: m.nombre, simbolo: m.simbolo,
   });

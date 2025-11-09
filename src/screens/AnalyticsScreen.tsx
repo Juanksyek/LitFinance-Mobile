@@ -147,7 +147,6 @@ const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ navigation }) => {
 
         {resumen && (
           <>
-            {/* Tarjeta de resumen ya existente */}
             <View style={styles.cardWrap}>
               <ResumenCard
                 balance={{

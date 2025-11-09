@@ -406,7 +406,6 @@ const SubaccountDetail = () => {
           />
         </View>
 
-        {/* Recurrentes List */}
         <View style={{ flex: 1 }}>
           <SubaccountRecurrentesList subcuentaId={subcuenta.subCuentaId} userId={userId!} />
         </View>

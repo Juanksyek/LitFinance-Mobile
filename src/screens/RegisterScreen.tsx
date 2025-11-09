@@ -130,7 +130,6 @@ const RegisterScreen: React.FC = () => {
           </Text>
         </View>
 
-        {/* Formulario principal */}
         <View style={styles.formCard}>
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
