@@ -165,7 +165,6 @@ const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ navigation }) => {
               />
             </View>
 
-            {/* Selector/Charts dentro de contenedor blanco */}
             <View style={styles.card}>
               <ChartSelector filters={filters} />
             </View>

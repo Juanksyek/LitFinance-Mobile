@@ -270,7 +270,6 @@ const RegisterScreen: React.FC = () => {
             )}
           </View>
 
-          {/* Sección: Preferencias */}
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <View style={styles.sectionIcon}>

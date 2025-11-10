@@ -82,7 +82,6 @@ const AccountSettingsModal: React.FC<Props> = ({ visible, onClose }) => {
 
       const token = await AsyncStorage.getItem('authToken');
       if (token) {
-        // Solo intenta persistir si hay token válido
         // await fetch(`${API_BASE_URL}/cuenta/principal/moneda`, {
         //   method: 'PATCH',
         //   headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
