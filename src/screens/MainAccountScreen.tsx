@@ -162,7 +162,6 @@ const MainAccountScreen = () => {
     ]);
   };
 
-  // Tasas mock
   const convertCurrency = async (from: string, to: string, amount: number) => {
     const rates: Record<string, Record<string, number>> = {
       USD: { MXN: 17.5, EUR: 0.85 },
