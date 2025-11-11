@@ -113,7 +113,6 @@ const AccountSettingsModal: React.FC<Props> = ({ visible, onClose }) => {
 
         <Text style={styles.title}>Ajustes de cuenta</Text>
 
-        {/* Formato de números */}
         <View style={styles.switchOption}>
           <View style={styles.switchTextContainer}>
             <Text style={styles.optionText}>Números completos</Text>

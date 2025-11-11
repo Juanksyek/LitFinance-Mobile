@@ -300,7 +300,6 @@ const RecurrenteDetail = () => {
         </View>
 
         <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 28 }}>
-          {/* Tarjeta principal (estilo neumorphism claro) */}
           <View
             style={[
               styles.bigCard,

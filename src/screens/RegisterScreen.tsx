@@ -294,7 +294,6 @@ const RegisterScreen: React.FC = () => {
             </TouchableOpacity>
           </View>
 
-          {/* Botón de registro */}
           <TouchableOpacity 
             style={[styles.button, styles.neumorphicButton]} 
             onPress={handleRegister}
