@@ -410,7 +410,6 @@ const SubaccountDetail = () => {
           <SubaccountRecurrentesList subcuentaId={subcuenta.subCuentaId} userId={userId!} />
         </View>
 
-        {/* Enhanced Quick Info Cards */}
         <View style={styles.quickInfoGrid}>
           <InfoCard
             icon={<Ionicons name="trending-up-outline" />}
