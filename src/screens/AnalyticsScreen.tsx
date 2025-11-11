@@ -184,7 +184,6 @@ const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  // Fondo global
   root: {
     flex: 1,
     backgroundColor: '#f6f7fb',
