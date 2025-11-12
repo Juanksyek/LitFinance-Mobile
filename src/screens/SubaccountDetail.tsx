@@ -428,7 +428,6 @@ const SubaccountDetail = () => {
           />
         </View>
 
-        {/* Participación en subcuentas */}
         {participacion !== null && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Participación en subcuentas</Text>
