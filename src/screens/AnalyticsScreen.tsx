@@ -189,7 +189,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#f6f7fb',
   },
 
-  // Header fijo tipo “pill”
   headerWrap: {
     position: 'absolute',
     top: 0, left: 0, right: 0,

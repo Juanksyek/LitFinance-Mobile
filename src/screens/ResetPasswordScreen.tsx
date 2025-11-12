@@ -151,7 +151,6 @@ const ResetPasswordScreen: React.FC = () => {
             <View style={[styles.innerHighlight, { borderColor: theme.shadowLight }]} />
           </View>
 
-          {/* Input: Confirmar contraseña */}
           <View
             style={[
               styles.neuInputWrapper,

@@ -287,7 +287,6 @@ const RecurrenteDetail = () => {
     <>
       <StatusBar barStyle="dark-content" />
       <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
-        {/* Header */}
         <View style={styles.header}>
           <PressableScale onPress={() => navigation.goBack()} style={styles.backBtn}>
             <Ionicons name="chevron-back" size={22} color={theme.text} />
