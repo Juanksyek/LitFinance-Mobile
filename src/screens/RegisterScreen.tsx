@@ -305,7 +305,6 @@ const RegisterScreen: React.FC = () => {
             </View>
           </TouchableOpacity>
 
-          {/* Link para login */}
           <View style={styles.loginLinkContainer}>
             <Text style={[styles.loginText, { color: colors.placeholder }]}>
               ¿Ya tienes cuenta?
