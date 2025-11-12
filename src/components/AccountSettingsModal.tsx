@@ -136,8 +136,6 @@ const AccountSettingsModal: React.FC<Props> = ({ visible, onClose }) => {
             label="Moneda de la cuenta"
             value={selectedMoneda}
             onChange={handleChangeCurrency}
-            // Si quieres inyectar tu propio getter de token:
-            // getAuthToken={async () => await AsyncStorage.getItem('authToken')}
             showSearch
           />
         </View>
