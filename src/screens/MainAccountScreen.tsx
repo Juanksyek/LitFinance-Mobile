@@ -243,7 +243,6 @@ const MainAccountScreen = () => {
 
   return (
     <>
-      {/* ---------- Header fijo (estilo de la app) ---------- */}
       <View style={styles.headerWrap}>
         <View style={styles.headerBar}>
           <TouchableOpacity 
