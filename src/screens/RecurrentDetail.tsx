@@ -332,7 +332,6 @@ const RecurrenteDetail = () => {
             </View>
           </View>
 
-          {/* Acciones (3 tiles como en el mock) */}
           <View style={styles.tilesRow}>
             <ActionTile icon="create-outline" onPress={() => setModalVisible(true)} />
             <ActionTile
