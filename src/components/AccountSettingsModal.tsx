@@ -130,7 +130,6 @@ const AccountSettingsModal: React.FC<Props> = ({ visible, onClose }) => {
           />
         </View>
 
-        {/* Selector reutilizable de Moneda */}
         <View style={{ marginTop: 12 }}>
           <CurrencyField
             label="Moneda de la cuenta"
