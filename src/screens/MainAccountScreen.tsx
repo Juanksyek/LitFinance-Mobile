@@ -269,7 +269,6 @@ const MainAccountScreen = () => {
         contentContainerStyle={{ paddingBottom: 0 }}
         showsVerticalScrollIndicator={false}
       >
-        {/* ---------- Balance Card ---------- */}
         <Animated.View style={[styles.card, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
           <View style={styles.rowBetween}>
             <View style={styles.rowCenter}>

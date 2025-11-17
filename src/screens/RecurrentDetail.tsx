@@ -318,7 +318,6 @@ const RecurrenteDetail = () => {
               <Text style={[styles.identText, { color: theme.sub }]}>Color de identificación</Text>
             </View>
 
-            {/* Progreso hacia próxima ejecución */}
             <View style={{ marginTop: 14 }}>
               <View style={styles.progressRow}>
                 <Ionicons name="time-outline" size={16} color={theme.platform} />

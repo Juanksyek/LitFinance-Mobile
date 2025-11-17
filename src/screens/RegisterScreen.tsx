@@ -315,7 +315,6 @@ const RegisterScreen: React.FC = () => {
           </View>
         </View>
 
-        {/* Modal para seleccionar moneda */}
         <Modal
           visible={monedaModalVisible}
           animationType="fade"

@@ -171,7 +171,6 @@ const ResetPasswordScreen: React.FC = () => {
             <View style={[styles.innerHighlight, { borderColor: theme.shadowLight }]} />
           </View>
 
-          {/* Botón neumorphic acentuado */}
           <TouchableOpacity
             style={[
               styles.neuButton,
