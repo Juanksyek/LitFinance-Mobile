@@ -254,8 +254,6 @@ const styles = StyleSheet.create({
 
   // Tarjetas contenedoras
   cardWrap: {
-    // si tu ResumenCard ya pinta su tarjeta, puedes omitir este wrapper;
-    // lo dejo por consistencia de padding/espacio.
     marginBottom: 12,
   },
   card: {
