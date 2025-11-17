@@ -443,7 +443,6 @@ const SubaccountDetail = () => {
           </View>
         )}
 
-        {/* Enhanced Account Information */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Información de cuenta</Text>
           <View style={styles.sectionContent}>
