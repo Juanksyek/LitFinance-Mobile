@@ -341,7 +341,6 @@ const RecurrenteDetail = () => {
             <ActionTile icon="trash-outline" onPress={() => setDeleteVisible(true)} danger />
           </View>
 
-          {/* Info “sin recordatorios” / lista de recordatorios */}
           <View style={styles.emptyWrap}>
             <Ionicons name="calendar-outline" size={28} color="#94A3B8" />
             {(!recurrente.recordatorios || recurrente.recordatorios.length === 0) ? (

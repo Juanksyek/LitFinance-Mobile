@@ -461,7 +461,6 @@ const SubaccountDetail = () => {
           </View>
         </View>
 
-        {/* Enhanced History Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Historial de movimientos</Text>
           <View style={styles.sectionContent}>

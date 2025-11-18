@@ -308,7 +308,6 @@ const MainAccountScreen = () => {
           </View>
         </Animated.View>
 
-        {/* ---------- Grid esencial ---------- */}
         <View style={styles.grid}>
           <View style={[styles.cardSm, styles.neuInset]}>
             <Text style={styles.label}>ID Cuenta</Text>

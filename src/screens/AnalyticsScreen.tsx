@@ -252,7 +252,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
   },
 
-  // Tarjetas contenedoras
   cardWrap: {
     marginBottom: 12,
   },

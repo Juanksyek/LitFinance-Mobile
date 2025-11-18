@@ -62,7 +62,6 @@ const SubaccountModal: React.FC<Props> = ({
       setColor(subcuentaToEdit.color);
       setAfectaCuenta(subcuentaToEdit.afectaCuenta);
     } else {
-      // Resetear campos si no hay subcuenta para editar
       setNombre("");
       setCantidadNumerica(0);
       setMoneda("MXN");

@@ -175,7 +175,6 @@ const RegisterScreen: React.FC = () => {
             </View>
           </View>
 
-          {/* Sección: Datos de cuenta */}
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <View style={styles.sectionIcon}>
