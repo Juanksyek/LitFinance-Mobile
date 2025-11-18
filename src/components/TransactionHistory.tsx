@@ -6,7 +6,6 @@ import { jwtDecode } from "jwt-decode";
 import { API_BASE_URL } from "../constants/api";
 import Toast from "react-native-toast-message";
 import HistorialDetalleModal from "./HistorialDetalleModal";
-// ✅ NUEVO: Importar SmartNumber para mostrar cifras grandes de forma segura
 import SmartNumber from './SmartNumber';
 
 type HistorialItem = {
