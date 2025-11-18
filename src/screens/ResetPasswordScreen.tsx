@@ -186,7 +186,6 @@ const ResetPasswordScreen: React.FC = () => {
             <Text style={styles.buttonText}>Restablecer</Text>
           </TouchableOpacity>
 
-          {/* Reenviar código */}
           <View style={styles.resendContainer}>
             <Text style={{ color: colors.placeholder }}>
               ¿No recibiste el código?{" "}
