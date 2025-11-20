@@ -245,7 +245,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#e5e7eb',
   },
 
-  // Scroll container deja espacio al header
   container: {
     flex: 1,
     paddingTop: HEADER_H + 8,

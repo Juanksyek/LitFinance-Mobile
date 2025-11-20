@@ -39,7 +39,7 @@ const SubaccountModal: React.FC<Props> = ({
   onClose,
   cuentaPrincipalId,
   onSuccess,
-  subcuentaToEdit, // Nueva prop para editar
+  subcuentaToEdit,
 }) => {
   const [nombre, setNombre] = useState(subcuentaToEdit?.nombre || "");
   const [moneda, setMoneda] = useState(subcuentaToEdit?.moneda || "MXN");

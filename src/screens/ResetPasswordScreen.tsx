@@ -215,7 +215,6 @@ const styles = StyleSheet.create({
     paddingVertical: 24,
   },
 
-  // ====== Neumorphism blocks ======
   neuCard: {
     borderRadius: 24,
     padding: 20,

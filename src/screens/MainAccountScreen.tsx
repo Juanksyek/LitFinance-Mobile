@@ -327,7 +327,6 @@ const MainAccountScreen = () => {
           </View>
         </View>
 
-        {/* ---------- Perfil ---------- */}
         {usuario && (
           <View style={styles.card}>
             <View style={styles.rowBetween}>

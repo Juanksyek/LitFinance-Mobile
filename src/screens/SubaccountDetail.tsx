@@ -464,7 +464,6 @@ const SubaccountDetail = () => {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Historial de movimientos</Text>
           <View style={styles.sectionContent}>
-            {/* Search Input */}
             <View style={styles.searchContainer}>
               <Ionicons name="search-outline" size={20} color="#6B7280" style={styles.searchIcon} />
               <TextInput

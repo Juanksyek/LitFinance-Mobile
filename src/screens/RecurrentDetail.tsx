@@ -357,7 +357,6 @@ const RecurrenteDetail = () => {
             )}
           </View>
 
-          {/* Mini tarjetas inferiores (2 columnas) */}
           <View style={styles.bottomGrid}>
             <View style={[styles.smallCard, shape246]}>
               <View style={styles.smallIconBox}>
