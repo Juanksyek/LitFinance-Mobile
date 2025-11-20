@@ -44,7 +44,7 @@ const TransactionHistory = ({ refreshKey }: { refreshKey?: number }) => {
 
   useEffect(() => {
     const fetchHistorial = async () => {
-      console.log('📋 [TransactionHistory] Iniciando fetch de historial:', {
+      console.log('[TransactionHistory] Iniciando fetch de historial:', {
         refreshKey,
         search,
         page,
