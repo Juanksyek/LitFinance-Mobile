@@ -47,7 +47,7 @@ const RegisterScreen: React.FC = () => {
         return;
       }
     } catch (error: any) {
-      console.log(`❌ Error obteniendo monedas:`, error.response?.status || error.message);
+      console.log(`Error obteniendo monedas:`, error.response?.status || error.message);
     }
     setMonedas(monedasPredefinidas);
   };
