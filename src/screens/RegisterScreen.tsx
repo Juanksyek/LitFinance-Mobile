@@ -372,7 +372,7 @@ const RegisterScreen: React.FC = () => {
     </KeyboardAvoidingView>
   );
 };
-
+// Styles
 const styles = StyleSheet.create({
   container: { 
     flex: 1,
