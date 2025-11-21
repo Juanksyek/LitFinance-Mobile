@@ -219,7 +219,6 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     padding: 20,
     borderWidth: 1,
-    // sombras suaves combinadas
     shadowOffset: { width: 10, height: 10 },
     shadowOpacity: 0.25,
     shadowRadius: 16,
