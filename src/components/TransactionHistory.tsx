@@ -86,7 +86,7 @@ const TransactionHistory = ({ refreshKey }: { refreshKey?: number }) => {
 
         const data = await res.json();
 
-        console.log('📥 [TransactionHistory] Respuesta recibida:', {
+        console.log('[TransactionHistory] Respuesta recibida:', {
           dataLength: data?.data?.length || 0,
           hasData: Array.isArray(data?.data),
           hasMore: data?.data?.length === limit

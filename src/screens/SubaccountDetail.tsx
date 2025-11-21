@@ -478,7 +478,6 @@ const SubaccountDetail = () => {
               />
             </View>
 
-            {/* Date Range Inputs */}
             <View style={styles.dateRangeContainer}>
               <View style={styles.dateInputContainer}>
                 <Text style={styles.dateLabel}>Desde</Text>
