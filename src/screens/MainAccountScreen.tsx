@@ -450,7 +450,6 @@ const MainAccountScreen = () => {
           </View>
         )}
 
-        {/* ---------- Estado ---------- */}
         <View style={styles.card}>
           <View style={styles.rowBetween}>
             <Text style={styles.titleSm}>Estado de la cuenta</Text>
