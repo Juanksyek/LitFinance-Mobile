@@ -286,7 +286,6 @@ const styles = StyleSheet.create({
   },
   alertText: { color: '#7c2d12', fontWeight: '700', flex: 1 },
 
-  // Retry “ghost”
   retryGhost: {
     backgroundColor: '#f8fafc',
     borderWidth: 1,
