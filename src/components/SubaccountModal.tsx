@@ -52,7 +52,6 @@ const SubaccountModal: React.FC<Props> = ({
   const [erroresCantidad, setErroresCantidad] = useState<string[]>([]);
   const [selectedMonedaObj, setSelectedMonedaObj] = useState<Moneda | null>(null);
 
-  // Prellenar campos al abrir el modal para edición
   React.useEffect(() => {
     if (subcuentaToEdit) {
       setNombre(subcuentaToEdit.nombre);
