@@ -385,7 +385,6 @@ const RecurrenteDetail = () => {
             </View>
           </View>
 
-          {/* Frecuencia / próxima ejecución / plataforma */}
           <View style={[styles.infoBlock, shape246]}>
             <View style={styles.infoLine}>
               <Ionicons name="repeat" size={18} color={theme.platform} />
