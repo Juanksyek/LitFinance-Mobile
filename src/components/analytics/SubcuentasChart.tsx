@@ -1,20 +1,34 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { analyticsService, EstadisticaSubcuenta, AnalyticsFilters } from '../../services/analyticsService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface SubcuentasChartProps {
   filters: AnalyticsFilters;
+  refreshKey?: number;
 }
 
-const SubcuentasChart: React.FC<SubcuentasChartProps> = ({ filters }) => {
+const SubcuentasChart: React.FC<SubcuentasChartProps> = ({ filters, refreshKey = 0 }) => {
   const [data, setData] = useState<EstadisticaSubcuenta[]>([]);
   const [loading, setLoading] = useState(true);
+  const fadeAnim = useState(new Animated.Value(0))[0];
 
   useEffect(() => {
     loadData();
-  }, [filters]);
+  }, [filters, refreshKey]);
+
+  useEffect(() => {
+    if (!loading && data.length > 0) {
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      fadeAnim.setValue(0);
+    }
+  }, [loading, data]);
 
   const loadData = async () => {
     try {
@@ -39,10 +53,14 @@ const SubcuentasChart: React.FC<SubcuentasChartProps> = ({ filters }) => {
     }
   };
 
-  const formatMoney = (amount: number, currency: string) => {
+  // Usar la moneda del filtro o del item si está disponible
+  const getMoneda = (item?: any) => {
+    return item?.subcuenta?.moneda || filters.monedaBase || 'USD';
+  };
+  const formatMoney = (amount: number, moneda: string) => {
     return new Intl.NumberFormat('es-ES', {
       style: 'currency',
-      currency: currency,
+      currency: moneda,
       minimumFractionDigits: 0,
     }).format(amount);
   };
@@ -71,7 +89,7 @@ const SubcuentasChart: React.FC<SubcuentasChartProps> = ({ filters }) => {
   }
 
   return (
-    <View style={styles.container}>
+    <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
       <Text style={styles.title}>Estado de Subcuentas</Text>
       
       <ScrollView style={styles.itemsContainer} showsVerticalScrollIndicator={false}>
@@ -143,7 +161,7 @@ const SubcuentasChart: React.FC<SubcuentasChartProps> = ({ filters }) => {
           </View>
         ))}
       </ScrollView>
-    </View>
+    </Animated.View>
   );
 };
 
