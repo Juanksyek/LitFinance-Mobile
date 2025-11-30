@@ -10,6 +10,9 @@ import RecurrenteDetail from '../screens/RecurrentDetail';
 import MainAccountScreen from '../screens/MainAccountScreen';
 import ResetPasswordScreen from '../screens/ResetPasswordScreen';
 import AnalyticsScreen from '../screens/AnalyticsScreen';
+import SupportScreen from '../screens/SupportScreen';
+import CreateTicketScreen from '../screens/CreateTicketScreen';
+import TicketDetailScreen from '../screens/TicketDetailScreen';
 
 export type Subcuenta = {
   _id: string;
@@ -21,6 +24,10 @@ export type Subcuenta = {
   afectaCuenta: boolean;
   subCuentaId: string;
   updatedAt: string;
+  // Campos de conversión multi-moneda
+  montoConvertido?: number;
+  tasaConversion?: number;
+  fechaConversion?: string;
 };
 
 export type RootStackParamList = {
@@ -35,6 +42,7 @@ export type RootStackParamList = {
       recurrenteId: string;
       nombre: string;
       monto: number;
+      moneda?: string;
       frecuenciaTipo: 'dia_semana' | 'dia_mes' | 'fecha_anual';
       frecuenciaValor: string;
       proximaEjecucion: string;
@@ -44,11 +52,18 @@ export type RootStackParamList = {
       subcuentaId?: string;
       recordatorios?: number[];
       pausado: boolean;
+      // Campos de conversión multi-moneda
+      montoConvertido?: number;
+      tasaConversion?: number;
+      fechaConversion?: string;
     };
   };
   MainAccount: undefined;
   ResetPassword: { email: string };
   Analytics: undefined;
+  Support: undefined;
+  CreateTicket: undefined;
+  TicketDetail: { ticketId: string };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -66,6 +81,9 @@ export default function AppNavigator() {
       <Stack.Screen name="MainAccount" component={MainAccountScreen} />
       <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
       <Stack.Screen name="Analytics" component={AnalyticsScreen} />
+      <Stack.Screen name="Support" component={SupportScreen} />
+      <Stack.Screen name="CreateTicket" component={CreateTicketScreen} />
+      <Stack.Screen name="TicketDetail" component={TicketDetailScreen} />
     </Stack.Navigator>
   );
 }
