@@ -1,12 +1,10 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, ScrollView, Dimensions, Animated, TouchableOpacity, TextInput, Alert, Platform } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, ScrollView, Dimensions, Animated, TouchableOpacity, TextInput, Alert, Platform, KeyboardAvoidingView } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_BASE_URL } from '../constants/api';
 import { Ionicons } from '@expo/vector-icons';
 import Toast from 'react-native-toast-message';
 import DataPrivacyModal from '../components/DataPrivacyModal';
-import SmartNumber from '../components/SmartNumber';
-import { CurrencyPicker, Moneda as PickerMoneda } from '../components/CurrencyPicker';
 import { useNavigation } from '@react-navigation/native';
 
 interface CuentaPrincipal {
@@ -38,12 +36,6 @@ interface Usuario {
   bio?: string;
 }
 
-interface MonedaCatalogo {
-  codigo: string;
-  nombre: string;
-  simbolo: string;
-}
-
 const { width } = Dimensions.get('window');
 const HEADER_H = Platform.OS === 'ios' ? 88 : 76;
 
@@ -54,20 +46,11 @@ const MainAccountScreen = () => {
   const [loading, setLoading] = useState(true);
   const [editMode, setEditMode] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [monedas, setMonedas] = useState<MonedaCatalogo[]>([]);
-
-  const [monedaModalVisible, setMonedaModalVisible] = useState(false);
-  const [currencyPickerVisible, setCurrencyPickerVisible] = useState(false);
-  const [convertingCurrency, setConvertingCurrency] = useState(false);
   const [infoModalVisible, setInfoModalVisible] = useState(false);
   const [formData, setFormData] = useState<Partial<Usuario>>({});
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(10)).current;
-
-  const toMoneda = (m: MonedaCatalogo): PickerMoneda => ({
-    id: m.codigo, codigo: m.codigo, nombre: m.nombre, simbolo: m.simbolo,
-  });
 
   const fetchCuentaPrincipal = async () => {
     try {
@@ -106,18 +89,8 @@ const MainAccountScreen = () => {
     } catch {}
   };
 
-  const fetchMonedas = async () => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/monedas/catalogo`);
-      if (response.ok) {
-        const data = await response.json();
-        if (Array.isArray(data)) setMonedas(data);
-      }
-    } catch {}
-  };
-
   const fetchData = async () => {
-    await Promise.all([fetchCuentaPrincipal(), fetchUsuario(), fetchMonedas()]);
+    await Promise.all([fetchCuentaPrincipal(), fetchUsuario()]);
     setLoading(false);
   };
 
@@ -126,10 +99,15 @@ const MainAccountScreen = () => {
       setSaving(true);
       const token = await AsyncStorage.getItem('authToken');
       if (!token) return;
+      // Nunca mandamos ningún campo de moneda en el payload, solo datos personales
+      const { monedaPreferencia, ...rest } = formData;
+      const cleanPayload = Object.fromEntries(
+        Object.entries(rest).filter(([key]) => !key.toLowerCase().includes('moneda'))
+      );
       const response = await fetch(`${API_BASE_URL}/user/update`, {
         method: 'PATCH',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(cleanPayload),
       });
       if (response.ok) {
         const updatedProfile = await response.json();
@@ -137,8 +115,10 @@ const MainAccountScreen = () => {
         setFormData(updatedProfile);
         setEditMode(false);
         Toast.show({ type: 'success', text1: 'Perfil actualizado' });
+        fetchData(); // Recargar datos para mostrar actualizados
       } else {
         const errorData = await response.json();
+        console.error('Error updating profile:', errorData);
         Toast.show({ type: 'error', text1: 'Error', text2: errorData.message || 'No se pudo actualizar' });
       }
     } catch {
@@ -157,58 +137,6 @@ const MainAccountScreen = () => {
       { text: 'No', style: 'cancel' },
       { text: 'Sí, descartar', style: 'destructive', onPress: () => { setFormData(usuario || {}); setEditMode(false); } },
     ]);
-  };
-
-  const convertCurrency = async (from: string, to: string, amount: number) => {
-    const rates: Record<string, Record<string, number>> = {
-      USD: { MXN: 17.5, EUR: 0.85 },
-      MXN: { USD: 0.057, EUR: 0.048 },
-      EUR: { USD: 1.18, MXN: 20.6 },
-    };
-    if (from === to) return amount;
-    const rate = rates[from]?.[to];
-    if (!rate) throw new Error('Conversión no disponible');
-    return amount * rate;
-  };
-
-  const handleCurrencyChange = async (newMoneda: PickerMoneda) => {
-    try {
-      setConvertingCurrency(true);
-      if (!cuenta) return;
-      const convertedAmount = await convertCurrency(cuenta.moneda, newMoneda.codigo, cuenta.cantidad);
-      const token = await AsyncStorage.getItem('authToken');
-      if (!token) return;
-
-      const response = await fetch(`${API_BASE_URL}/cuenta/principal/currency`, {
-        method: 'PATCH',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ moneda: newMoneda.codigo, simbolo: newMoneda.simbolo, cantidad: convertedAmount }),
-      });
-
-      if (response.ok) {
-        setCuenta(prev => prev ? { ...prev, moneda: newMoneda.codigo, simbolo: newMoneda.simbolo, cantidad: convertedAmount } : null);
-        forceCloseAllPickers();
-        Toast.show({ type: 'success', text1: `Convertido a ${newMoneda.codigo}` });
-        await fetchCuentaPrincipal();
-      } else {
-        const errorData = await response.json();
-        Toast.show({ type: 'error', text1: 'Error', text2: errorData.message || 'No se pudo cambiar la moneda' });
-      }
-    } catch {
-      Toast.show({ type: 'error', text1: 'Error de conversión' });
-    } finally {
-      setConvertingCurrency(false);
-    }
-  };
-
-  const handleCurrencyChangeFromSmartNumber = async (code: string) => {
-    const m = monedas.find(x => x.codigo === code);
-    if (m) await handleCurrencyChange(toMoneda(m));
-  };
-
-  const forceCloseAllPickers = () => {
-    setMonedaModalVisible(false);
-    setCurrencyPickerVisible(false);
   };
 
   useEffect(() => {
@@ -253,23 +181,24 @@ const MainAccountScreen = () => {
             <Ionicons name="chevron-back" size={20} color="#0f172a" />
           </TouchableOpacity>
           <Text style={styles.headerTitle} numberOfLines={1}>Cuenta Principal</Text>
-          <TouchableOpacity
-            onPress={() => { forceCloseAllPickers(); setCurrencyPickerVisible(true); }}
-            style={styles.headerChip}
-            activeOpacity={0.85}
-          >
+          <View style={styles.headerChip}>
             <Ionicons name="cash-outline" size={14} color="#0f172a" />
             <Text style={styles.headerChipText}>{cuenta.moneda}</Text>
-          </TouchableOpacity>
+          </View>
         </View>
       </View>
 
-      <ScrollView
-        style={styles.container}
-        contentContainerStyle={{ paddingBottom: 0 }}
-        showsVerticalScrollIndicator={false}
+      <KeyboardAvoidingView
+        style={{ flex: 1, backgroundColor: 'transparent' }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={HEADER_H}
       >
-        <Animated.View style={[styles.card, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
+        <ScrollView
+          style={[styles.container, { backgroundColor: '#f6f7fb' }]}
+          contentContainerStyle={{ paddingBottom: 0 }}
+          showsVerticalScrollIndicator={false}
+        >
+          <Animated.View style={[styles.card, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}> 
           <View style={styles.rowBetween}>
             <View style={styles.rowCenter}>
               <View style={[styles.iconChip, { backgroundColor: '#eef2ff' }]}>
@@ -278,25 +207,15 @@ const MainAccountScreen = () => {
               <Text style={styles.title}>{cuenta.nombre}</Text>
             </View>
 
-            <TouchableOpacity
-              onPress={() => { forceCloseAllPickers(); setCurrencyPickerVisible(true); }}
-              style={styles.chipOutline}
-            >
-              <Ionicons name="swap-horizontal" size={14} color="#334155" />
+            <View style={styles.chipOutline}>
+              <Ionicons name="cash-outline" size={14} color="#334155" />
               <Text style={styles.chipText}>{cuenta.moneda}</Text>
-            </TouchableOpacity>
+            </View>
           </View>
 
           <View style={styles.balanceRow}>
             <Text style={styles.currency}>{cuenta.simbolo}</Text>
-            <SmartNumber
-              value={cuenta.cantidad}
-              options={{ context: 'card', symbol: '', currency: cuenta.moneda }}
-              textStyle={styles.amount}
-              allowCurrencyChange
-              currentCurrency={cuenta.moneda}
-              onCurrencyChange={handleCurrencyChangeFromSmartNumber}
-            />
+            <Text style={styles.amount}>{cuenta.cantidad.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>
           </View>
 
           <View style={styles.rowBetween}>
@@ -368,12 +287,14 @@ const MainAccountScreen = () => {
                   </View>
                 </View>
 
+                {/* Moneda preferida solo visualización, no editable ni enviada al backend */}
                 <View style={styles.fieldRow}>
-                  <Text style={styles.inputLabel}>Moneda preferida</Text>
-                  <TouchableOpacity style={styles.chipOutline} onPress={() => { forceCloseAllPickers(); setMonedaModalVisible(true); }}>
+                  <Text style={styles.inputLabel}>Moneda preferida (solo visualización)</Text>
+                  <View style={styles.chipOutline}>
                     <Ionicons name="cash-outline" size={14} color="#334155" />
-                    <Text style={styles.chipText}>{formData.monedaPreferencia || usuario.monedaPreferencia || 'Seleccionar'}</Text>
-                  </TouchableOpacity>
+                    <Text style={styles.chipText}>{usuario.monedaPreferencia || 'No establecida'}</Text>
+                  </View>
+                  <Text style={styles.helperText}>La moneda principal se establece en el registro y no se puede cambiar.</Text>
                 </View>
 
                 <View style={[styles.neuInset, { marginTop: 10 }]}>
@@ -460,34 +381,11 @@ const MainAccountScreen = () => {
           </View>
         </View>
 
-      </ScrollView>
+        </ScrollView>
+      </KeyboardAvoidingView>
 
       {/* ---------- Modales ---------- */}
-      <CurrencyPicker
-        value={formData.monedaPreferencia || usuario?.monedaPreferencia || ''}
-        visible={monedaModalVisible}
-        onClose={forceCloseAllPickers}
-        onSelect={(m: PickerMoneda) => {
-          handleChange('monedaPreferencia', m.codigo);
-          forceCloseAllPickers();
-        }}
-      />
-
-      <CurrencyPicker
-        value={cuenta.moneda}
-        visible={currencyPickerVisible}
-        onClose={forceCloseAllPickers}
-        onSelect={(m: PickerMoneda) => handleCurrencyChange(m)}
-      />
-
       <DataPrivacyModal visible={infoModalVisible} onClose={() => setInfoModalVisible(false)} />
-
-      {convertingCurrency && (
-        <View style={[styles.convertingOverlay]} pointerEvents="none">
-          <ActivityIndicator size="small" />
-          <Text style={[styles.muted, { marginTop: 6 }]}>Convirtiendo…</Text>
-        </View>
-      )}
     </>
   );
 };
@@ -668,6 +566,7 @@ const styles = StyleSheet.create({
   // Inputs
   fieldRow: { marginTop: 8 },
   inputLabel: { fontSize: 12, color: '#6b7280', marginBottom: 6, fontWeight: '700' },
+  helperText: { fontSize: 11, color: '#94a3b8', marginTop: 4, fontStyle: 'italic' },
   input: {
     backgroundColor: '#ffffff', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 12,
     paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: '#0f172a',

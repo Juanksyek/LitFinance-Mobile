@@ -222,9 +222,11 @@ const MovementModal: React.FC<Props> = ({
       swipeDirection="down"
       style={styles.modalContainer}
       backdropOpacity={0.15}
-      animationIn="fadeIn"
-      animationOut="fadeOut"
-      useNativeDriver={false}
+      animationIn="slideInUp"
+      animationOut="slideOutDown"
+      animationInTiming={400}
+      animationOutTiming={350}
+      useNativeDriver={true}
     >
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modal}>
         <View style={styles.handle} />
@@ -365,7 +367,7 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
     borderTopLeftRadius: 18,
     borderTopRightRadius: 18,
-    maxHeight: SCREEN_HEIGHT * 0.95,
+    maxHeight: require('react-native').Dimensions.get('window').height * 0.95,
   },
   conceptoHeader: {
     flexDirection: 'row',

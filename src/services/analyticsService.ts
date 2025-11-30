@@ -92,6 +92,11 @@ export interface EstadisticaRecurrente {
       categoria: string;
     };
     frecuencia: string;
+    moneda: string;
+    simbolo: string;
+    montoConvertido?: number;
+    tasaConversion?: number;
+    fechaConversion?: string;
   };
   montoMensual: number;
   totalEjecutado: number;
@@ -198,6 +203,50 @@ class AnalyticsService {
   async getAnalisisTemporal(filters?: AnalyticsFilters): Promise<AnalisisTemporal> {
     return this.makeRequest<AnalisisTemporal>('/analisis-temporal', filters);
   }
+
+  /**
+   * FASE 5: Preview de balances en cualquier moneda
+   * Obtiene todos los balances (cuenta principal + subcuentas) convertidos a la moneda especificada
+   * Solo lectura - no modifica la base de datos
+   */
+  async getPreview(codigoMoneda: string): Promise<PreviewBalance> {
+    const url = `${API_BASE_URL}/cuenta/preview/${codigoMoneda}`;
+    
+    const response = await fetch(url, {
+      headers: {
+        'Authorization': `Bearer ${await this.getToken()}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Error ${response.status}: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+}
+
+export interface PreviewBalance {
+  monedaPreview: string;
+  simbolo: string;
+  cuentaPrincipal: {
+    cantidad: number;
+    monedaOriginal: string;
+    tasaConversion: number;
+  };
+  subcuentas: Array<{
+    id: string;
+    nombre: string;
+    cantidad: number;
+    monedaOriginal: string;
+    tasaConversion: number;
+    color: string;
+    activa: boolean;
+  }>;
+  totalGeneral: number;
+  tasasUtilizadas: Record<string, number>;
+  timestamp: string;
 }
 
 export const analyticsService = new AnalyticsService();

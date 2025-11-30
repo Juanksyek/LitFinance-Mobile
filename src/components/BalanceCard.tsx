@@ -41,6 +41,40 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
   const [mostrarFiltros, setMostrarFiltros] = useState(false);
   const [refreshPreferences, setRefreshPreferences] = useState(0);
   const animatedHeight = useRef(new Animated.Value(0)).current;
+  const animatedOpacity = useRef(new Animated.Value(0)).current;
+
+  const FILTER_MAX_HEIGHT = 180; // Ajusta según el contenido
+
+  useEffect(() => {
+    if (mostrarFiltros) {
+      Animated.parallel([
+        Animated.timing(animatedHeight, {
+          toValue: FILTER_MAX_HEIGHT,
+          duration: 250,
+          useNativeDriver: false,
+        }),
+        Animated.timing(animatedOpacity, {
+          toValue: 1,
+          duration: 200,
+          useNativeDriver: false,
+        }),
+      ]).start();
+    } else {
+      Animated.parallel([
+        Animated.timing(animatedHeight, {
+          toValue: 0,
+          duration: 200,
+          useNativeDriver: false,
+        }),
+        Animated.timing(animatedOpacity, {
+          toValue: 0,
+          duration: 150,
+          useNativeDriver: false,
+        }),
+      ]).start();
+    }
+  }, [mostrarFiltros]);
+
 
   const etiquetasFiltro: Record<string, string> = {
     dia: 'Día',
@@ -99,8 +133,8 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
       });
       
       Toast.show({
-        type: 'error',
-        text1: 'Error al obtener saldo',
+        type: 'info',
+        text1: 'Los datos se cargaron errorneamente, intenta de nuevo',
       });
     }
   };
@@ -422,7 +456,7 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
         </View>
       </View>
 
-      {/* Sección de filtros */}
+      {/* Sección de filtros con animación */}
       <View style={styles.filterSection}>
         <TouchableOpacity 
           style={styles.filterToggle} 
@@ -442,32 +476,38 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
           </View>
         </TouchableOpacity>
 
-        {mostrarFiltros && (
-          <View style={styles.filterOptions}>
-            {Object.entries(etiquetasFiltro).map(([key, label]) => (
-              <TouchableOpacity
-                key={key}
-                style={[
-                  styles.filterOption,
-                  periodo === key && styles.filterOptionActive
-                ]}
-                onPress={() => {
-                  console.log('📅 [BalanceCard] Cambiando período de filtro:', { from: periodo, to: key });
-                  setPeriodo(key);
-                  setMostrarFiltros(false);
-                }}
-                activeOpacity={0.7}
-              >
-                <Text style={[
-                  styles.filterOptionText,
-                  periodo === key && styles.filterOptionTextActive
-                ]}>
-                  {label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        )}
+        <Animated.View style={{
+          overflow: 'hidden',
+          height: animatedHeight,
+          opacity: animatedOpacity,
+        }}>
+          {mostrarFiltros && (
+            <View style={styles.filterOptions}>
+              {Object.entries(etiquetasFiltro).map(([key, label]) => (
+                <TouchableOpacity
+                  key={key}
+                  style={[
+                    styles.filterOption,
+                    periodo === key && styles.filterOptionActive
+                  ]}
+                  onPress={() => {
+                    console.log('📅 [BalanceCard] Cambiando período de filtro:', { from: periodo, to: key });
+                    setPeriodo(key);
+                    setMostrarFiltros(false);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[
+                    styles.filterOptionText,
+                    periodo === key && styles.filterOptionTextActive
+                  ]}>
+                    {label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+        </Animated.View>
       </View>
 
       <AccountSettingsModal visible={settingsVisible} onClose={handleSettingsClose} />

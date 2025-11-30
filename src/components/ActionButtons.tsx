@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, Dimensions } from "react-native";
+import React, { useState, useRef, useEffect } from "react";
+import { View, Text, TouchableOpacity, StyleSheet, Dimensions, Animated } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import MovementModal from './MovementModal';
 import SubaccountModal from './SubaccountModal';
@@ -47,6 +47,49 @@ const ActionButtons = ({
   const [refreshKey, setRefreshKey] = useState(Date.now());
   const navigation = useNavigation();
 
+  // Animación de entrada/salida para los botones
+  const animatedScales = useRef(actions.map(() => new Animated.Value(0))).current;
+  const animatedOpacities = useRef(actions.map(() => new Animated.Value(0))).current;
+
+  useEffect(() => {
+    // Resetear valores antes de animar
+    animatedScales.forEach(scale => scale.setValue(0));
+    animatedOpacities.forEach(opacity => opacity.setValue(0));
+
+    // Animar entrada de los botones
+    Animated.stagger(60,
+      animatedScales.map((scale, i) =>
+        Animated.parallel([
+          Animated.timing(scale, {
+            toValue: 1,
+            duration: 320,
+            useNativeDriver: true,
+          }),
+          Animated.timing(animatedOpacities[i], {
+            toValue: 1,
+            duration: 320,
+            useNativeDriver: true,
+          })
+        ])
+      )
+    ).start();
+    // Al desmontar, animar salida
+    return () => {
+      animatedScales.forEach((scale, i) => {
+        Animated.timing(scale, {
+          toValue: 0,
+          duration: 200,
+          useNativeDriver: true,
+        }).start();
+        Animated.timing(animatedOpacities[i], {
+          toValue: 0,
+          duration: 200,
+          useNativeDriver: true,
+        }).start();
+      });
+    };
+  }, [refreshKey]);
+
   const handlePress = (label: string) => {
     if (label === 'Ingreso' || label === 'Egreso') {
       setTipo(label.toLowerCase() as 'ingreso' | 'egreso');
@@ -88,7 +131,14 @@ const ActionButtons = ({
     <>
       <View style={styles.container}>
         {visibleActions.map((action, index) => (
-          <View key={index} style={styles.buttonWrapper}>
+          <Animated.View
+            key={index}
+            style={{
+              ...styles.buttonWrapper,
+              transform: [{ scale: animatedScales[index] }],
+              opacity: animatedOpacities[index],
+            }}
+          >
             <TouchableOpacity
               style={[styles.button, styles.neumorphic]}
               onPress={() => handlePress(action.label)}
@@ -96,7 +146,7 @@ const ActionButtons = ({
               <Ionicons name={action.icon} size={20} color="#EF6C00" />
             </TouchableOpacity>
             <Text style={styles.label}>{action.label}</Text>
-          </View>
+          </Animated.View>
         ))}
       </View>
 

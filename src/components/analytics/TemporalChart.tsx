@@ -1,23 +1,59 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Dimensions, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { analyticsService, AnalisisTemporal, AnalyticsFilters } from '../../services/analyticsService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface TemporalChartProps {
   filters: AnalyticsFilters;
+  refreshKey?: number;
 }
 
 const { width: screenWidth } = Dimensions.get('window');
 const chartWidth = screenWidth - 80;
 
-const TemporalChart: React.FC<TemporalChartProps> = ({ filters }) => {
+const TemporalChart: React.FC<TemporalChartProps> = ({ filters, refreshKey = 0 }) => {
   const [data, setData] = useState<AnalisisTemporal | null>(null);
   const [loading, setLoading] = useState(true);
+  const [userCurrency, setUserCurrency] = useState<string>('MXN');
+  const fadeAnim = useState(new Animated.Value(0))[0];
+
+  useEffect(() => {
+    loadUserCurrency();
+  }, []);
 
   useEffect(() => {
     loadData();
-  }, [filters]);
+  }, [filters, refreshKey]);
+
+  useEffect(() => {
+    if (!loading && data) {
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      fadeAnim.setValue(0);
+    }
+  }, [loading, data]);
+
+  const loadUserCurrency = async () => {
+    try {
+      const stored = await AsyncStorage.getItem('monedaPreferencia');
+      if (stored) {
+        let code = stored;
+        try {
+          const parsed = JSON.parse(stored);
+          if (typeof parsed === 'string') code = parsed;
+          else if (parsed?.codigo) code = parsed.codigo;
+        } catch {}
+        setUserCurrency(code || 'MXN');
+      }
+    } catch {
+      setUserCurrency('MXN');
+    }
+  };
 
   const loadData = async () => {
     try {
@@ -42,10 +78,12 @@ const TemporalChart: React.FC<TemporalChartProps> = ({ filters }) => {
     }
   };
 
-  const formatMoney = (amount: number) => {
+  // Usar la moneda del filtro si está disponible
+  const getMoneda = () => filters.monedaBase || userCurrency;
+  const formatMoney = (amount: number, moneda: string) => {
     return new Intl.NumberFormat('es-ES', {
       style: 'currency',
-      currency: 'USD',
+      currency: moneda,
       minimumFractionDigits: 0,
     }).format(amount);
   };
@@ -102,7 +140,7 @@ const TemporalChart: React.FC<TemporalChartProps> = ({ filters }) => {
   );
 
   return (
-    <View style={styles.container}>
+    <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
       <Text style={styles.title}>Análisis Temporal</Text>
       
       <View style={styles.trendsContainer}>
@@ -149,19 +187,19 @@ const TemporalChart: React.FC<TemporalChartProps> = ({ filters }) => {
           <View style={styles.averageItem}>
             <Text style={styles.averageLabel}>Ingresos</Text>
             <Text style={[styles.averageValue, { color: '#10b981' }]}>
-              {formatMoney(data.promedios.ingresoPromedio)}
+              {formatMoney(data.promedios.ingresoPromedio, getMoneda())}
             </Text>
           </View>
           <View style={styles.averageItem}>
             <Text style={styles.averageLabel}>Gastos</Text>
             <Text style={[styles.averageValue, { color: '#ef4444' }]}>
-              {formatMoney(data.promedios.gastoPromedio)}
+              {formatMoney(data.promedios.gastoPromedio, getMoneda())}
             </Text>
           </View>
           <View style={styles.averageItem}>
             <Text style={styles.averageLabel}>Balance</Text>
             <Text style={[styles.averageValue, { color: '#6366f1' }]}>
-              {formatMoney(data.promedios.balancePromedio)}
+              {formatMoney(data.promedios.balancePromedio, getMoneda())}
             </Text>
           </View>
         </View>
@@ -205,7 +243,7 @@ const TemporalChart: React.FC<TemporalChartProps> = ({ filters }) => {
           <Text style={styles.legendText}>Gastos</Text>
         </View>
       </View>
-    </View>
+    </Animated.View>
   );
 };
 

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, FlatList } from 'react-native';
 import type { EstadisticaRecurrente } from '../../types/analytics';
 
@@ -13,8 +13,47 @@ const EstadisticasRecurrentes: React.FC<EstadisticasRecurrentesProps> = ({
   isLoading = false,
   error
 }) => {
-  const formatAmount = (amount: number): string => {
-    return `$${amount.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const [userCurrency, setUserCurrency] = useState<string>('MXN');
+
+  useEffect(() => {
+    // Obtener la moneda preferida del usuario desde AsyncStorage
+    (async () => {
+      try {
+        const stored = await (await import('@react-native-async-storage/async-storage')).default.getItem('monedaPreferencia');
+        if (stored) {
+          let code = stored;
+          // Si está guardado como objeto JSON
+          try {
+            const parsed = JSON.parse(stored);
+            if (typeof parsed === 'string') code = parsed;
+            else if (parsed?.codigo) code = parsed.codigo;
+          } catch {}
+          setUserCurrency(code || 'MXN');
+        }
+      } catch {
+        setUserCurrency('MXN');
+      }
+    })();
+  }, []);
+
+  // Usar la moneda del recurrente si existe, si no la del usuario, si no MXN
+  const formatAmount = (amount: number, moneda?: string): string => {
+    let safeMoneda = 'MXN';
+    if (moneda && typeof moneda === 'string' && moneda.trim() !== '') {
+      safeMoneda = moneda;
+    } else if (userCurrency && typeof userCurrency === 'string' && userCurrency.trim() !== '') {
+      safeMoneda = userCurrency;
+    }
+    try {
+      return new Intl.NumberFormat('es-ES', {
+        style: 'currency',
+        currency: safeMoneda,
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }).format(amount);
+    } catch (e) {
+      return `${amount} ${safeMoneda}`;
+    }
   };
 
   const formatDate = (dateString: string): string => {
@@ -54,30 +93,30 @@ const EstadisticasRecurrentes: React.FC<EstadisticasRecurrentesProps> = ({
           <Text style={styles.categoria}>{item.recurrente.plataforma.categoria}</Text>
         </View>
         <View style={styles.statusContainer}>
-          <Text style={[styles.status, { color: getStatusColor(item.estadoActual) }]}>
+          <Text style={[styles.status, { color: getStatusColor(item.estadoActual) }]}> 
             {getStatusText(item.estadoActual)}
           </Text>
-          <Text style={styles.montoMensual}>{formatAmount(item.montoMensual)}/mes</Text>
+          <Text style={styles.montoMensual}>{formatAmount(item.montoMensual, item.recurrente.moneda)}/mes</Text>
         </View>
       </View>
-      
+
       <View style={styles.recurrenteStats}>
         <View style={styles.statItem}>
           <Text style={styles.statLabel}>Total Ejecutado</Text>
-          <Text style={styles.statValue}>{formatAmount(item.totalEjecutado)}</Text>
+          <Text style={styles.statValue}>{formatAmount(item.totalEjecutado, item.recurrente.moneda)}</Text>
         </View>
-        
+
         <View style={styles.statItem}>
           <Text style={styles.statLabel}>Ejecuciones</Text>
           <Text style={styles.statValue}>{item.cantidadEjecuciones}</Text>
         </View>
-        
+
         <View style={styles.statItem}>
           <Text style={styles.statLabel}>Próxima</Text>
           <Text style={styles.statValue}>{formatDate(item.proximaEjecucion)}</Text>
         </View>
       </View>
-      
+
       <Text style={styles.frecuencia}>Frecuencia: {item.recurrente.frecuencia}</Text>
     </View>
   );

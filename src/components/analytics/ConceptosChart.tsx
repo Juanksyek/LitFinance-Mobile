@@ -1,20 +1,56 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { analyticsService, EstadisticaConcepto, AnalyticsFilters } from '../../services/analyticsService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface ConceptosChartProps {
   filters: AnalyticsFilters;
+  refreshKey?: number;
 }
 
-const ConceptosChart: React.FC<ConceptosChartProps> = ({ filters }) => {
+const ConceptosChart: React.FC<ConceptosChartProps> = ({ filters, refreshKey = 0 }) => {
   const [data, setData] = useState<EstadisticaConcepto[]>([]);
   const [loading, setLoading] = useState(true);
+  const [userCurrency, setUserCurrency] = useState<string>('MXN');
+  const fadeAnim = useState(new Animated.Value(0))[0];
+
+  useEffect(() => {
+    loadUserCurrency();
+  }, []);
 
   useEffect(() => {
     loadData();
-  }, [filters]);
+  }, [filters, refreshKey]);
+
+  useEffect(() => {
+    if (!loading && data.length > 0) {
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      fadeAnim.setValue(0);
+    }
+  }, [loading, data]);
+
+  const loadUserCurrency = async () => {
+    try {
+      const stored = await AsyncStorage.getItem('monedaPreferencia');
+      if (stored) {
+        let code = stored;
+        try {
+          const parsed = JSON.parse(stored);
+          if (typeof parsed === 'string') code = parsed;
+          else if (parsed?.codigo) code = parsed.codigo;
+        } catch {}
+        setUserCurrency(code || 'MXN');
+      }
+    } catch {
+      setUserCurrency('MXN');
+    }
+  };
 
   const loadData = async () => {
     try {
@@ -39,12 +75,28 @@ const ConceptosChart: React.FC<ConceptosChartProps> = ({ filters }) => {
     }
   };
 
-  const formatMoney = (amount: number) => {
-    return new Intl.NumberFormat('es-ES', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 0,
-    }).format(amount);
+  // Usar la moneda del filtro o del item si está disponible
+  const getMoneda = (item?: any) => {
+    // Si el item tiene moneda y es válida, úsala; si no, usa la del filtro; si no, la del usuario
+    const moneda = item?.moneda || filters.monedaBase || userCurrency;
+    // Si la moneda es undefined, null o string vacía, usar la del usuario
+    if (!moneda || typeof moneda !== 'string' || moneda.trim() === '') return userCurrency;
+    return moneda;
+  };
+
+  const formatMoney = (amount: number, moneda: string) => {
+    // Si la moneda es inválida, usar la del usuario
+    const safeMoneda = (!moneda || typeof moneda !== 'string' || moneda.trim() === '') ? userCurrency : moneda;
+    try {
+      return new Intl.NumberFormat('es-ES', {
+        style: 'currency',
+        currency: safeMoneda,
+        minimumFractionDigits: 0,
+      }).format(amount);
+    } catch (e) {
+      // Si Intl falla, mostrar solo el número y la moneda
+      return `${amount} ${safeMoneda}`;
+    }
   };
 
   const getMaxAmount = () => {
@@ -72,7 +124,7 @@ const ConceptosChart: React.FC<ConceptosChartProps> = ({ filters }) => {
   const maxAmount = getMaxAmount();
 
   return (
-    <View style={styles.container}>
+    <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
       <Text style={styles.title}>Gastos e Ingresos por Concepto</Text>
       
       <ScrollView style={styles.itemsContainer} showsVerticalScrollIndicator={false}>
@@ -91,7 +143,7 @@ const ConceptosChart: React.FC<ConceptosChartProps> = ({ filters }) => {
                 </View>
               </View>
               <Text style={styles.promedio}>
-                Promedio: {formatMoney(item.montoPromedio)}
+                Promedio: {formatMoney(item.montoPromedio, getMoneda(item))}
               </Text>
             </View>
 
@@ -108,7 +160,7 @@ const ConceptosChart: React.FC<ConceptosChartProps> = ({ filters }) => {
                   />
                 </View>
                 <Text style={[styles.amountValue, { color: '#ef4444' }]}>
-                  {formatMoney(item.totalGasto)}
+                  {formatMoney(item.totalGasto, getMoneda(item))}
                 </Text>
               </View>
 
@@ -124,14 +176,14 @@ const ConceptosChart: React.FC<ConceptosChartProps> = ({ filters }) => {
                   />
                 </View>
                 <Text style={[styles.amountValue, { color: '#10b981' }]}>
-                  {formatMoney(item.totalIngreso)}
+                  {formatMoney(item.totalIngreso, getMoneda(item))}
                 </Text>
               </View>
             </View>
           </View>
         ))}
       </ScrollView>
-    </View>
+    </Animated.View>
   );
 };
 

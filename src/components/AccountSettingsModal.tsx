@@ -4,6 +4,9 @@ import { CurrencyField, Moneda } from "../components/CurrencyPicker";
 import Modal from "react-native-modal";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Toast from "react-native-toast-message";
+import { useNavigation } from "@react-navigation/native";
+import { Ionicons } from "@expo/vector-icons";
+import CurrencyPreviewModal from "./CurrencyPreviewModal";
 
 interface Props {
   visible: boolean;
@@ -14,6 +17,7 @@ const PREFERRED_CURRENCY_KEY = "preferredCurrency";
 const SHOW_FULL_NUMBERS_KEY = "showFullNumbers";
 
 const AccountSettingsModal: React.FC<Props> = ({ visible, onClose }) => {
+  const navigation = useNavigation<any>();
   const [showFullNumbers, setShowFullNumbers] = useState(false);
   const [selectedMoneda, setSelectedMoneda] = useState<Moneda | null>({
     id: "init",
@@ -21,6 +25,7 @@ const AccountSettingsModal: React.FC<Props> = ({ visible, onClose }) => {
     nombre: "US Dollar",
     simbolo: "$",
   });
+  const [previewModalVisible, setPreviewModalVisible] = useState(false);
 
   useEffect(() => {
     if (visible) {
@@ -79,16 +84,7 @@ const AccountSettingsModal: React.FC<Props> = ({ visible, onClose }) => {
         text1: "Moneda actualizada",
         text2: `${m.nombre} (${m.codigo}) ${m.simbolo}`,
       });
-
-      const token = await AsyncStorage.getItem('authToken');
-      if (token) {
-        // await fetch(`${API_BASE_URL}/cuenta/principal/moneda`, {
-        //   method: 'PATCH',
-        //   headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        //   body: JSON.stringify({ moneda: m.codigo })
-        // });
-      }
-
+      // Solo guardamos la preferencia local, nunca enviamos al backend
     } catch (err) {
       console.error(err);
       Toast.show({
@@ -132,17 +128,63 @@ const AccountSettingsModal: React.FC<Props> = ({ visible, onClose }) => {
 
         <View style={{ marginTop: 12 }}>
           <CurrencyField
-            label="Moneda de la cuenta"
+            label="Moneda preferida (solo visualización)"
             value={selectedMoneda}
             onChange={handleChangeCurrency}
             showSearch
           />
+          <Text style={styles.helperText}>
+            Esta es tu moneda de visualización. La moneda principal de tu cuenta se establece en el registro y no puede cambiar.
+          </Text>
         </View>
+
+        {/* Botón de Preview de Moneda */}
+        <TouchableOpacity
+          style={styles.previewOption}
+          onPress={() => setPreviewModalVisible(true)}
+        >
+          <View style={styles.previewIconContainer}>
+            <Ionicons name="cash-outline" size={24} color="#4CAF50" />
+          </View>
+          <View style={styles.previewTextContainer}>
+            <Text style={styles.previewTitle}>Vista previa de moneda</Text>
+            <Text style={styles.previewSubtext}>
+              Ve tus balances en cualquier moneda sin cambiar configuración
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color="#999" />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.supportOption}
+          onPress={() => {
+            onClose();
+            // @ts-ignore - Navigation type
+            navigation.navigate("Support");
+          }}
+        >
+          <View style={styles.supportIconContainer}>
+            <Ionicons name="help-circle-outline" size={24} color="#EF6C00" />
+          </View>
+          <View style={styles.supportTextContainer}>
+            <Text style={styles.supportTitle}>Soporte y ayuda</Text>
+            <Text style={styles.supportSubtext}>
+              ¿Tienes algún problema? Contáctanos
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color="#999" />
+        </TouchableOpacity>
 
         <TouchableOpacity onPress={onClose}>
           <Text style={styles.cancelText}>Cerrar</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Currency Preview Modal */}
+      <CurrencyPreviewModal
+        visible={previewModalVisible}
+        onClose={() => setPreviewModalVisible(false)}
+      />
     </Modal>
   );
 };
@@ -151,14 +193,22 @@ const styles = StyleSheet.create({
   modalWrapper: {
     justifyContent: "flex-end",
     margin: 0,
+    width: '100%',
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
   },
   modal: {
     backgroundColor: "#f0f0f3",
-    padding: 24,
+    paddingHorizontal: 24,
+    paddingTop: 20,
+    paddingBottom: 30,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.7)",
+    width: '100%',
   },
   grabber: {
     width: 40,
@@ -206,8 +256,75 @@ const styles = StyleSheet.create({
   cancelText: {
     textAlign: "center",
     marginTop: 16,
-    marginBottom: 26,
+    marginBottom: 8,
     color: "#888",
+  },
+  supportOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 16,
+    marginTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "#ddd",
+    gap: 12,
+  },
+  supportIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#EF6C0015",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  supportTextContainer: {
+    flex: 1,
+  },
+  supportTitle: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#444",
+    marginBottom: 2,
+  },
+  supportSubtext: {
+    fontSize: 12,
+    color: "#666",
+  },
+  helperText: {
+    fontSize: 11,
+    color: "#999",
+    marginTop: 6,
+    fontStyle: "italic",
+    lineHeight: 14,
+  },
+  previewOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 16,
+    marginTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "#ddd",
+    gap: 12,
+  },
+  previewIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#4CAF5015",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  previewTextContainer: {
+    flex: 1,
+  },
+  previewTitle: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#444",
+    marginBottom: 2,
+  },
+  previewSubtext: {
+    fontSize: 12,
+    color: "#666",
   },
 });
 
