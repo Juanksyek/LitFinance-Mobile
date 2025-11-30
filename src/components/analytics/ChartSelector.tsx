@@ -10,11 +10,12 @@ import TemporalChart from '../analytics/TemporalChart';
 
 interface ChartSelectorProps {
   filters: AnalyticsFilters;
+  refreshKey?: number;
 }
 
 type ChartType = 'conceptos' | 'subcuentas' | 'recurrentes' | 'temporal';
 
-const ChartSelector: React.FC<ChartSelectorProps> = ({ filters }) => {
+const ChartSelector: React.FC<ChartSelectorProps> = ({ filters, refreshKey = 0 }) => {
   const [activeChart, setActiveChart] = useState<ChartType>('conceptos');
 
   const chartOptions = [
@@ -47,13 +48,13 @@ const ChartSelector: React.FC<ChartSelectorProps> = ({ filters }) => {
   const renderChart = () => {
     switch (activeChart) {
       case 'conceptos':
-        return <ConceptosChart filters={filters} />;
+        return <ConceptosChart filters={filters} refreshKey={refreshKey} />;
       case 'subcuentas':
-        return <SubcuentasChart filters={filters} />;
+        return <SubcuentasChart filters={filters} refreshKey={refreshKey} />;
       case 'recurrentes':
-        return <RecurrentesChart filters={filters} />;
+        return <RecurrentesChart filters={filters} refreshKey={refreshKey} />;
       case 'temporal':
-        return <TemporalChart filters={filters} />;
+        return <TemporalChart filters={filters} refreshKey={refreshKey} />;
       default:
         return null;
     }
