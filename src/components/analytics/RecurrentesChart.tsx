@@ -1,20 +1,56 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { analyticsService, EstadisticaRecurrente, AnalyticsFilters } from '../../services/analyticsService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface RecurrentesChartProps {
   filters: AnalyticsFilters;
+  refreshKey?: number;
 }
 
-const RecurrentesChart: React.FC<RecurrentesChartProps> = ({ filters }) => {
+const RecurrentesChart: React.FC<RecurrentesChartProps> = ({ filters, refreshKey = 0 }) => {
   const [data, setData] = useState<EstadisticaRecurrente[]>([]);
   const [loading, setLoading] = useState(true);
+  const [userCurrency, setUserCurrency] = useState<string>('MXN');
+  const fadeAnim = useState(new Animated.Value(0))[0];
+
+  useEffect(() => {
+    loadUserCurrency();
+  }, []);
 
   useEffect(() => {
     loadData();
-  }, [filters]);
+  }, [filters, refreshKey]);
+
+  useEffect(() => {
+    if (!loading && data.length > 0) {
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      fadeAnim.setValue(0);
+    }
+  }, [loading, data]);
+
+  const loadUserCurrency = async () => {
+    try {
+      const stored = await AsyncStorage.getItem('monedaPreferencia');
+      if (stored) {
+        let code = stored;
+        try {
+          const parsed = JSON.parse(stored);
+          if (typeof parsed === 'string') code = parsed;
+          else if (parsed?.codigo) code = parsed.codigo;
+        } catch {}
+        setUserCurrency(code || 'MXN');
+      }
+    } catch {
+      setUserCurrency('MXN');
+    }
+  };
 
   const loadData = async () => {
     try {
@@ -39,12 +75,23 @@ const RecurrentesChart: React.FC<RecurrentesChartProps> = ({ filters }) => {
     }
   };
 
-  const formatMoney = (amount: number) => {
-    return new Intl.NumberFormat('es-ES', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 2,
-    }).format(amount);
+  // Usar la moneda del filtro o del recurrente si está disponible
+  const getMoneda = (item?: any) => {
+    return item?.recurrente?.moneda || filters.monedaBase || userCurrency;
+  };
+  const formatMoney = (amount: number, moneda?: string) => {
+    const safeMoneda = (!moneda || typeof moneda !== 'string' || moneda.trim() === '') 
+      ? (filters.monedaBase || userCurrency) 
+      : moneda;
+    try {
+      return new Intl.NumberFormat('es-ES', {
+        style: 'currency',
+        currency: safeMoneda,
+        minimumFractionDigits: 2,
+      }).format(amount);
+    } catch (e) {
+      return `${amount} ${safeMoneda}`;
+    }
   };
 
   const formatDate = (dateString: string) => {
@@ -101,12 +148,12 @@ const RecurrentesChart: React.FC<RecurrentesChartProps> = ({ filters }) => {
   const totalMensual = data.reduce((sum, item) => sum + item.montoMensual, 0);
 
   return (
-    <View style={styles.container}>
+    <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
       <Text style={styles.title}>Pagos Recurrentes</Text>
       
       <View style={styles.summaryCard}>
         <Text style={styles.summaryLabel}>Total mensual</Text>
-        <Text style={styles.summaryValue}>{formatMoney(totalMensual)}</Text>
+        <Text style={styles.summaryValue}>{formatMoney(totalMensual, filters.monedaBase || userCurrency)}</Text>
         <Text style={styles.summarySubtext}>{data.length} suscripciones activas</Text>
       </View>
       
@@ -143,14 +190,14 @@ const RecurrentesChart: React.FC<RecurrentesChartProps> = ({ filters }) => {
             </View>
 
             <View style={styles.amountContainer}>
-              <Text style={styles.montoMensual}>{formatMoney(item.montoMensual)}</Text>
+              <Text style={styles.montoMensual}>{formatMoney(item.montoMensual, getMoneda(item))}</Text>
               <Text style={styles.montoLabel}>por mes</Text>
             </View>
 
             <View style={styles.statsContainer}>
               <View style={styles.statItem}>
                 <Text style={styles.statLabel}>Total ejecutado</Text>
-                <Text style={styles.statValue}>{formatMoney(item.totalEjecutado)}</Text>
+                <Text style={styles.statValue}>{formatMoney(item.totalEjecutado, getMoneda(item))}</Text>
               </View>
               <View style={styles.statItem}>
                 <Text style={styles.statLabel}>Ejecuciones</Text>
@@ -181,7 +228,7 @@ const RecurrentesChart: React.FC<RecurrentesChartProps> = ({ filters }) => {
           </View>
         ))}
       </ScrollView>
-    </View>
+    </Animated.View>
   );
 };
 
