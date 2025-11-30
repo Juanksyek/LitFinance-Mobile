@@ -183,7 +183,7 @@ export default function DashboardScreen() {
           <SubaccountsList userId={userId} refreshKey={reloadTrigger} />
         )}
 
-        <ExpensesChart />
+        <ExpensesChart refreshKey={refreshKey} />
         <TransactionHistory refreshKey={refreshKey} />
       </ScrollView>
     </View>
