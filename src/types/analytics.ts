@@ -94,6 +94,11 @@ export interface RecurrenteInfo {
   nombre: string;
   plataforma: PlataformaInfo;
   frecuencia: string;
+  moneda: string;
+  simbolo: string;
+  montoConvertido?: number;
+  tasaConversion?: number;
+  fechaConversion?: string;
 }
 
 export interface EstadisticaRecurrente {
