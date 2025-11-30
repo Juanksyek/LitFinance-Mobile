@@ -25,7 +25,7 @@ const RegisterScreen: React.FC = () => {
     nombreCompleto: '',
     edad: '',
     ocupacion: '',
-    monedaPreferencia: 'USD',
+    monedaPrincipal: 'MXN',
   });
 
   const [showPassword, setShowPassword] = useState(false);
@@ -93,7 +93,7 @@ const RegisterScreen: React.FC = () => {
         nombreCompleto: form.nombreCompleto,
         edad: parseInt(form.edad, 10),
         ocupacion: form.ocupacion,
-        monedaPreferencia: form.monedaPreferencia,
+        monedaPrincipal: form.monedaPrincipal,
       };
 
       await axios.post(`${API_BASE_URL}/auth/register`, payload);
@@ -284,7 +284,7 @@ const RegisterScreen: React.FC = () => {
               <View style={styles.monedaSelectorContent}>
                 <Ionicons name="card-outline" size={20} color="#6B7280" style={styles.monedaIcon} />
                 <Text style={[styles.monedaText, { color: colors.text }]}>
-                  {monedas.find(m => m.codigo === form.monedaPreferencia)?.nombre || form.monedaPreferencia}
+                  {monedas.find(m => m.codigo === form.monedaPrincipal)?.nombre || form.monedaPrincipal}
                 </Text>
               </View>
               <View style={styles.chevronContainer}>
@@ -322,14 +322,17 @@ const RegisterScreen: React.FC = () => {
         >
           <View style={styles.modalOverlay}>
             <View style={[styles.modalContainer, styles.neumorphicModal]}>
-              <View style={styles.modalHeader}>
-                <Text style={[styles.modalTitle, { color: colors.text }]}>Seleccionar Moneda</Text>
-                <TouchableOpacity 
-                  style={styles.closeButton}
-                  onPress={() => setMonedaModalVisible(false)}
-                >
-                  <Ionicons name="close" size={24} color={colors.text} />
-                </TouchableOpacity>
+              <View style={styles.modalHeaderContainer}>
+                <View style={styles.modalHeaderRow}>
+                  <Text style={[styles.modalTitle, { color: colors.text }]}>Seleccionar Moneda Principal</Text>
+                  <TouchableOpacity 
+                    style={styles.closeButton}
+                    onPress={() => setMonedaModalVisible(false)}
+                  >
+                    <Ionicons name="close" size={24} color={colors.text} />
+                  </TouchableOpacity>
+                </View>
+                <Text style={[styles.modalWarning, { color: '#EF7725' }]}>⚠️ Esta moneda no se podrá cambiar después</Text>
               </View>
               <ScrollView style={styles.modalScroll}>
                 {monedas.map((moneda) => (
@@ -337,10 +340,10 @@ const RegisterScreen: React.FC = () => {
                     key={moneda.codigo}
                     style={[
                       styles.monedaOption,
-                      form.monedaPreferencia === moneda.codigo && styles.selectedMonedaOption
+                      form.monedaPrincipal === moneda.codigo && styles.selectedMonedaOption
                     ]}
                     onPress={() => {
-                      handleChange('monedaPreferencia', moneda.codigo);
+                      handleChange('monedaPrincipal', moneda.codigo);
                       setMonedaModalVisible(false);
                     }}
                   >
@@ -357,7 +360,7 @@ const RegisterScreen: React.FC = () => {
                         </Text>
                       </View>
                     </View>
-                    {form.monedaPreferencia === moneda.codigo && (
+                    {form.monedaPrincipal === moneda.codigo && (
                       <View style={styles.checkIcon}>
                         <Ionicons name="checkmark" size={20} color="#10B981" />
                       </View>
@@ -623,10 +626,28 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#E2E8F0',
   },
+  modalHeaderContainer: {
+    marginBottom: 20,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+  },
+  modalHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
   modalTitle: {
     fontSize: 20,
     fontWeight: '700',
     letterSpacing: -0.3,
+  },
+  modalWarning: {
+    fontSize: 13,
+    fontWeight: '600',
+    marginTop: 4,
+    textAlign: 'center',
   },
   closeButton: {
     width: 40,
