@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, ActivityIndicator, Platform } from 'react-native';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, ActivityIndicator, Platform, RefreshControl } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { analyticsService, ResumenFinanciero, AnalyticsFilters } from '../services/analyticsService';
 import AnalyticsFiltersComponent from '../components/analytics/AnalyticsFilters';
 import ResumenCard from '../components/analytics/ResumenCard';
@@ -16,7 +17,9 @@ const HEADER_H = Platform.OS === 'ios' ? 96 : 84;
 const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ navigation }) => {
   const [resumen, setResumen] = useState<ResumenFinanciero | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
   const [filters, setFilters] = useState<AnalyticsFilters>({
     rangoTiempo: 'mes',
     tipoTransaccion: 'ambos',
@@ -39,7 +42,14 @@ const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ navigation }) => {
     loadResumenFinanciero();
   }, [filters]);
 
-  const loadResumenFinanciero = async () => {
+  // Recargar datos cuando vuelves a esta pantalla
+  useFocusEffect(
+    useCallback(() => {
+      loadResumenFinanciero();
+    }, [filters])
+  );
+
+  const loadResumenFinanciero = async (isPullRefresh = false) => {
     try {
       setLoading(true);
       setErrorMsg(null);
@@ -54,6 +64,7 @@ const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ navigation }) => {
 
       const data = await analyticsService.getResumenFinanciero(filters);
       setResumen(data);
+      setRefreshKey(prev => prev + 1); // Incrementar key para refrescar gráficas
     } catch (error: any) {
       if (error?.response?.status === 401) {
         await AsyncStorage.removeItem('authToken');
@@ -67,8 +78,13 @@ const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ navigation }) => {
       console.error('Error loading resumen financiero:', error);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
+
+  const onRefresh = useCallback(() => {
+    loadResumenFinanciero(true);
+  }, [filters]);
 
   const handleFiltersChange = (newFilters: AnalyticsFilters) => {
     setFilters(newFilters);
@@ -132,6 +148,14 @@ const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ navigation }) => {
         style={styles.container}
         contentContainerStyle={{ paddingBottom: 24 }}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#6366f1"
+            colors={['#6366f1']}
+          />
+        }
       >
         {!!errorMsg && (
           <View style={styles.alertCard}>
@@ -166,7 +190,7 @@ const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ navigation }) => {
             </View>
 
             <View style={styles.card}>
-              <ChartSelector filters={filters} />
+              <ChartSelector filters={filters} refreshKey={refreshKey} />
             </View>
           </>
         )}
@@ -191,7 +215,7 @@ const styles = StyleSheet.create({
 
   headerWrap: {
     position: 'absolute',
-    top: 0, left: 0, right: 0,
+    top: 45, left: 0, right: 0,
     paddingTop: Platform.OS === 'ios' ? 10 : 6,
     backgroundColor: '#f6f7fb',
     zIndex: 100,
