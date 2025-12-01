@@ -9,6 +9,7 @@ import Toast from "react-native-toast-message";
 import { StackNavigationProp } from "@react-navigation/stack";
 import { RootStackParamList } from "../navigation/AppNavigator";
 import DeleteModal from "../components/DeleteModal";
+import { useThemeColors } from "../theme/useThemeColors";
 
 const { width } = Dimensions.get("window");
 type RecurrenteDetailRouteProp = RouteProp<
@@ -146,6 +147,7 @@ const PressableScale: React.FC<{
 };
 
 const RecurrenteDetail = () => {
+  const colors = useThemeColors();
   const route = useRoute<RecurrenteDetailRouteProp>();
   const navigation = useNavigation<StackNavigationProp<RootStackParamList>>();
   const [recurrente, setRecurrente] = useState(route.params.recurrente);
@@ -245,10 +247,6 @@ const RecurrenteDetail = () => {
     return map[name] || "#0EA5E9";
   };
   const theme = {
-    bg: "#F6F7FB",
-    text: "#0F172A",
-    sub: "#64748B",
-    cardBorder: "#EDEFF5",
     platform: getPlatformColor(),
   };
 
@@ -259,7 +257,7 @@ const RecurrenteDetail = () => {
   });
 
   const StatusPill = () => (
-    <View style={[styles.statusPill, { borderColor: "#F9DFA9", backgroundColor: "#FFF7E6" }]}>
+    <View style={[styles.statusPill, { borderColor: colors.border, backgroundColor: colors.inputBackground }]}>
       <Ionicons name={recurrente.pausado ? "pause" : "checkmark-circle"} size={14} color={recurrente.pausado ? "#A16207" : "#2563EB"} />
       <Text style={[styles.statusPillText, { color: recurrente.pausado ? "#A16207" : "#2563EB" }]}>
         {recurrente.pausado ? "En pausa" : "Activa"}
@@ -269,9 +267,9 @@ const RecurrenteDetail = () => {
 
   const ActionTile: React.FC<{ icon: keyof typeof Ionicons.glyphMap; onPress: () => void; danger?: boolean; disabled?: boolean; }> =
     ({ icon, onPress, danger, disabled }) => (
-      <PressableScale onPress={onPress} disabled={disabled} style={[styles.tile, danger && styles.tileDanger]}>
-        <View style={[styles.tileIconWrap, danger && styles.tileIconDanger]}>
-          <Ionicons name={icon} size={20} color={danger ? "#DC2626" : theme.text} />
+      <PressableScale onPress={onPress} disabled={disabled} style={[styles.tile, danger && styles.tileDanger, { backgroundColor: danger ? colors.card : colors.card, borderColor: danger ? "#FECACA" : colors.border, shadowColor: colors.shadow }]}>
+        <View style={[styles.tileIconWrap, danger && styles.tileIconDanger, { backgroundColor: danger ? "#FFF1F2" : colors.inputBackground, borderColor: danger ? "#FECACA" : colors.border }]}>
+          <Ionicons name={icon} size={20} color={danger ? "#DC2626" : colors.text} />
         </View>
       </PressableScale>
     );
@@ -286,13 +284,13 @@ const RecurrenteDetail = () => {
   return (
     <>
       <StatusBar barStyle="dark-content" />
-      <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={styles.header}>
-          <PressableScale onPress={() => navigation.goBack()} style={styles.backBtn}>
-            <Ionicons name="chevron-back" size={22} color={theme.text} />
+          <PressableScale onPress={() => navigation.goBack()} style={[styles.backBtn, { backgroundColor: colors.inputBackground, borderColor: colors.border, shadowColor: colors.shadow }]}>
+            <Ionicons name="chevron-back" size={22} color={colors.text} />
           </PressableScale>
           <View style={{ flex: 1, alignItems: "center" }}>
-            <Text style={styles.title} numberOfLines={1}>{recurrente.plataforma?.nombre || "Recurrente"}</Text>
+            <Text style={[styles.title, { color: colors.text }]} numberOfLines={1}>{recurrente.plataforma?.nombre || "Recurrente"}</Text>
             <StatusPill />
           </View>
           <View style={{ width: 44 }} />
@@ -303,19 +301,19 @@ const RecurrenteDetail = () => {
             style={[
               styles.bigCard,
               shape246,
-              { borderColor: theme.cardBorder, backgroundColor: "#fff" },
+              { borderColor: colors.border, backgroundColor: colors.card, shadowColor: colors.shadow },
             ]}
           >
-            <Text style={styles.bigCardCaption}>Monto programado</Text>
+            <Text style={[styles.bigCardCaption, { color: colors.textSecondary }]}>Monto programado</Text>
 
             <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "center" }}>
-              <Text style={[styles.amount, { color: theme.text }]}>{formatCurrency(recurrente.monto)}</Text>
-              <Text style={styles.currency}> MXN</Text>
+              <Text style={[styles.amount, { color: colors.text }]}>{formatCurrency(recurrente.monto)}</Text>
+              <Text style={[styles.currency, { color: colors.textSecondary }]}> MXN</Text>
             </View>
 
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", marginTop: 10 }}>
               <View style={[styles.dot, { backgroundColor: theme.platform }]} />
-              <Text style={[styles.identText, { color: theme.sub }]}>Color de identificación</Text>
+              <Text style={[styles.identText, { color: colors.textSecondary }]}>Color de identificación</Text>
             </View>
 
             <View style={{ marginTop: 14 }}>
@@ -325,7 +323,7 @@ const RecurrenteDetail = () => {
                   {diasRestantes === 0 ? "Se ejecuta hoy" : `En ${diasRestantes} ${diasRestantes === 1 ? "día" : "días"}`}
                 </Text>
               </View>
-              <View style={styles.progressTrack}>
+              <View style={[styles.progressTrack, { backgroundColor: colors.inputBackground }]}>
                 <Animated.View style={[styles.progressFill, { width: progressW, backgroundColor: theme.platform }]} />
               </View>
             </View>
@@ -342,11 +340,11 @@ const RecurrenteDetail = () => {
           </View>
 
           <View style={styles.emptyWrap}>
-            <Ionicons name="calendar-outline" size={28} color="#94A3B8" />
+            <Ionicons name="calendar-outline" size={28} color={colors.border} />
             {(!recurrente.recordatorios || recurrente.recordatorios.length === 0) ? (
               <>
-                <Text style={styles.emptyTitle}>Sin recordatorios</Text>
-                <Text style={styles.emptyText}>No hay recordatorios configurados para este recurrente.</Text>
+                <Text style={[styles.emptyTitle, { color: colors.text }]}>Sin recordatorios</Text>
+                <Text style={[styles.emptyText, { color: colors.placeholder }]}>No hay recordatorios configurados para este recurrente.</Text>
               </>
             ) : (
               <View style={{ marginTop: 8, flexDirection: "row", flexWrap: "wrap", gap: 8, justifyContent: "center" }}>
@@ -358,13 +356,13 @@ const RecurrenteDetail = () => {
           </View>
 
           <View style={styles.bottomGrid}>
-            <View style={[styles.smallCard, shape246]}>
+            <View style={[styles.smallCard, shape246, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow }]}>
               <View style={styles.smallIconBox}>
                 <Ionicons name="trending-up-outline" size={18} color="#F59E0B" />
               </View>
-              <Text style={styles.smallTitle}>Impacto en cuenta</Text>
-              <Text style={[styles.smallValue, { color: "#111827" }]}>{tipoAfectacion}</Text>
-              <Text style={styles.smallHint}>
+              <Text style={[styles.smallTitle, { color: colors.textSecondary }]}>Impacto en cuenta</Text>
+              <Text style={[styles.smallValue, { color: colors.text }]}>{tipoAfectacion}</Text>
+              <Text style={[styles.smallHint, { color: colors.placeholder }]}>
                 {recurrente.afectaCuentaPrincipal
                   ? "Modifica el saldo principal"
                   : recurrente.afectaSubcuenta
@@ -373,34 +371,34 @@ const RecurrenteDetail = () => {
               </Text>
             </View>
 
-            <View style={[styles.smallCard, shape246]}>
+            <View style={[styles.smallCard, shape246, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow }]}>
               <View style={[styles.smallIconBox, { backgroundColor: "#FFF7ED", borderColor: "#FED7AA" }]}>
                 <Ionicons name="finger-print-outline" size={18} color="#F59E0B" />
               </View>
-              <Text style={styles.smallTitle}>ID Recurrente</Text>
-              <Text style={[styles.smallValue, { color: "#111827" }]} numberOfLines={1}>
+              <Text style={[styles.smallTitle, { color: colors.textSecondary }]}>ID Recurrente</Text>
+              <Text style={[styles.smallValue, { color: colors.text }]} numberOfLines={1}>
                 {recurrente.recurrenteId}
               </Text>
-              <Text style={styles.smallHint}>Identificador único</Text>
+              <Text style={[styles.smallHint, { color: colors.placeholder }]}>Identificador único</Text>
             </View>
           </View>
 
-          <View style={[styles.infoBlock, shape246]}>
+          <View style={[styles.infoBlock, shape246, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow }]}>
             <View style={styles.infoLine}>
               <Ionicons name="repeat" size={18} color={theme.platform} />
-              <Text style={styles.infoKey}>Frecuencia</Text>
-              <Text style={styles.infoVal} numberOfLines={1}>{descripcionFrecuencia}</Text>
+              <Text style={[styles.infoKey, { color: colors.textSecondary }]}>Frecuencia</Text>
+              <Text style={[styles.infoVal, { color: colors.text }]} numberOfLines={1}>{descripcionFrecuencia}</Text>
             </View>
             <View style={styles.infoLine}>
               <Ionicons name="calendar" size={18} color={theme.platform} />
-              <Text style={styles.infoKey}>Próxima ejecución</Text>
-              <Text style={styles.infoVal} numberOfLines={1}>{proximaEjecucionFormateada}</Text>
+              <Text style={[styles.infoKey, { color: colors.textSecondary }]}>Próxima ejecución</Text>
+              <Text style={[styles.infoVal, { color: colors.text }]} numberOfLines={1}>{proximaEjecucionFormateada}</Text>
             </View>
             {!!recurrente.plataforma?.categoria && (
               <View style={styles.infoLine}>
                 <Ionicons name="layers-outline" size={18} color={theme.platform} />
-                <Text style={styles.infoKey}>Categoría</Text>
-                <Text style={styles.infoVal} numberOfLines={1}>{recurrente.plataforma.categoria}</Text>
+                <Text style={[styles.infoKey, { color: colors.textSecondary }]}>Categoría</Text>
+                <Text style={[styles.infoVal, { color: colors.text }]} numberOfLines={1}>{recurrente.plataforma.categoria}</Text>
               </View>
             )}
           </View>
@@ -443,12 +441,11 @@ const styles = StyleSheet.create({
   backBtn: {
     width: 44, height: 44,
     alignItems: "center", justifyContent: "center",
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1, borderColor: "#ECEEF4",
+    borderWidth: 1,
     borderRadius: 16,
     ...tileShadow,
   },
-  title: { fontSize: 18, fontWeight: "800", color: "#0F172A", paddingTop: 10 },
+  title: { fontSize: 18, fontWeight: "800", paddingTop: 10 },
   statusPill: {
     marginTop: 6,
     paddingHorizontal: 10,
@@ -459,7 +456,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 6,
     alignSelf: "center",
-    backgroundColor: "#FFF7E6",
   },
   statusPillText: { fontSize: 12, fontWeight: "700" },
 
@@ -468,9 +464,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     ...cardShadow,
   },
-  bigCardCaption: { textAlign: "center", color: "#64748B", fontSize: 13, fontWeight: "700" },
+  bigCardCaption: { textAlign: "center", fontSize: 13, fontWeight: "700" },
   amount: { fontSize: 40, fontWeight: "900", letterSpacing: -0.6, marginTop: 6 },
-  currency: { fontSize: 14, color: "#64748B", marginLeft: 8, marginBottom: 6, fontWeight: "700" },
+  currency: { fontSize: 14, marginLeft: 8, marginBottom: 6, fontWeight: "700" },
   dot: { width: 10, height: 10, borderRadius: 5, marginRight: 8 },
   identText: { fontSize: 13, fontWeight: "600" },
 
@@ -479,49 +475,42 @@ const styles = StyleSheet.create({
   progressTrack: {
     height: 10,
     borderRadius: 999,
-    backgroundColor: "#EDF2F7",
     overflow: "hidden",
   },
-  progressFill: { height: "100%", borderRadius: 999, backgroundColor: "#38BDF8" },
+  progressFill: { height: "100%", borderRadius: 999 },
 
   tilesRow: { flexDirection: "row", justifyContent: "space-between", marginTop: 16, gap: 12 },
   tile: {
     flex: 1,
     alignItems: "center",
     paddingVertical: 12,
-    backgroundColor: "#FFFFFF",
     borderWidth: 1,
-    borderColor: "#ECEEF4",
     ...tileShadow,
     ...shape246,
   },
   tileDanger: {
-    backgroundColor: "#FEF2F2",
     borderColor: "#FECACA",
   },
   tileIconWrap: {
     width: 44, height: 44,
     borderRadius: 14,
     alignItems: "center", justifyContent: "center",
-    backgroundColor: "#F8FAFC",
-    borderWidth: 1, borderColor: "#E5E7EB",
+    borderWidth: 1,
   },
   tileIconDanger: {
     backgroundColor: "#FFF1F2",
     borderColor: "#FECACA",
   },
-  tileLabel: { fontSize: 12, fontWeight: "800", color: "#111827" },
+  tileLabel: { fontSize: 12, fontWeight: "800" },
 
   emptyWrap: { alignItems: "center", paddingVertical: 18, paddingHorizontal: 12 },
-  emptyTitle: { marginTop: 8, fontSize: 16, fontWeight: "800", color: "#0F172A" },
-  emptyText: { marginTop: 4, fontSize: 13, color: "#94A3B8", textAlign: "center" },
+  emptyTitle: { marginTop: 8, fontSize: 16, fontWeight: "800" },
+  emptyText: { marginTop: 4, fontSize: 13, textAlign: "center" },
 
   bottomGrid: { flexDirection: "row", gap: 12, marginTop: 6 },
   smallCard: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
     borderWidth: 1,
-    borderColor: "#ECEEF4",
     padding: 14,
     ...tileShadow,
   },
@@ -533,21 +522,19 @@ const styles = StyleSheet.create({
     alignItems: "center", justifyContent: "center",
     marginBottom: 10,
   },
-  smallTitle: { fontSize: 12, fontWeight: "800", color: "#6B7280" },
+  smallTitle: { fontSize: 12, fontWeight: "800" },
   smallValue: { fontSize: 16, fontWeight: "900", marginTop: 2 },
-  smallHint: { fontSize: 12, color: "#9CA3AF", marginTop: 2 },
+  smallHint: { fontSize: 12, marginTop: 2 },
 
   infoBlock: {
     marginTop: 12,
-    backgroundColor: "#FFFFFF",
     borderWidth: 1,
-    borderColor: "#ECEEF4",
     padding: 14,
     ...tileShadow,
   },
   infoLine: { flexDirection: "row", alignItems: "center", gap: 10, marginVertical: 6 },
-  infoKey: { fontSize: 13, fontWeight: "800", color: "#6B7280", width: 140 },
-  infoVal: { flex: 1, fontSize: 14, fontWeight: "700", color: "#0F172A" },
+  infoKey: { fontSize: 13, fontWeight: "800", width: 140 },
+  infoVal: { flex: 1, fontSize: 14, fontWeight: "700" },
 
   chip: {
     flexDirection: "row",
