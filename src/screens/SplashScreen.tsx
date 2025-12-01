@@ -1,11 +1,11 @@
 import React, { useEffect, useRef } from "react";
-import { View, Animated, StyleSheet, useColorScheme } from "react-native";
+import { View, Animated, StyleSheet } from "react-native";
 import { useNavigation } from "@react-navigation/native";
-import { darkColors, lightColors } from "../constants/colors";
+import { useThemeColors } from "../theme/useThemeColors";
+
 const SplashScreen: React.FC = () => {
   const navigation = useNavigation();
-  const scheme = useColorScheme();
-  const colors = scheme === "dark" ? darkColors : lightColors;
+  const colors = useThemeColors();
   const scaleAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
