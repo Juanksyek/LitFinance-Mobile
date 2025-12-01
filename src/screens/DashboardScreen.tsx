@@ -14,8 +14,12 @@ import { API_BASE_URL } from "../constants/api";
 import { useFocusEffect, useRoute, useNavigation, RouteProp, CommonActions } from "@react-navigation/native";
 import Toast from "react-native-toast-message";
 import { RootStackParamList } from "../navigation/AppNavigator";
+import { useThemeColors } from "../theme/useThemeColors";
+import { useTheme } from "../theme/ThemeContext";
 
 export default function DashboardScreen() {
+  const colors = useThemeColors();
+  const { isDark } = useTheme();
   const [cuentaId, setCuentaId] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [reloadTrigger, setReloadTrigger] = useState(Date.now());
@@ -155,9 +159,9 @@ export default function DashboardScreen() {
   );
 
   return (
-    <View style={styles.wrapper}>
-      <StatusBar style="dark" />
-      <View style={styles.topHeaderContainer}>
+    <View style={[styles.wrapper, { backgroundColor: colors.background }]}>
+      <StatusBar style={isDark ? "light" : "dark"} />
+      <View style={[styles.topHeaderContainer, { backgroundColor: colors.background }]}>
         <DashboardHeader />
       </View>
 
@@ -193,12 +197,10 @@ export default function DashboardScreen() {
 const styles = StyleSheet.create({
   wrapper: {
     flex: 1,
-    backgroundColor: "#f0f0f3",
   },
   topHeaderContainer: {
     width: "100%",
     paddingHorizontal: 0,
-    backgroundColor: "#f0f0f3",
   },
   contentContainer: {
     padding: 20,
