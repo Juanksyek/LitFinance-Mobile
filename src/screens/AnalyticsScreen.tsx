@@ -7,6 +7,7 @@ import AnalyticsFiltersComponent from '../components/analytics/AnalyticsFilters'
 import ResumenCard from '../components/analytics/ResumenCard';
 import ChartSelector from '../components/analytics/ChartSelector';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useThemeColors } from '../theme/useThemeColors';
 
 interface AnalyticsScreenProps {
   navigation: any;
@@ -15,6 +16,7 @@ interface AnalyticsScreenProps {
 const HEADER_H = Platform.OS === 'ios' ? 96 : 84;
 
 const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ navigation }) => {
+  const colors = useThemeColors();
   const [resumen, setResumen] = useState<ResumenFinanciero | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);

@@ -55,7 +55,7 @@ const ForgotPasswordScreen: React.FC = () => {
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         <View style={styles.header}>
           {/* Logo Container con efecto neumorphic */}
-          <View style={[styles.logoContainer, { backgroundColor: colors.background }]}>
+          <View style={[styles.logoContainer, { backgroundColor: colors.card }]}>
             <Image source={require("../images/LitFinance.png")} style={styles.logo} />
           </View>
           
@@ -85,7 +85,7 @@ const ForgotPasswordScreen: React.FC = () => {
           <Text style={styles.buttonText}>Enviar</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.backContainer} onPress={() => navigation.goBack()}>
+        <TouchableOpacity style={[styles.backContainer, { backgroundColor: colors.inputBackground }]} onPress={() => navigation.goBack()}>
           <Text style={[styles.backText, { color: colors.placeholder }]}>
             ¿Ya la recordaste?{" "}
             <Text style={{ color: "#EF7725", fontWeight: "bold" }}>Inicia sesión</Text>
@@ -122,7 +122,7 @@ const styles = StyleSheet.create({
   buttonText: { color: "#fff", fontSize: 16, fontWeight: "600", letterSpacing: 0.3 },
   backContainer: {
     alignItems: 'center', padding: 8, borderRadius: 12, shadowColor: '#D1D1D6', shadowOffset: { width: 2, height: 2 },
-    shadowOpacity: 0.2, shadowRadius: 4, elevation: 2, backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    shadowOpacity: 0.2, shadowRadius: 4, elevation: 2,
   },
   backText: { fontSize: 14, textAlign: "center", fontWeight: '400' },
   iconButton: { padding: 4 },

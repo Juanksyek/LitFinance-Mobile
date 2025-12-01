@@ -130,10 +130,10 @@ const RegisterScreen: React.FC = () => {
           </Text>
         </View>
 
-        <View style={styles.formCard}>
+        <View style={[styles.formCard, { backgroundColor: colors.card }]}>
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <View style={styles.sectionIcon}>
+              <View style={[styles.sectionIcon, { backgroundColor: colors.inputBackground }]}>
                 <Ionicons name="person-outline" size={20} color="#EF7725" />
               </View>
               <Text style={[styles.sectionTitle, { color: colors.text }]}>Datos personales</Text>
@@ -177,7 +177,7 @@ const RegisterScreen: React.FC = () => {
 
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <View style={styles.sectionIcon}>
+              <View style={[styles.sectionIcon, { backgroundColor: colors.inputBackground }]}>
                 <Ionicons name="shield-checkmark-outline" size={20} color="#EF7725" />
               </View>
               <Text style={[styles.sectionTitle, { color: colors.text }]}>Datos de cuenta</Text>
@@ -271,14 +271,14 @@ const RegisterScreen: React.FC = () => {
 
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <View style={styles.sectionIcon}>
+              <View style={[styles.sectionIcon, { backgroundColor: colors.inputBackground }]}>
                 <Ionicons name="settings-outline" size={20} color="#EF7725" />
               </View>
               <Text style={[styles.sectionTitle, { color: colors.text }]}>Preferencias</Text>
             </View>
             
             <TouchableOpacity 
-              style={[styles.monedaSelector, styles.neumorphicSelector]}
+              style={[styles.monedaSelector, styles.neumorphicSelector, { backgroundColor: colors.card, borderColor: colors.border }]}
               onPress={() => setMonedaModalVisible(true)}
             >
               <View style={styles.monedaSelectorContent}>
@@ -287,7 +287,7 @@ const RegisterScreen: React.FC = () => {
                   {monedas.find(m => m.codigo === form.monedaPrincipal)?.nombre || form.monedaPrincipal}
                 </Text>
               </View>
-              <View style={styles.chevronContainer}>
+              <View style={[styles.chevronContainer, { backgroundColor: colors.inputBackground }]}>
                 <Ionicons name="chevron-down" size={20} color={colors.placeholder} />
               </View>
             </TouchableOpacity>
@@ -321,12 +321,12 @@ const RegisterScreen: React.FC = () => {
           onRequestClose={() => setMonedaModalVisible(false)}
         >
           <View style={styles.modalOverlay}>
-            <View style={[styles.modalContainer, styles.neumorphicModal]}>
-              <View style={styles.modalHeaderContainer}>
+            <View style={[styles.modalContainer, styles.neumorphicModal, { backgroundColor: colors.card }]}>
+              <View style={[styles.modalHeaderContainer, { borderBottomColor: colors.border }]}>
                 <View style={styles.modalHeaderRow}>
                   <Text style={[styles.modalTitle, { color: colors.text }]}>Seleccionar Moneda Principal</Text>
                   <TouchableOpacity 
-                    style={styles.closeButton}
+                    style={[styles.closeButton, { backgroundColor: colors.inputBackground }]}
                     onPress={() => setMonedaModalVisible(false)}
                   >
                     <Ionicons name="close" size={24} color={colors.text} />
@@ -340,7 +340,8 @@ const RegisterScreen: React.FC = () => {
                     key={moneda.codigo}
                     style={[
                       styles.monedaOption,
-                      form.monedaPrincipal === moneda.codigo && styles.selectedMonedaOption
+                      { backgroundColor: colors.inputBackground },
+                      form.monedaPrincipal === moneda.codigo && [styles.selectedMonedaOption, { backgroundColor: colors.cardSecondary, borderColor: colors.border }]
                     ]}
                     onPress={() => {
                       handleChange('monedaPrincipal', moneda.codigo);
@@ -348,8 +349,8 @@ const RegisterScreen: React.FC = () => {
                     }}
                   >
                     <View style={styles.monedaOptionContent}>
-                      <View style={styles.monedaSymbol}>
-                        <Text style={styles.symbolText}>{moneda.simbolo}</Text>
+                      <View style={[styles.monedaSymbol, { backgroundColor: colors.background }]}>
+                        <Text style={[styles.symbolText, { color: colors.textSecondary }]}>{moneda.simbolo}</Text>
                       </View>
                       <View style={styles.monedaInfo}>
                         <Text style={[styles.monedaOptionText, { color: colors.text }]}>
@@ -414,7 +415,6 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   formCard: {
-    backgroundColor: '#FFFFFF',
     borderRadius: 24,
     padding: 24,
     shadowColor: '#64748B',
@@ -435,7 +435,6 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#F1F5F9',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -525,9 +524,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   neumorphicSelector: {
-    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
     shadowColor: '#64748B',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
@@ -550,7 +547,6 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#F8FAFC',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -610,7 +606,6 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   neumorphicModal: {
-    backgroundColor: '#FFFFFF',
     shadowColor: '#64748B',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.2,
@@ -624,13 +619,11 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     paddingBottom: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
   },
   modalHeaderContainer: {
     marginBottom: 20,
     paddingBottom: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
   },
   modalHeaderRow: {
     flexDirection: 'row',
@@ -653,7 +646,6 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#F1F5F9',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -668,12 +660,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderRadius: 12,
     marginBottom: 8,
-    backgroundColor: '#FAFAFA',
   },
   selectedMonedaOption: {
-    backgroundColor: '#EEF2FF',
     borderWidth: 1,
-    borderColor: '#C7D2FE',
   },
   monedaOptionContent: {
     flexDirection: 'row',
@@ -684,7 +673,6 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#E2E8F0',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -692,7 +680,6 @@ const styles = StyleSheet.create({
   symbolText: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#475569',
   },
   monedaInfo: {
     flex: 1,

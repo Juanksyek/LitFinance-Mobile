@@ -11,6 +11,7 @@ import Toast from "react-native-toast-message";
 import ActionButtons from '../components/ActionButtons';
 import DeleteModal from '../components/DeleteModal';
 import SubaccountRecurrentesList from '../components/SubaccountRecurrentesList';
+import { useThemeColors } from '../theme/useThemeColors';
 const { width } = Dimensions.get('window');
 
 type Subcuenta = {
@@ -38,6 +39,7 @@ type RouteParams = {
 };
 
 const SubaccountDetail = () => {
+  const colors = useThemeColors();
   const route = useRoute<RouteProp<RouteParams, 'SubaccountDetail'>>();
   const navigation = useNavigation<StackNavigationProp<RootStackParamList>>();
   const [subcuenta, setSubcuenta] = useState<Subcuenta>(route.params.subcuenta);
@@ -98,7 +100,7 @@ const SubaccountDetail = () => {
     accentColor?: string;
     description?: string;
   }) => (
-    <View style={styles.infoCard}>
+    <View style={[styles.infoCard, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow }]}>
       <View style={styles.infoCardContent}>
         <View style={[styles.iconWrapper, { backgroundColor: accentColor + '15' }]}>
           {React.cloneElement(icon as React.ReactElement<any>, {
@@ -107,9 +109,9 @@ const SubaccountDetail = () => {
           })}
         </View>
         <View style={styles.infoTextContainer}>
-          <Text style={styles.infoLabel}>{label}</Text>
-          <Text style={styles.infoValue}>{value}</Text>
-          {description && <Text style={styles.infoDescription}>{description}</Text>}
+          <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>{label}</Text>
+          <Text style={[styles.infoValue, { color: colors.text }]}>{value}</Text>
+          {description && <Text style={[styles.infoDescription, { color: colors.placeholder }]}>{description}</Text>}
         </View>
       </View>
     </View>
@@ -134,9 +136,9 @@ const SubaccountDetail = () => {
             color: accentColor
           })}
         </View>
-        <Text style={styles.detailLabel}>{label}</Text>
+        <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>{label}</Text>
       </View>
-      <Text style={styles.detailValue}>{value}</Text>
+      <Text style={[styles.detailValue, { color: colors.text }]}>{value}</Text>
     </View>
   );
 
@@ -283,16 +285,16 @@ const SubaccountDetail = () => {
 
   if (!subcuenta.cuentaId) {
     return (
-      <View style={styles.centerContainer}>
-        <Text style={styles.emptyText}>Subcuenta sin cuenta principal asignada.</Text>
+      <View style={[styles.centerContainer, { backgroundColor: colors.background }]}>
+        <Text style={[styles.emptyText, { color: colors.textSecondary }]}>Subcuenta sin cuenta principal asignada.</Text>
       </View>
     );
   }
 
   if (!subcuenta) {
     return (
-      <View style={styles.centerContainer}>
-        <Text style={styles.emptyText}>Cargando subcuenta...</Text>
+      <View style={[styles.centerContainer, { backgroundColor: colors.background }]}>
+        <Text style={[styles.emptyText, { color: colors.textSecondary }]}>Cargando subcuenta...</Text>
       </View>
     );
   }
@@ -333,25 +335,28 @@ const SubaccountDetail = () => {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
-      <View style={styles.headerContainer}>
+      <View style={[styles.headerContainer, { backgroundColor: colors.background, borderBottomColor: colors.border, shadowColor: colors.shadow }]}>
         <View style={styles.headerContent}>
           <TouchableOpacity
-            style={styles.backButton}
+            style={[styles.backButton, { backgroundColor: colors.inputBackground, borderColor: colors.border }]}
             onPress={() => navigation.goBack()}
           >
-            <Ionicons name="arrow-back" size={24} color="#1F2937" />
+            <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
 
           <View style={styles.headerCenter}>
-            <Text style={styles.headerTitle} numberOfLines={1} ellipsizeMode="tail">
+            <Text style={[styles.headerTitle, { color: colors.text }]} numberOfLines={1} ellipsizeMode="tail">
               {subcuenta.nombre || '—'}
             </Text>
             <View style={[
               styles.statusContainer,
-              { backgroundColor: subcuenta.activa ? '#FFF7ED' : '#FEF2F2' }
+              { 
+                backgroundColor: subcuenta.activa ? '#FFF7ED' : '#FEF2F2',
+                borderColor: colors.border 
+              }
             ]}>
               <Ionicons
                 name="checkmark-circle-outline"
@@ -372,20 +377,20 @@ const SubaccountDetail = () => {
       </View>
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        <View style={styles.balanceCard} key={subcuenta.updatedAt}>
-          <Text style={styles.balanceLabel}>Saldo actual</Text>
+        <View style={[styles.balanceCard, { backgroundColor: colors.card, shadowColor: colors.shadow }]} key={subcuenta.updatedAt}>
+          <Text style={[styles.balanceLabel, { color: colors.textSecondary }]}>Saldo actual</Text>
 
           <View style={styles.balanceContainer}>
-            <Text style={styles.currencySymbol}>{subcuenta.simbolo || '—'}</Text>
-            <Text style={styles.balanceAmount}>
+            <Text style={[styles.currencySymbol, { color: colors.text }]}>{subcuenta.simbolo || '—'}</Text>
+            <Text style={[styles.balanceAmount, { color: colors.text }]}>
               {formatCurrency(subcuenta.cantidad)}
             </Text>
-            <Text style={styles.currencyCode}>{subcuenta.moneda || ''}</Text>
+            <Text style={[styles.currencyCode, { color: colors.textSecondary }]}>{subcuenta.moneda || ''}</Text>
           </View>
 
           <View style={styles.colorIndicator}>
-            <View style={[styles.colorDot, { backgroundColor: subcuenta.color || '#9CA3AF' }]} />
-            <Text style={styles.colorText}>Color de identificación</Text>
+            <View style={[styles.colorDot, { backgroundColor: subcuenta.color || '#9CA3AF', borderColor: colors.card }]} />
+            <Text style={[styles.colorText, { color: colors.textSecondary }]}>Color de identificación</Text>
           </View>
         </View>
 
@@ -429,8 +434,8 @@ const SubaccountDetail = () => {
         </View>
 
         {participacion !== null && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Participación en subcuentas</Text>
+          <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow }]}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Participación en subcuentas</Text>
             <View style={styles.sectionContent}>
               <InfoCard
                 icon={<Ionicons name="pie-chart-outline" />}
@@ -443,8 +448,8 @@ const SubaccountDetail = () => {
           </View>
         )}
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Información de cuenta</Text>
+        <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow }]}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Información de cuenta</Text>
           <View style={styles.sectionContent}>
             <DetailRow
               icon={<Ionicons name="person-outline" />}
@@ -461,11 +466,11 @@ const SubaccountDetail = () => {
           </View>
         </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Historial de movimientos</Text>
+        <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow }]}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Historial de movimientos</Text>
           <View style={styles.sectionContent}>
             <View style={styles.searchContainer}>
-              <Ionicons name="search-outline" size={20} color="#6B7280" style={styles.searchIcon} />
+              <Ionicons name="search-outline" size={20} color={colors.textSecondary} style={styles.searchIcon} />
               <TextInput
                 placeholder="Buscar en historial..."
                 value={busqueda}
@@ -473,30 +478,30 @@ const SubaccountDetail = () => {
                   setPagina(1);
                   setBusqueda(text);
                 }}
-                style={styles.searchInput}
-                placeholderTextColor="#9CA3AF"
+                style={[styles.searchInput, { backgroundColor: colors.inputBackground, borderColor: colors.border, color: colors.text }]}
+                placeholderTextColor={colors.placeholder}
               />
             </View>
 
             <View style={styles.dateRangeContainer}>
               <View style={styles.dateInputContainer}>
-                <Text style={styles.dateLabel}>Desde</Text>
+                <Text style={[styles.dateLabel, { color: colors.textSecondary }]}>Desde</Text>
                 <TextInput
-                  style={styles.dateInput}
+                  style={[styles.dateInput, { backgroundColor: colors.inputBackground, borderColor: colors.border, color: colors.text }]}
                   value={desde}
                   onChangeText={setDesde}
                   placeholder="YYYY-MM-DD"
-                  placeholderTextColor="#9CA3AF"
+                  placeholderTextColor={colors.placeholder}
                 />
               </View>
               <View style={styles.dateInputContainer}>
-                <Text style={styles.dateLabel}>Hasta</Text>
+                <Text style={[styles.dateLabel, { color: colors.textSecondary }]}>Hasta</Text>
                 <TextInput
-                  style={styles.dateInput}
+                  style={[styles.dateInput, { backgroundColor: colors.inputBackground, borderColor: colors.border, color: colors.text }]}
                   value={hasta}
                   onChangeText={setHasta}
                   placeholder="YYYY-MM-DD"
-                  placeholderTextColor="#9CA3AF"
+                  placeholderTextColor={colors.placeholder}
                 />
               </View>
             </View>
@@ -505,16 +510,16 @@ const SubaccountDetail = () => {
             <View style={styles.historyContainer}>
               {historial.length === 0 ? (
                 <View style={styles.emptyHistoryContainer}>
-                  <Ionicons name="document-text-outline" size={48} color="#D1D5DB" />
-                  <Text style={styles.emptyHistoryText}>No hay movimientos registrados</Text>
-                  <Text style={styles.emptyHistorySubtext}>Los movimientos aparecerán aquí cuando se realicen</Text>
+                  <Ionicons name="document-text-outline" size={48} color={colors.border} />
+                  <Text style={[styles.emptyHistoryText, { color: colors.textSecondary }]}>No hay movimientos registrados</Text>
+                  <Text style={[styles.emptyHistorySubtext, { color: colors.placeholder }]}>Los movimientos aparecerán aquí cuando se realicen</Text>
                 </View>
               ) : (
                 historial.map((item, index) => (
-                  <View key={item._id || index} style={styles.historyItem}>
+                  <View key={item._id || index} style={[styles.historyItem, { backgroundColor: colors.card, borderColor: colors.border }]}>
                     <View style={styles.historyHeader}>
-                      <Text style={styles.historyDescription}>{item.descripcion}</Text>
-                      <Text style={styles.historyDate}>{formatDate(item.createdAt)}</Text>
+                      <Text style={[styles.historyDescription, { color: colors.text }]}>{item.descripcion}</Text>
+                      <Text style={[styles.historyDate, { color: colors.textSecondary }]}>{formatDate(item.createdAt)}</Text>
                     </View>
 
                     {item.datos && Object.keys(item.datos).length > 0 && (
@@ -536,10 +541,10 @@ const SubaccountDetail = () => {
                             return (
                               <View key={clave} style={styles.historyDetailRow}>
                                 <Ionicons name={iconName} size={16} color="#F59E0B" />
-                                <Text style={styles.historyDetailText}>
-                                  {claveLabel}: <Text style={styles.historyDetailValue}>{String(valor.antes)}</Text>
-                                  <Ionicons name="arrow-forward-outline" size={13} color="#6B7280" />
-                                  <Text style={styles.historyDetailValue}>{String(valor.despues)}</Text>
+                                <Text style={[styles.historyDetailText, { color: colors.textSecondary }]}>
+                                  {claveLabel}: <Text style={[styles.historyDetailValue, { color: colors.text }]}>{String(valor.antes)}</Text>
+                                  <Ionicons name="arrow-forward-outline" size={13} color={colors.textSecondary} />
+                                  <Text style={[styles.historyDetailValue, { color: colors.text }]}>{String(valor.despues)}</Text>
                                 </Text>
                               </View>
                             );
@@ -547,8 +552,8 @@ const SubaccountDetail = () => {
                             return (
                               <View key={clave} style={styles.historyDetailRow}>
                                 <Ionicons name={iconName} size={16} color="#F59E0B" />
-                                <Text style={styles.historyDetailText}>
-                                  {claveLabel}: <Text style={styles.historyDetailValue}>{JSON.stringify(valor)}</Text>
+                                <Text style={[styles.historyDetailText, { color: colors.textSecondary }]}>
+                                  {claveLabel}: <Text style={[styles.historyDetailValue, { color: colors.text }]}>{JSON.stringify(valor)}</Text>
                                 </Text>
                               </View>
                             );
@@ -567,27 +572,27 @@ const SubaccountDetail = () => {
                 <TouchableOpacity
                   onPress={() => setPagina((prev) => Math.max(1, prev - 1))}
                   disabled={pagina === 1}
-                  style={[styles.paginationButton, pagina === 1 && styles.paginationButtonDisabled]}
+                  style={[styles.paginationButton, pagina === 1 && [styles.paginationButtonDisabled, { backgroundColor: colors.cardSecondary }]]}
                 >
-                  <Ionicons name="chevron-back-outline" size={18} color={pagina === 1 ? '#9CA3AF' : '#FFFFFF'} />
-                  <Text style={[styles.paginationButtonText, pagina === 1 && styles.paginationButtonTextDisabled]}>
+                  <Ionicons name="chevron-back-outline" size={18} color={pagina === 1 ? colors.placeholder : '#FFFFFF'} />
+                  <Text style={[styles.paginationButtonText, pagina === 1 && [styles.paginationButtonTextDisabled, { color: colors.placeholder }]]}>
                     Anterior
                   </Text>
                 </TouchableOpacity>
 
                 <View style={styles.paginationInfo}>
-                  <Text style={styles.paginationText}> {pagina} de {totalPaginas}</Text>
+                  <Text style={[styles.paginationText, { color: colors.textSecondary }]}> {pagina} de {totalPaginas}</Text>
                 </View>
 
                 <TouchableOpacity
                   onPress={() => setPagina((prev) => (prev < totalPaginas ? prev + 1 : prev))}
                   disabled={pagina === totalPaginas}
-                  style={[styles.paginationButton, pagina === totalPaginas && styles.paginationButtonDisabled]}
+                  style={[styles.paginationButton, pagina === totalPaginas && [styles.paginationButtonDisabled, { backgroundColor: colors.cardSecondary }]]}
                 >
-                  <Text style={[styles.paginationButtonText, pagina === totalPaginas && styles.paginationButtonTextDisabled]}>
+                  <Text style={[styles.paginationButtonText, pagina === totalPaginas && [styles.paginationButtonTextDisabled, { color: colors.placeholder }]]}>
                     Siguiente
                   </Text>
-                  <Ionicons name="chevron-forward-outline" size={18} color={pagina === totalPaginas ? '#9CA3AF' : '#FFFFFF'} />
+                  <Ionicons name="chevron-forward-outline" size={18} color={pagina === totalPaginas ? colors.placeholder : '#FFFFFF'} />
                 </TouchableOpacity>
               </View>
             )}
@@ -597,7 +602,7 @@ const SubaccountDetail = () => {
         {/* Enhanced Action Buttons */}
         <View style={styles.actionContainer}>
           <TouchableOpacity
-            style={[styles.actionButton, styles.editButton]}
+            style={[styles.actionButton, styles.editButton, { backgroundColor: colors.card, shadowColor: colors.shadow }]}
             onPress={handleEdit}
           >
             <Ionicons name="create-outline" size={20} color="#F59E0B" />
@@ -605,7 +610,7 @@ const SubaccountDetail = () => {
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.actionButton, styles.deleteButton]}
+            style={[styles.actionButton, styles.deleteButton, { backgroundColor: colors.card, shadowColor: colors.shadow }]}
             onPress={handleDelete}
           >
             <Ionicons name="trash-outline" size={20} color="#EF4444" />
@@ -615,7 +620,7 @@ const SubaccountDetail = () => {
           <TouchableOpacity
             style={[
               styles.actionButton,
-              { borderColor: subcuenta.activa ? '#EF4444' : '#10B981' }
+              { borderColor: subcuenta.activa ? '#EF4444' : '#10B981', backgroundColor: colors.card, shadowColor: colors.shadow }
             ]}
             onPress={toggleEstadoSubcuenta}
           >
@@ -663,25 +668,19 @@ const SubaccountDetail = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f3f3f3',
   },
   centerContainer: {
     flexDirection: "row",
-    backgroundColor: '#f3f3f3',
   },
   emptyText: {
     fontSize: 16,
-    color: '#6B7280',
     fontWeight: '500',
   },
   headerContainer: {
-    backgroundColor: '#f3f3f3',
     paddingTop: 50,
     paddingBottom: 20,
     paddingHorizontal: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 8,
@@ -697,12 +696,10 @@ const styles = StyleSheet.create({
   backButton: {
     width: 44,
     height: 44,
-    backgroundColor: '#f3f3f3',
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#E5E7EB',
   },
   headerCenter: {
     flex: 1,
@@ -712,7 +709,6 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#1F2937',
     textAlign: 'center',
     marginBottom: 8,
   },
@@ -726,7 +722,6 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
   },
   statusText: {
     fontSize: 12,
@@ -737,12 +732,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   balanceCard: {
-    backgroundColor: '#f3f3f3',
     marginHorizontal: 20,
     marginTop: 24,
     borderRadius: 24,
     padding: 32,
-    shadowColor: '#000',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.12,
     shadowRadius: 24,
@@ -751,7 +744,6 @@ const styles = StyleSheet.create({
   },
   balanceLabel: {
     fontSize: 16,
-    color: '#6B7280',
     fontWeight: '600',
     marginBottom: 16,
   },
@@ -767,19 +759,16 @@ const styles = StyleSheet.create({
   currencySymbol: {
     fontSize: 32,
     fontWeight: '800',
-    color: '#1F2937',
     marginRight: 4,
   },
   balanceAmount: {
     fontSize: 48,
     fontWeight: '800',
-    color: '#1F2937',
     letterSpacing: -2,
   },
   currencyCode: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#64748B',
     marginLeft: 8,
   },
   colorIndicator: {
@@ -792,7 +781,6 @@ const styles = StyleSheet.create({
     height: 20,
     borderRadius: 10,
     borderWidth: 3,
-    borderColor: '#f3f3f3',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
@@ -801,7 +789,6 @@ const styles = StyleSheet.create({
   },
   colorText: {
     fontSize: 14,
-    color: '#64748B',
     fontWeight: '600',
   },
   quickInfoGrid: {
@@ -812,15 +799,12 @@ const styles = StyleSheet.create({
   },
   infoCard: {
     flex: 1,
-    backgroundColor: '#f3f3f3',
     borderRadius: 16,
-    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06,
     shadowRadius: 8,
     elevation: 4,
     borderWidth: 1,
-    borderColor: '#F1F5F9',
   },
   infoCardContent: {
     padding: 20,
@@ -838,37 +822,30 @@ const styles = StyleSheet.create({
   },
   infoLabel: {
     fontSize: 14,
-    color: '#64748B',
     fontWeight: '600',
   },
   infoValue: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#1F2937',
   },
   infoDescription: {
     fontSize: 12,
-    color: '#94A3B8',
     fontWeight: '500',
     marginTop: 2,
   },
   section: {
-    backgroundColor: '#f3f3f3',
     marginHorizontal: 20,
     marginTop: 24,
     borderRadius: 16,
-    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06,
     shadowRadius: 8,
     elevation: 4,
     borderWidth: 1,
-    borderColor: '#F1F5F9',
   },
   sectionTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#1F2937',
     paddingHorizontal: 24,
     paddingTop: 24,
     paddingBottom: 16,
@@ -899,14 +876,12 @@ const styles = StyleSheet.create({
   },
   detailLabel: {
     fontSize: 16,
-    color: '#64748B',
     fontWeight: '600',
     flex: 1,
   },
   detailValue: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1F2937',
     textAlign: 'right',
   },
   searchContainer: {
@@ -920,14 +895,11 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
   searchInput: {
-    backgroundColor: '#f3f3f3',
     borderRadius: 12,
     paddingHorizontal: 48,
     paddingVertical: 16,
     fontSize: 16,
-    color: '#1F2937',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
   },
   dateRangeContainer: {
     flexDirection: 'row',
@@ -939,19 +911,15 @@ const styles = StyleSheet.create({
   },
   dateLabel: {
     fontSize: 14,
-    color: '#64748B',
     fontWeight: '600',
     marginBottom: 8,
   },
   dateInput: {
-    backgroundColor: '#f3f3f3',
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 12,
     fontSize: 14,
-    color: '#1F2937',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
   },
   historyContainer: {
     gap: 16,
@@ -962,23 +930,19 @@ const styles = StyleSheet.create({
   },
   emptyHistoryText: {
     fontSize: 16,
-    color: '#64748B',
     fontWeight: '600',
     marginTop: 16,
   },
   emptyHistorySubtext: {
     fontSize: 14,
-    color: '#94A3B8',
     textAlign: 'center',
     marginTop: 4,
     paddingHorizontal: 20,
   },
   historyItem: {
-    backgroundColor: '#f3f3f3',
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
   },
   historyHeader: {
     marginBottom: 8,
@@ -986,12 +950,10 @@ const styles = StyleSheet.create({
   historyDescription: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1F2937',
     marginBottom: 4,
   },
   historyDate: {
     fontSize: 13,
-    color: '#64748B',
     fontWeight: '500',
   },
   historyDetails: {
@@ -1004,13 +966,11 @@ const styles = StyleSheet.create({
   },
   historyDetailText: {
     fontSize: 13,
-    color: '#475569',
     fontWeight: '500',
     flex: 1,
   },
   historyDetailValue: {
     fontWeight: '700',
-    color: '#1F2937',
   },
   paginationContainer: {
     flexDirection: 'row',
@@ -1034,7 +994,6 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   paginationButtonDisabled: {
-    backgroundColor: '#f3f3f3',
     shadowOpacity: 0,
     elevation: 0,
   },
@@ -1043,16 +1002,13 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#FFFFFF',
   },
-  paginationButtonTextDisabled: {
-    color: '#9CA3AF',
-  },
+  paginationButtonTextDisabled: {},
   paginationInfo: {
     flex: 1,
     alignItems: 'center',
   },
   paginationText: {
     fontSize: 12,
-    color: '#64748B',
     fontWeight: '600',
   },
   actionContainer: {
@@ -1070,8 +1026,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 2,
     borderRadius: 12,
     borderWidth: 2,
-    backgroundColor: '#f3f3f3',
-    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06,
     shadowRadius: 8,
