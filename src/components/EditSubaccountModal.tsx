@@ -8,6 +8,7 @@ import { API_BASE_URL } from "../constants/api";
 import SmartInput from "./SmartInput";
 import SmartNumber from "./SmartNumber";
 import { CurrencyField, Moneda } from "../components/CurrencyPicker";
+import { useThemeColors } from "../theme/useThemeColors";
 
 const SCREEN_HEIGHT = Dimensions.get("window").height;
 
@@ -40,6 +41,7 @@ const EditSubaccountModal: React.FC<Props> = ({
   subcuenta,
   onSuccess,
 }) => {
+  const colors = useThemeColors();
   const [nombre, setNombre] = useState(subcuenta.nombre);
   const [moneda, setMoneda] = useState(subcuenta.moneda);
   const [simbolo, setSimbolo] = useState(subcuenta.simbolo);
@@ -159,14 +161,14 @@ const EditSubaccountModal: React.FC<Props> = ({
     >
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : undefined}
-        style={styles.modal}
+        style={[styles.modal, { backgroundColor: colors.card }]}
       >
-        <View style={styles.handle} />
+        <View style={[styles.handle, { backgroundColor: colors.border }]} />
         <View style={styles.header}>
           <Ionicons name="create-outline" size={22} color="#EF7725" />
-          <Text style={styles.title}>Editar Subcuenta</Text>
+          <Text style={[styles.title, { color: colors.text }]}>Editar Subcuenta</Text>
           <TouchableOpacity onPress={onClose}>
-            <Ionicons name="close" size={22} color="#999" />
+            <Ionicons name="close" size={22} color={colors.textSecondary} />
           </TouchableOpacity>
         </View>
 
@@ -174,7 +176,8 @@ const EditSubaccountModal: React.FC<Props> = ({
           value={nombre}
           onChangeText={setNombre}
           placeholder="Nombre"
-          style={styles.input}
+          placeholderTextColor={colors.placeholder}
+          style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.border, color: colors.inputText }]}
         />
 
         {/* Selector reutilizable con favoritas + toggle */}
@@ -192,9 +195,9 @@ const EditSubaccountModal: React.FC<Props> = ({
         />
 
         <View style={styles.row}>
-          <View style={styles.symbolBox}>
-            <Text style={styles.switchLabel}>Símbolo:</Text>
-            <Text style={styles.symbolValue}>{simbolo}</Text>
+          <View style={[styles.symbolBox, { backgroundColor: colors.cardSecondary }]}>
+            <Text style={[styles.switchLabel, { color: colors.text }]}>Símbolo:</Text>
+            <Text style={[styles.symbolValue, { color: colors.text }]}>{simbolo}</Text>
           </View>
         </View>
 
@@ -229,7 +232,7 @@ const EditSubaccountModal: React.FC<Props> = ({
           </View>
         )}
 
-        <Text style={styles.switchLabel}>Color</Text>
+        <Text style={[styles.switchLabel, { color: colors.text }]}>Color</Text>
         <View style={styles.colorGrid}>
           {presetColors.map((c) => (
             <TouchableOpacity
@@ -237,7 +240,7 @@ const EditSubaccountModal: React.FC<Props> = ({
               onPress={() => setColor(c)}
               style={[
                 styles.colorCircle,
-                { backgroundColor: c },
+                { backgroundColor: c, borderColor: c === color ? colors.text : colors.border },
                 c === color && styles.colorSelected,
               ]}
             />
@@ -245,8 +248,13 @@ const EditSubaccountModal: React.FC<Props> = ({
         </View>
 
         <View style={styles.switchRow}>
-          <Text style={styles.switchLabel}>¿Afecta cuenta principal?</Text>
-          <Switch value={afectaCuenta} onValueChange={setAfectaCuenta} />
+          <Text style={[styles.switchLabel, { color: colors.text }]}>¿Afecta cuenta principal?</Text>
+          <Switch 
+            value={afectaCuenta} 
+            onValueChange={setAfectaCuenta}
+            trackColor={{ false: colors.border, true: '#EF6C00' }}
+            thumbColor={afectaCuenta ? '#FF8F00' : '#F5F5F5'}
+          />
         </View>
 
         <TouchableOpacity
@@ -265,7 +273,6 @@ const EditSubaccountModal: React.FC<Props> = ({
 
 const styles = StyleSheet.create({
   modal: {
-    backgroundColor: "#fff",
     paddingHorizontal: 16,
     paddingTop: 10,
     paddingBottom: 24,
@@ -276,7 +283,6 @@ const styles = StyleSheet.create({
   handle: {
     width: 40,
     height: 5,
-    backgroundColor: "#ccc",
     borderRadius: 5,
     alignSelf: "center",
     marginBottom: 8,
@@ -290,17 +296,14 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: "600",
-    color: "#333",
   },
   input: {
-    backgroundColor: "#f8f8f8",
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,
     height: 44,
     fontSize: 14,
     borderWidth: 1,
-    borderColor: "#eee",
     marginBottom: 10,
   },
   row: {
@@ -313,13 +316,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 10,
     paddingVertical: 8,
-    backgroundColor: "#f0f0f0",
     borderRadius: 10,
   },
   symbolValue: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#333",
     marginLeft: 4,
   },
   switchRow: {
@@ -328,7 +329,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginVertical: 10,
   },
-  switchLabel: { fontSize: 14, color: "#444" },
+  switchLabel: { fontSize: 14 },
   button: {
     padding: 14,
     borderRadius: 12,
@@ -353,11 +354,9 @@ const styles = StyleSheet.create({
     marginRight: 10,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: "#ccc",
   },
   colorSelected: {
     borderWidth: 2,
-    borderColor: "#000",
   },
 
   // SmartInput & warnings
