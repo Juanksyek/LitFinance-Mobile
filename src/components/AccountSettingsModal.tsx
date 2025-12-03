@@ -7,6 +7,8 @@ import Toast from "react-native-toast-message";
 import { useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import CurrencyPreviewModal from "./CurrencyPreviewModal";
+import { useTheme } from "../theme/ThemeContext";
+import { useThemeColors } from "../theme/useThemeColors";
 
 interface Props {
   visible: boolean;
@@ -18,6 +20,8 @@ const SHOW_FULL_NUMBERS_KEY = "showFullNumbers";
 
 const AccountSettingsModal: React.FC<Props> = ({ visible, onClose }) => {
   const navigation = useNavigation<any>();
+  const { themeMode, setThemeMode } = useTheme();
+  const colors = useThemeColors();
   const [showFullNumbers, setShowFullNumbers] = useState(false);
   const [selectedMoneda, setSelectedMoneda] = useState<Moneda | null>({
     id: "init",
@@ -94,25 +98,123 @@ const AccountSettingsModal: React.FC<Props> = ({ visible, onClose }) => {
     }
   };
 
+  const getThemeModeLabel = () => {
+    switch (themeMode) {
+      case 'light':
+        return 'Claro';
+      case 'dark':
+        return 'Oscuro';
+      case 'auto':
+        return 'Automático';
+    }
+  };
+
+  const getThemeIcon = () => {
+    switch (themeMode) {
+      case 'light':
+        return 'sunny';
+      case 'dark':
+        return 'moon';
+      case 'auto':
+        return 'phone-portrait';
+    }
+  };
+
   return (
     <Modal
       isVisible={visible}
       onSwipeComplete={onClose}
       swipeDirection="down"
-      backdropOpacity={0}
+      backdropOpacity={0.3}
       style={styles.modalWrapper}
       onBackdropPress={onClose}
       propagateSwipe
     >
-      <View style={styles.modal}>
-        <View style={styles.grabber} />
+      <View style={[styles.modal, { backgroundColor: colors.modalBackground }]}>
+        <View style={[styles.grabber, { backgroundColor: colors.border }]} />
 
-        <Text style={styles.title}>Ajustes de cuenta</Text>
+        <Text style={[styles.title, { color: colors.button }]}>Ajustes de cuenta</Text>
+
+        {/* Tema */}
+        <View style={[styles.section, { borderBottomColor: colors.border }]}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Apariencia</Text>
+          
+          <View style={styles.themeOptions}>
+            <TouchableOpacity
+              style={[
+                styles.themeOption,
+                { 
+                  backgroundColor: themeMode === 'light' ? colors.button : colors.cardSecondary,
+                  borderColor: colors.border,
+                }
+              ]}
+              onPress={() => setThemeMode('light')}
+            >
+              <Ionicons 
+                name="sunny" 
+                size={24} 
+                color={themeMode === 'light' ? '#FFF' : colors.textSecondary} 
+              />
+              <Text style={[
+                styles.themeOptionText,
+                { color: themeMode === 'light' ? '#FFF' : colors.textSecondary }
+              ]}>
+                Claro
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.themeOption,
+                { 
+                  backgroundColor: themeMode === 'dark' ? colors.button : colors.cardSecondary,
+                  borderColor: colors.border,
+                }
+              ]}
+              onPress={() => setThemeMode('dark')}
+            >
+              <Ionicons 
+                name="moon" 
+                size={24} 
+                color={themeMode === 'dark' ? '#FFF' : colors.textSecondary} 
+              />
+              <Text style={[
+                styles.themeOptionText,
+                { color: themeMode === 'dark' ? '#FFF' : colors.textSecondary }
+              ]}>
+                Oscuro
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.themeOption,
+                { 
+                  backgroundColor: themeMode === 'auto' ? colors.button : colors.cardSecondary,
+                  borderColor: colors.border,
+                }
+              ]}
+              onPress={() => setThemeMode('auto')}
+            >
+              <Ionicons 
+                name="phone-portrait" 
+                size={24} 
+                color={themeMode === 'auto' ? '#FFF' : colors.textSecondary} 
+              />
+              <Text style={[
+                styles.themeOptionText,
+                { color: themeMode === 'auto' ? '#FFF' : colors.textSecondary }
+              ]}>
+                Auto
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
 
         <View style={styles.switchOption}>
           <View style={styles.switchTextContainer}>
-            <Text style={styles.optionText}>Números completos</Text>
-            <Text style={styles.optionSubtext}>
+            <Text style={[styles.optionText, { color: colors.text }]}>Números completos</Text>
+            <Text style={[styles.optionSubtext, { color: colors.textSecondary }]}>
               {showFullNumbers
                 ? "Muestra cantidades completas (ej: $1,234,567.89)"
                 : "Abrevia cantidades grandes (ej: $1.2M)"}
@@ -121,7 +223,7 @@ const AccountSettingsModal: React.FC<Props> = ({ visible, onClose }) => {
           <Switch
             value={showFullNumbers}
             onValueChange={toggleNumberFormat}
-            trackColor={{ false: "#E0E0E0", true: "#EF6C00" }}
+            trackColor={{ false: colors.border, true: "#EF6C00" }}
             thumbColor={showFullNumbers ? "#FF8F00" : "#F5F5F5"}
           />
         </View>
@@ -133,30 +235,30 @@ const AccountSettingsModal: React.FC<Props> = ({ visible, onClose }) => {
             onChange={handleChangeCurrency}
             showSearch
           />
-          <Text style={styles.helperText}>
+          <Text style={[styles.helperText, { color: colors.textTertiary }]}>
             Esta es tu moneda de visualización. La moneda principal de tu cuenta se establece en el registro y no puede cambiar.
           </Text>
         </View>
 
         {/* Botón de Preview de Moneda */}
         <TouchableOpacity
-          style={styles.previewOption}
+          style={[styles.previewOption, { borderTopColor: colors.border }]}
           onPress={() => setPreviewModalVisible(true)}
         >
           <View style={styles.previewIconContainer}>
             <Ionicons name="cash-outline" size={24} color="#4CAF50" />
           </View>
           <View style={styles.previewTextContainer}>
-            <Text style={styles.previewTitle}>Vista previa de moneda</Text>
-            <Text style={styles.previewSubtext}>
+            <Text style={[styles.previewTitle, { color: colors.text }]}>Vista previa de moneda</Text>
+            <Text style={[styles.previewSubtext, { color: colors.textSecondary }]}>
               Ve tus balances en cualquier moneda sin cambiar configuración
             </Text>
           </View>
-          <Ionicons name="chevron-forward" size={20} color="#999" />
+          <Ionicons name="chevron-forward" size={20} color={colors.textTertiary} />
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={styles.supportOption}
+          style={[styles.supportOption, { borderTopColor: colors.border }]}
           onPress={() => {
             onClose();
             // @ts-ignore - Navigation type
@@ -167,16 +269,16 @@ const AccountSettingsModal: React.FC<Props> = ({ visible, onClose }) => {
             <Ionicons name="help-circle-outline" size={24} color="#EF6C00" />
           </View>
           <View style={styles.supportTextContainer}>
-            <Text style={styles.supportTitle}>Soporte y ayuda</Text>
-            <Text style={styles.supportSubtext}>
+            <Text style={[styles.supportTitle, { color: colors.text }]}>Soporte y ayuda</Text>
+            <Text style={[styles.supportSubtext, { color: colors.textSecondary }]}>
               ¿Tienes algún problema? Contáctanos
             </Text>
           </View>
-          <Ionicons name="chevron-forward" size={20} color="#999" />
+          <Ionicons name="chevron-forward" size={20} color={colors.textTertiary} />
         </TouchableOpacity>
 
         <TouchableOpacity onPress={onClose}>
-          <Text style={styles.cancelText}>Cerrar</Text>
+          <Text style={[styles.cancelText, { color: colors.textSecondary }]}>Cerrar</Text>
         </TouchableOpacity>
       </View>
 
@@ -200,20 +302,18 @@ const styles = StyleSheet.create({
     right: 0,
   },
   modal: {
-    backgroundColor: "#f0f0f3",
     paddingHorizontal: 24,
     paddingTop: 20,
     paddingBottom: 30,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.7)",
+    borderColor: "rgba(255,255,255,0.1)",
     width: '100%',
   },
   grabber: {
     width: 40,
     height: 5,
-    backgroundColor: "#ccc",
     borderRadius: 3,
     alignSelf: "center",
     marginBottom: 12,
@@ -221,9 +321,36 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: "600",
-    marginBottom: 16,
+    marginBottom: 20,
     textAlign: "center",
-    color: "#EF6C00",
+  },
+  section: {
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    marginBottom: 16,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    marginBottom: 12,
+  },
+  themeOptions: {
+    flexDirection: 'row',
+    gap: 12,
+    justifyContent: 'space-between',
+  },
+  themeOption: {
+    flex: 1,
+    paddingVertical: 16,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1,
+  },
+  themeOptionText: {
+    fontSize: 13,
+    fontWeight: '600',
   },
   option: {
     paddingVertical: 12,
@@ -233,7 +360,6 @@ const styles = StyleSheet.create({
   optionText: {
     fontSize: 16,
     fontWeight: "500",
-    color: "#444",
   },
   switchOption: {
     flexDirection: "row",
@@ -249,7 +375,6 @@ const styles = StyleSheet.create({
   },
   optionSubtext: {
     fontSize: 12,
-    color: "#666",
     marginTop: 4,
     lineHeight: 16,
   },
@@ -257,7 +382,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginTop: 16,
     marginBottom: 8,
-    color: "#888",
   },
   supportOption: {
     flexDirection: "row",
@@ -265,7 +389,6 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     marginTop: 12,
     borderTopWidth: 1,
-    borderTopColor: "#ddd",
     gap: 12,
   },
   supportIconContainer: {
@@ -282,16 +405,13 @@ const styles = StyleSheet.create({
   supportTitle: {
     fontSize: 15,
     fontWeight: "600",
-    color: "#444",
     marginBottom: 2,
   },
   supportSubtext: {
     fontSize: 12,
-    color: "#666",
   },
   helperText: {
     fontSize: 11,
-    color: "#999",
     marginTop: 6,
     fontStyle: "italic",
     lineHeight: 14,
@@ -302,7 +422,6 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     marginTop: 12,
     borderTopWidth: 1,
-    borderTopColor: "#ddd",
     gap: 12,
   },
   previewIconContainer: {
@@ -319,12 +438,10 @@ const styles = StyleSheet.create({
   previewTitle: {
     fontSize: 15,
     fontWeight: "600",
-    color: "#444",
     marginBottom: 2,
   },
   previewSubtext: {
     fontSize: 12,
-    color: "#666",
   },
 });
 
