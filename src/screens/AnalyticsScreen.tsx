@@ -97,75 +97,75 @@ const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ navigation }) => {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.root}>
-        <View style={styles.headerWrap}>
-          <View style={styles.headerBar}>
-            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerIconBtn}>
-              <Ionicons name="chevron-back" size={20} color="#0f172a" />
+      <SafeAreaView style={[styles.root, { backgroundColor: colors.background }] }>
+        <View style={[styles.headerWrap, { backgroundColor: colors.background }] }>
+          <View style={[styles.headerBar, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow }] }>
+            <TouchableOpacity onPress={() => navigation.goBack()} style={[styles.headerIconBtn, { backgroundColor: colors.cardSecondary, borderColor: colors.border }] }>
+              <Ionicons name="chevron-back" size={20} color={colors.text} />
             </TouchableOpacity>
 
-            <Text style={styles.headerTitle}>Analytics</Text>
+            <Text style={[styles.headerTitle, { color: colors.text } ]}>Analytics</Text>
 
-            <TouchableOpacity onPress={() => setShowFilters(true)} style={styles.headerChip}>
-              <Ionicons name="funnel-outline" size={14} color="#0f172a" />
-              <Text style={styles.headerChipText}>{rangoLabel}</Text>
-              <Ionicons name="chevron-down" size={12} color="#0f172a" />
+            <TouchableOpacity onPress={() => setShowFilters(true)} style={[styles.headerChip, { backgroundColor: colors.cardSecondary, borderColor: colors.border }] }>
+              <Ionicons name="funnel-outline" size={14} color={colors.textSecondary} />
+              <Text style={[styles.headerChipText, { color: colors.text } ]}>{rangoLabel}</Text>
+              <Ionicons name="chevron-down" size={12} color={colors.textSecondary} />
             </TouchableOpacity>
           </View>
-          <View style={styles.headerHandle} />
+          <View style={[styles.headerHandle, { backgroundColor: colors.border }] } />
         </View>
 
-        <View style={[styles.loadingContainer, { paddingTop: HEADER_H + 8 }]}>
-          <ActivityIndicator size="small" />
-          <Text style={styles.muted}>Cargando analytics…</Text>
-          {errorMsg && <Text style={styles.errorText}>{errorMsg}</Text>}
+        <View style={[styles.loadingContainer, { paddingTop: HEADER_H + 8 }] }>
+          <ActivityIndicator size="small" color={colors.button} />
+          <Text style={[styles.muted, { color: colors.textSecondary }] }>Cargando analytics…</Text>
+          {errorMsg && <Text style={[styles.errorText, { color: colors.error }] }>{errorMsg}</Text>}
         </View>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.root}>
-      <View style={styles.headerWrap}>
-        <View style={styles.headerBar}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerIconBtn}>
-            <Ionicons name="chevron-back" size={20} color="#0f172a" />
+    <SafeAreaView style={[styles.root, { backgroundColor: colors.background }] }>
+      <View style={[styles.headerWrap, { backgroundColor: colors.background }] }>
+        <View style={[styles.headerBar, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow }] }>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={[styles.headerIconBtn, { backgroundColor: colors.cardSecondary, borderColor: colors.border }] }>
+            <Ionicons name="chevron-back" size={20} color={colors.text} />
           </TouchableOpacity>
 
           <View style={styles.titleRow}>
-            <Ionicons name="flame" size={18} color="#fb923c" style={{ marginRight: 6 }} />
-            <Text style={styles.headerTitle}>Analytics</Text>
+            <Ionicons name="flame" size={18} color={colors.button} style={{ marginRight: 6 }} />
+            <Text style={[styles.headerTitle, { color: colors.text } ]}>Analytics</Text>
           </View>
 
-          <TouchableOpacity onPress={() => setShowFilters(true)} style={styles.headerChip} activeOpacity={0.9}>
-            <Ionicons name="funnel-outline" size={14} color="#0f172a" />
-            <Text style={styles.headerChipText}>{rangoLabel}</Text>
-            <Ionicons name="chevron-down" size={12} color="#0f172a" />
+          <TouchableOpacity onPress={() => setShowFilters(true)} style={[styles.headerChip, { backgroundColor: colors.cardSecondary, borderColor: colors.border }] } activeOpacity={0.9}>
+            <Ionicons name="funnel-outline" size={14} color={colors.textSecondary} />
+            <Text style={[styles.headerChipText, { color: colors.text } ]}>{rangoLabel}</Text>
+            <Ionicons name="chevron-down" size={12} color={colors.textSecondary} />
           </TouchableOpacity>
         </View>
-        <View style={styles.headerHandle} />
+        <View style={[styles.headerHandle, { backgroundColor: colors.border }] } />
       </View>
 
       <ScrollView
-        style={styles.container}
+        style={[styles.container, { backgroundColor: colors.background }] }
         contentContainerStyle={{ paddingBottom: 24 }}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor="#6366f1"
-            colors={['#6366f1']}
+            tintColor={colors.button}
+            colors={[colors.button]}
           />
         }
       >
         {!!errorMsg && (
-          <View style={styles.alertCard}>
-            <Ionicons name="warning-outline" size={18} color="#b45309" />
-            <Text style={styles.alertText}>{errorMsg}</Text>
+          <View style={[styles.alertCard, { backgroundColor: colors.backgroundSecondary, borderColor: colors.warning }] }>
+            <Ionicons name="warning-outline" size={18} color={colors.warning} />
+            <Text style={[styles.alertText, { color: colors.error }] }>{errorMsg}</Text>
             {!errorMsg.includes('expirado') && (
-              <TouchableOpacity onPress={handleRetry} style={styles.retryGhost}>
-                <Text style={styles.retryGhostText}>Reintentar</Text>
+              <TouchableOpacity onPress={handleRetry} style={[styles.retryGhost, { backgroundColor: colors.cardSecondary, borderColor: colors.border }] }>
+                <Text style={[styles.retryGhostText, { color: colors.text, fontWeight: '800', fontSize: 12 }] }>Reintentar</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -178,20 +178,20 @@ const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ navigation }) => {
                 balance={{
                   balance: resumen.balance,
                   totalIngresos: {
-                    monto: resumen.ingresos,
-                    moneda: '$',
-                    esPositivo: resumen.ingresos >= 0,
+                    monto: resumen.totalIngresado?.monto || resumen.ingresos || 0,
+                    moneda: resumen.totalIngresado?.moneda || resumen.balance?.moneda || 'USD',
+                    esPositivo: (resumen.totalIngresado?.monto || resumen.ingresos || 0) >= 0,
                   },
                   totalGastos: {
-                    monto: resumen.gastos,
-                    moneda: '$',
-                    esPositivo: resumen.gastos >= 0,
+                    monto: resumen.totalGastado?.monto || resumen.gastos || 0,
+                    moneda: resumen.totalGastado?.moneda || resumen.balance?.moneda || 'USD',
+                    esPositivo: (resumen.totalGastado?.monto || resumen.gastos || 0) >= 0,
                   },
                 }}
               />
             </View>
 
-            <View style={styles.card}>
+            <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow }] }>
               <ChartSelector filters={filters} refreshKey={refreshKey} />
             </View>
           </>
@@ -212,27 +212,22 @@ const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ navigation }) => {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#f6f7fb',
   },
 
   headerWrap: {
     position: 'absolute',
     top: 45, left: 0, right: 0,
     paddingTop: Platform.OS === 'ios' ? 10 : 6,
-    backgroundColor: '#f6f7fb',
     zIndex: 100,
   },
   headerBar: {
     marginHorizontal: 14,
-    backgroundColor: '#ffffff',
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#e8ecf2',
     paddingHorizontal: 8,
     paddingVertical: 8,
     flexDirection: 'row',
     alignItems: 'center',
-    shadowColor: '#111827',
     shadowOffset: { width: 3, height: 6 },
     shadowOpacity: 0.05,
     shadowRadius: 12,
@@ -242,13 +237,11 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#0f172a',
   },
   headerIconBtn: {
     width: 32, height: 32, borderRadius: 10,
     alignItems: 'center', justifyContent: 'center',
-    backgroundColor: '#f8fafc',
-    borderWidth: 1, borderColor: '#e5e7eb',
+    borderWidth: 1,
   },
   headerChip: {
     flexDirection: 'row',
@@ -256,19 +249,16 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingHorizontal: 10,
     paddingVertical: 6,
-    backgroundColor: '#f8fafc',
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
   },
-  headerChipText: { fontSize: 12, fontWeight: '800', color: '#0f172a' },
+  headerChipText: { fontSize: 12, fontWeight: '800' },
   headerHandle: {
     alignSelf: 'center',
     marginTop: 8,
     width: 90,
     height: 6,
     borderRadius: 999,
-    backgroundColor: '#e5e7eb',
   },
 
   container: {
@@ -281,12 +271,9 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   card: {
-    backgroundColor: '#ffffff',
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#e8ecf2',
     padding: 12,
-    shadowColor: '#111827',
     shadowOffset: { width: 4, height: 8 },
     shadowOpacity: 0.05,
     shadowRadius: 12,
@@ -296,34 +283,30 @@ const styles = StyleSheet.create({
 
   // Loading
   loadingContainer: { alignItems: 'center', gap: 8, flex: 1 },
-  muted: { fontSize: 13, color: '#64748b' },
+  muted: { fontSize: 13 },
 
   // Alert sutil
   alertCard: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: '#fff7ed',
     borderWidth: 1,
-    borderColor: '#fde68a',
     borderRadius: 14,
     padding: 12,
     marginBottom: 12,
   },
-  alertText: { color: '#7c2d12', fontWeight: '700', flex: 1 },
+  alertText: { fontWeight: '700', flex: 1 },
 
   retryGhost: {
-    backgroundColor: '#f8fafc',
     borderWidth: 1,
-    borderColor: '#e5e7eb',
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 10,
   },
-  retryGhostText: { color: '#0f172a', fontWeight: '800', fontSize: 12 },
+  retryGhostText: {},
 
   // Error directo (pantalla de loading)
-  errorText: { color: '#b91c1c', fontSize: 14, textAlign: 'center', paddingHorizontal: 16 },
+  errorText: { fontSize: 14, textAlign: 'center', paddingHorizontal: 16 },
 });
 
 export default AnalyticsScreen;
