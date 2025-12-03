@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { AnalyticsFilters as IAnalyticsFilters } from '../../services/analyticsService';
+import { useThemeColors } from '../../theme/useThemeColors';
 
 interface AnalyticsFiltersProps {
   filters: IAnalyticsFilters;
@@ -22,6 +23,7 @@ const AnalyticsFilters: React.FC<AnalyticsFiltersProps> = ({
   onApply,
   onClose,
 }) => {
+  const colors = useThemeColors();
   const [localFilters, setLocalFilters] = useState<IAnalyticsFilters>(filters);
 
   const rangoTiempoOptions = [
@@ -56,12 +58,12 @@ const AnalyticsFilters: React.FC<AnalyticsFiltersProps> = ({
       animationType="slide"
       presentationStyle="pageSheet"
     >
-      <View style={styles.container}>
-        <View style={styles.header}>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <View style={[styles.header, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
           <TouchableOpacity onPress={onClose}>
-            <Ionicons name="close" size={24} color="#64748b" />
+            <Ionicons name="close" size={24} color={colors.textSecondary} />
           </TouchableOpacity>
-          <Text style={styles.title}>Filtros</Text>
+          <Text style={[styles.title, { color: colors.text }]}>Filtros</Text>
           <TouchableOpacity onPress={handleApply} style={styles.applyButton}>
             <Text style={styles.applyText}>Aplicar</Text>
           </TouchableOpacity>
@@ -69,18 +71,20 @@ const AnalyticsFilters: React.FC<AnalyticsFiltersProps> = ({
 
         <ScrollView style={styles.content}>
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Rango de tiempo</Text>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Rango de tiempo</Text>
             {rangoTiempoOptions.map((option) => (
               <TouchableOpacity
                 key={option.value}
                 style={[
                   styles.option,
+                  { backgroundColor: colors.card },
                   localFilters.rangoTiempo === option.value && styles.selectedOption
                 ]}
                 onPress={() => updateFilter('rangoTiempo', option.value)}
               >
                 <Text style={[
                   styles.optionText,
+                  { color: colors.textSecondary },
                   localFilters.rangoTiempo === option.value && styles.selectedOptionText
                 ]}>
                   {option.label}
@@ -93,18 +97,20 @@ const AnalyticsFilters: React.FC<AnalyticsFiltersProps> = ({
           </View>
 
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Tipo de transacción</Text>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Tipo de transacción</Text>
             {tipoTransaccionOptions.map((option) => (
               <TouchableOpacity
                 key={option.value}
                 style={[
                   styles.option,
+                  { backgroundColor: colors.card },
                   localFilters.tipoTransaccion === option.value && styles.selectedOption
                 ]}
                 onPress={() => updateFilter('tipoTransaccion', option.value)}
               >
                 <Text style={[
                   styles.optionText,
+                  { color: colors.textSecondary },
                   localFilters.tipoTransaccion === option.value && styles.selectedOptionText
                 ]}>
                   {option.label}
@@ -117,34 +123,34 @@ const AnalyticsFilters: React.FC<AnalyticsFiltersProps> = ({
           </View>
 
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Opciones adicionales</Text>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Opciones adicionales</Text>
             
-            <View style={styles.switchOption}>
-              <Text style={styles.switchLabel}>Incluir recurrentes</Text>
+            <View style={[styles.switchOption, { backgroundColor: colors.card }]}>
+              <Text style={[styles.switchLabel, { color: colors.text }]}>Incluir recurrentes</Text>
               <Switch
                 value={localFilters.incluirRecurrentes || false}
                 onValueChange={(value) => updateFilter('incluirRecurrentes', value)}
-                trackColor={{ false: '#e2e8f0', true: '#6366f1' }}
+                trackColor={{ false: colors.border, true: '#6366f1' }}
                 thumbColor="#ffffff"
               />
             </View>
 
-            <View style={styles.switchOption}>
-              <Text style={styles.switchLabel}>Solo transacciones manuales</Text>
+            <View style={[styles.switchOption, { backgroundColor: colors.card }]}>
+              <Text style={[styles.switchLabel, { color: colors.text }]}>Solo transacciones manuales</Text>
               <Switch
                 value={localFilters.soloTransaccionesManuales || false}
                 onValueChange={(value) => updateFilter('soloTransaccionesManuales', value)}
-                trackColor={{ false: '#e2e8f0', true: '#6366f1' }}
+                trackColor={{ false: colors.border, true: '#6366f1' }}
                 thumbColor="#ffffff"
               />
             </View>
 
-            <View style={styles.switchOption}>
-              <Text style={styles.switchLabel}>Incluir subcuentas inactivas</Text>
+            <View style={[styles.switchOption, { backgroundColor: colors.card }]}>
+              <Text style={[styles.switchLabel, { color: colors.text }]}>Incluir subcuentas inactivas</Text>
               <Switch
                 value={localFilters.incluirSubcuentasInactivas || false}
                 onValueChange={(value) => updateFilter('incluirSubcuentasInactivas', value)}
-                trackColor={{ false: '#e2e8f0', true: '#6366f1' }}
+                trackColor={{ false: colors.border, true: '#6366f1' }}
                 thumbColor="#ffffff"
               />
             </View>
@@ -158,7 +164,6 @@ const AnalyticsFilters: React.FC<AnalyticsFiltersProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
   },
   header: {
     flexDirection: 'row',
@@ -166,14 +171,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 20,
     paddingVertical: 16,
-    backgroundColor: '#ffffff',
     borderBottomWidth: 1,
-    borderBottomColor: '#e2e8f0',
   },
   title: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#1e293b',
   },
   applyButton: {
     backgroundColor: '#6366f1',
@@ -195,14 +197,12 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1e293b',
     marginBottom: 12,
   },
   option: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#ffffff',
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 8,
@@ -215,7 +215,6 @@ const styles = StyleSheet.create({
   },
   optionText: {
     fontSize: 14,
-    color: '#64748b',
   },
   selectedOptionText: {
     color: '#6366f1',
@@ -225,7 +224,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#ffffff',
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 8,
@@ -233,7 +231,6 @@ const styles = StyleSheet.create({
   },
   switchLabel: {
     fontSize: 14,
-    color: '#1e293b',
   },
 });
 
