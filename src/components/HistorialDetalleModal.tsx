@@ -2,6 +2,7 @@ import React from 'react';
 import { Modal, View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { Ionicons } from "@expo/vector-icons";
 import SmartNumber from './SmartNumber';
+import { useThemeColors } from '../theme/useThemeColors';
 
 type Detalles = {
   origen?: string;
@@ -32,6 +33,8 @@ type Props = {
 };
 
 const HistorialDetalleModal = ({ visible, onClose, historialItem }: Props) => {
+  const colors = useThemeColors();
+  
   if (!historialItem) return null;
 
   const {
@@ -59,49 +62,49 @@ const HistorialDetalleModal = ({ visible, onClose, historialItem }: Props) => {
   return (
     <Modal visible={visible} animationType="slide" transparent>
       <View style={styles.overlay}>
-        <View style={styles.modal}>
+        <View style={[styles.modal, { backgroundColor: colors.card }]}>
           <View style={styles.header}>
             <View style={styles.headerLeft}>
               <Ionicons name={iconoTipo} size={24} color={colorTipo} style={styles.tipoIcon} />
-              <Text style={styles.title}>Detalle del Movimiento</Text>
+              <Text style={[styles.title, { color: colors.text }]}>Detalle del Movimiento</Text>
             </View>
             <TouchableOpacity onPress={onClose}>
-              <Ionicons name="close" size={22} color="#475569" />
+              <Ionicons name="close" size={22} color={colors.textSecondary} />
             </TouchableOpacity>
           </View>
 
           <ScrollView showsVerticalScrollIndicator={false}>
             <View style={styles.section}>
-              <Text style={styles.label}>Descripción</Text>
-              <Text style={styles.value}>{descripcion}</Text>
+              <Text style={[styles.label, { color: colors.textSecondary }]}>Descripción</Text>
+              <Text style={[styles.value, { color: colors.text }]}>{descripcion}</Text>
             </View>
 
             {conceptoId && (
               <View style={styles.section}>
-                <Text style={styles.label}>Concepto ID</Text>
-                <Text style={styles.value}>{conceptoId}</Text>
+                <Text style={[styles.label, { color: colors.textSecondary }]}>Concepto ID</Text>
+                <Text style={[styles.value, { color: colors.text }]}>{conceptoId}</Text>
               </View>
             )}
 
             {detalles.conceptoNombre && (
               <View style={styles.section}>
-                <Text style={styles.label}>Concepto</Text>
-                <Text style={styles.value}>{detalles.conceptoNombre}</Text>
+                <Text style={[styles.label, { color: colors.textSecondary }]}>Concepto</Text>
+                <Text style={[styles.value, { color: colors.text }]}>{detalles.conceptoNombre}</Text>
               </View>
             )}
 
             {motivo && (
             <View style={styles.section}>
-                <Text style={styles.label}>Motivo</Text>
+                <Text style={[styles.label, { color: colors.textSecondary }]}>Motivo</Text>
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Ionicons name="chatbox-ellipses-outline" size={16} color="#0f172a" style={{ marginRight: 6 }} />
-                <Text style={styles.value}>{motivo}</Text>
+                <Ionicons name="chatbox-ellipses-outline" size={16} color={colors.text} style={{ marginRight: 6 }} />
+                <Text style={[styles.value, { color: colors.text }]}>{motivo}</Text>
                 </View>
             </View>
             )}
 
             <View style={styles.section}>
-              <Text style={styles.label}>Monto</Text>
+              <Text style={[styles.label, { color: colors.textSecondary }]}>Monto</Text>
               <Text style={[styles.value, { color: colorTipo }]}>
                 <SmartNumber 
                   value={monto} 
@@ -116,45 +119,45 @@ const HistorialDetalleModal = ({ visible, onClose, historialItem }: Props) => {
             </View>
 
             <View style={styles.section}>
-              <Text style={styles.label}>Tipo</Text>
-              <Text style={styles.value}>{tipo}</Text>
+              <Text style={[styles.label, { color: colors.textSecondary }]}>Tipo</Text>
+              <Text style={[styles.value, { color: colors.text }]}>{tipo}</Text>
             </View>
 
             <View style={styles.section}>
-              <Text style={styles.label}>Fecha</Text>
-              <Text style={styles.value}>{new Date(fecha).toLocaleString()}</Text>
+              <Text style={[styles.label, { color: colors.textSecondary }]}>Fecha</Text>
+              <Text style={[styles.value, { color: colors.text }]}>{new Date(fecha).toLocaleString()}</Text>
             </View>
 
             <View style={styles.section}>
-              <Text style={styles.label}>Cuenta</Text>
-              <Text style={styles.value}>{cuentaId}</Text>
+              <Text style={[styles.label, { color: colors.textSecondary }]}>Cuenta</Text>
+              <Text style={[styles.value, { color: colors.text }]}>{cuentaId}</Text>
             </View>
 
             {subcuentaId && (
               <View style={styles.section}>
-                <Text style={styles.label}>Subcuenta</Text>
-                <Text style={styles.value}>{subcuentaId}</Text>
+                <Text style={[styles.label, { color: colors.textSecondary }]}>Subcuenta</Text>
+                <Text style={[styles.value, { color: colors.text }]}>{subcuentaId}</Text>
               </View>
             )}
 
             {detalles.origen && (
               <View style={styles.section}>
-                <Text style={styles.label}>Origen</Text>
-                <Text style={styles.value}>{detalles.origen}</Text>
+                <Text style={[styles.label, { color: colors.textSecondary }]}>Origen</Text>
+                <Text style={[styles.value, { color: colors.text }]}>{detalles.origen}</Text>
               </View>
             )}
 
             {detalles.etiqueta && (
               <View style={styles.section}>
-                <Text style={styles.label}>Etiqueta</Text>
-                <Text style={styles.value}>{detalles.etiqueta}</Text>
+                <Text style={[styles.label, { color: colors.textSecondary }]}>Etiqueta</Text>
+                <Text style={[styles.value, { color: colors.text }]}>{detalles.etiqueta}</Text>
               </View>
             )}
 
             {detalles.resumen && (
               <View style={styles.section}>
-                <Text style={styles.label}>Resumen</Text>
-                <Text style={styles.value}>{detalles.resumen}</Text>
+                <Text style={[styles.label, { color: colors.textSecondary }]}>Resumen</Text>
+                <Text style={[styles.value, { color: colors.text }]}>{detalles.resumen}</Text>
               </View>
             )}
           </ScrollView>
@@ -173,7 +176,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.4)',
   },
   modal: {
-    backgroundColor: '#f8fafc',
     borderTopLeftRadius: 32,
     borderTopRightRadius: 32,
     padding: 20,
@@ -200,7 +202,6 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#1e293b',
   },
   section: {
     marginBottom: 14,
@@ -208,11 +209,9 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 13,
     fontWeight: '500',
-    color: '#64748b',
     marginBottom: 4,
   },
   value: {
     fontSize: 16,
-    color: '#0f172a',
   },
 });
