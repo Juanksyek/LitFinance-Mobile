@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, FlatList } from 'react-native';
 import type { EstadisticaRecurrente } from '../../types/analytics';
+import { useThemeColors } from '../../theme/useThemeColors';
 
 interface EstadisticasRecurrentesProps {
   data: EstadisticaRecurrente[];
@@ -13,6 +14,7 @@ const EstadisticasRecurrentes: React.FC<EstadisticasRecurrentesProps> = ({
   isLoading = false,
   error
 }) => {
+  const colors = useThemeColors();
   const [userCurrency, setUserCurrency] = useState<string>('MXN');
 
   useEffect(() => {
@@ -84,62 +86,62 @@ const EstadisticasRecurrentes: React.FC<EstadisticasRecurrentesProps> = ({
   };
 
   const renderRecurrenteItem = ({ item }: { item: EstadisticaRecurrente }) => (
-    <View style={styles.recurrenteItem}>
+    <View style={[styles.recurrenteItem, { borderBottomColor: colors.border }]}>
       <View style={styles.recurrenteHeader}>
         <View style={[styles.plataformaIndicator, { backgroundColor: item.recurrente.plataforma.color }]} />
         <View style={styles.recurrenteInfo}>
-          <Text style={styles.recurrenteNombre}>{item.recurrente.nombre}</Text>
-          <Text style={styles.plataformaNombre}>{item.recurrente.plataforma.nombre}</Text>
-          <Text style={styles.categoria}>{item.recurrente.plataforma.categoria}</Text>
+          <Text style={[styles.recurrenteNombre, { color: colors.text }]}>{item.recurrente.nombre}</Text>
+          <Text style={[styles.plataformaNombre, { color: colors.textSecondary }]}>{item.recurrente.plataforma.nombre}</Text>
+          <Text style={[styles.categoria, { color: colors.textSecondary }]}>{item.recurrente.plataforma.categoria}</Text>
         </View>
         <View style={styles.statusContainer}>
           <Text style={[styles.status, { color: getStatusColor(item.estadoActual) }]}> 
             {getStatusText(item.estadoActual)}
           </Text>
-          <Text style={styles.montoMensual}>{formatAmount(item.montoMensual, item.recurrente.moneda)}/mes</Text>
+          <Text style={[styles.montoMensual, { color: colors.text }]}>{formatAmount(item.montoMensual, item.recurrente.moneda)}/mes</Text>
         </View>
       </View>
 
       <View style={styles.recurrenteStats}>
         <View style={styles.statItem}>
-          <Text style={styles.statLabel}>Total Ejecutado</Text>
-          <Text style={styles.statValue}>{formatAmount(item.totalEjecutado, item.recurrente.moneda)}</Text>
+          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Total Ejecutado</Text>
+          <Text style={[styles.statValue, { color: colors.text }]}>{formatAmount(item.totalEjecutado, item.recurrente.moneda)}</Text>
         </View>
 
         <View style={styles.statItem}>
-          <Text style={styles.statLabel}>Ejecuciones</Text>
-          <Text style={styles.statValue}>{item.cantidadEjecuciones}</Text>
+          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Ejecuciones</Text>
+          <Text style={[styles.statValue, { color: colors.text }]}>{item.cantidadEjecuciones}</Text>
         </View>
 
         <View style={styles.statItem}>
-          <Text style={styles.statLabel}>Próxima</Text>
-          <Text style={styles.statValue}>{formatDate(item.proximaEjecucion)}</Text>
+          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Próxima</Text>
+          <Text style={[styles.statValue, { color: colors.text }]}>{formatDate(item.proximaEjecucion)}</Text>
         </View>
       </View>
 
-      <Text style={styles.frecuencia}>Frecuencia: {item.recurrente.frecuencia}</Text>
+      <Text style={[styles.frecuencia, { color: colors.textSecondary }]}>Frecuencia: {item.recurrente.frecuencia}</Text>
     </View>
   );
 
   if (isLoading) {
     return (
-      <View style={styles.container}>
-        <Text style={styles.loadingText}>Cargando recurrentes...</Text>
+      <View style={[styles.container, { backgroundColor: colors.card, shadowColor: colors.shadow }]}>
+        <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Cargando recurrentes...</Text>
       </View>
     );
   }
 
   if (error) {
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: colors.card, shadowColor: colors.shadow }]}>
         <Text style={styles.errorText}>Error: {error}</Text>
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Estadísticas de Recurrentes</Text>
+    <View style={[styles.container, { backgroundColor: colors.card, shadowColor: colors.shadow }]}>
+      <Text style={[styles.title, { color: colors.text }]}>Estadísticas de Recurrentes</Text>
       <FlatList
         data={data}
         renderItem={renderRecurrenteItem}
@@ -152,12 +154,10 @@ const EstadisticasRecurrentes: React.FC<EstadisticasRecurrentesProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#FFFFFF',
     borderRadius: 12,
     padding: 16,
     marginHorizontal: 16,
     marginVertical: 8,
-    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 3.84,
@@ -166,14 +166,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#1F2937',
     marginBottom: 16,
   },
   recurrenteItem: {
     marginBottom: 16,
     paddingBottom: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
   },
   recurrenteHeader: {
     flexDirection: 'row',
@@ -192,16 +190,13 @@ const styles = StyleSheet.create({
   recurrenteNombre: {
     fontSize: 16,
     fontWeight: '500',
-    color: '#1F2937',
   },
   plataformaNombre: {
     fontSize: 14,
-    color: '#6B7280',
     marginTop: 2,
   },
   categoria: {
     fontSize: 12,
-    color: '#9CA3AF',
     marginTop: 2,
   },
   statusContainer: {
@@ -215,7 +210,6 @@ const styles = StyleSheet.create({
   montoMensual: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#1F2937',
     marginTop: 4,
   },
   recurrenteStats: {
@@ -228,23 +222,19 @@ const styles = StyleSheet.create({
   },
   statLabel: {
     fontSize: 11,
-    color: '#6B7280',
     marginBottom: 4,
     textTransform: 'uppercase',
   },
   statValue: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#1F2937',
   },
   frecuencia: {
     fontSize: 12,
-    color: '#6B7280',
     fontStyle: 'italic',
   },
   loadingText: {
     textAlign: 'center',
-    color: '#6B7280',
     fontSize: 14,
   },
   errorText: {
