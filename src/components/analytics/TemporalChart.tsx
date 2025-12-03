@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Dimensions, Anim
 import { Ionicons } from '@expo/vector-icons';
 import { analyticsService, AnalisisTemporal, AnalyticsFilters } from '../../services/analyticsService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useThemeColors } from '../../theme/useThemeColors';
 
 interface TemporalChartProps {
   filters: AnalyticsFilters;
@@ -13,6 +14,7 @@ const { width: screenWidth } = Dimensions.get('window');
 const chartWidth = screenWidth - 80;
 
 const TemporalChart: React.FC<TemporalChartProps> = ({ filters, refreshKey = 0 }) => {
+  const colors = useThemeColors();
   const [data, setData] = useState<AnalisisTemporal | null>(null);
   const [loading, setLoading] = useState(true);
   const [userCurrency, setUserCurrency] = useState<string>('MXN');
@@ -121,7 +123,7 @@ const TemporalChart: React.FC<TemporalChartProps> = ({ filters, refreshKey = 0 }
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="small" color="#6366f1" />
-        <Text style={styles.loadingText}>Cargando análisis temporal...</Text>
+        <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Cargando análisis temporal...</Text>
       </View>
     );
   }
@@ -129,8 +131,8 @@ const TemporalChart: React.FC<TemporalChartProps> = ({ filters, refreshKey = 0 }
   if (!data || data.datos.length === 0) {
     return (
       <View style={styles.emptyContainer}>
-        <Ionicons name="trending-up-outline" size={48} color="#94a3b8" />
-        <Text style={styles.emptyText}>No hay datos temporales disponibles</Text>
+        <Ionicons name="trending-up-outline" size={48} color={colors.textSecondary} />
+        <Text style={[styles.emptyText, { color: colors.textSecondary }]}>No hay datos temporales disponibles</Text>
       </View>
     );
   }
@@ -141,16 +143,16 @@ const TemporalChart: React.FC<TemporalChartProps> = ({ filters, refreshKey = 0 }
 
   return (
     <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
-      <Text style={styles.title}>Análisis Temporal</Text>
+      <Text style={[styles.title, { color: colors.text }]}>Análisis Temporal</Text>
       
-      <View style={styles.trendsContainer}>
+      <View style={[styles.trendsContainer, { backgroundColor: colors.card }]}>
         <View style={styles.trendItem}>
           <Ionicons 
             name={getTrendIcon(data.tendencias.ingresosTendencia) as any} 
             size={16} 
             color={getTrendColor(data.tendencias.ingresosTendencia)} 
           />
-          <Text style={styles.trendLabel}>Ingresos</Text>
+          <Text style={[styles.trendLabel, { color: colors.textSecondary }]}>Ingresos</Text>
           <Text style={[styles.trendValue, { color: getTrendColor(data.tendencias.ingresosTendencia) }]}>
             {data.tendencias.ingresosTendencia}
           </Text>
@@ -162,7 +164,7 @@ const TemporalChart: React.FC<TemporalChartProps> = ({ filters, refreshKey = 0 }
             size={16} 
             color={getTrendColor(data.tendencias.gastosTendencia)} 
           />
-          <Text style={styles.trendLabel}>Gastos</Text>
+          <Text style={[styles.trendLabel, { color: colors.textSecondary }]}>Gastos</Text>
           <Text style={[styles.trendValue, { color: getTrendColor(data.tendencias.gastosTendencia) }]}>
             {data.tendencias.gastosTendencia}
           </Text>
@@ -174,30 +176,30 @@ const TemporalChart: React.FC<TemporalChartProps> = ({ filters, refreshKey = 0 }
             size={16} 
             color={getTrendColor(data.tendencias.balanceTendencia)} 
           />
-          <Text style={styles.trendLabel}>Balance</Text>
+          <Text style={[styles.trendLabel, { color: colors.textSecondary }]}>Balance</Text>
           <Text style={[styles.trendValue, { color: getTrendColor(data.tendencias.balanceTendencia) }]}>
             {data.tendencias.balanceTendencia}
           </Text>
         </View>
       </View>
 
-      <View style={styles.averagesContainer}>
-        <Text style={styles.averagesTitle}>Promedios del período</Text>
+      <View style={[styles.averagesContainer, { backgroundColor: colors.inputBackground }]}>
+        <Text style={[styles.averagesTitle, { color: colors.text }]}>Promedios del período</Text>
         <View style={styles.averageItems}>
           <View style={styles.averageItem}>
-            <Text style={styles.averageLabel}>Ingresos</Text>
+            <Text style={[styles.averageLabel, { color: colors.textSecondary }]}>Ingresos</Text>
             <Text style={[styles.averageValue, { color: '#10b981' }]}>
               {formatMoney(data.promedios.ingresoPromedio, getMoneda())}
             </Text>
           </View>
           <View style={styles.averageItem}>
-            <Text style={styles.averageLabel}>Gastos</Text>
+            <Text style={[styles.averageLabel, { color: colors.textSecondary }]}>Gastos</Text>
             <Text style={[styles.averageValue, { color: '#ef4444' }]}>
               {formatMoney(data.promedios.gastoPromedio, getMoneda())}
             </Text>
           </View>
           <View style={styles.averageItem}>
-            <Text style={styles.averageLabel}>Balance</Text>
+            <Text style={[styles.averageLabel, { color: colors.textSecondary }]}>Balance</Text>
             <Text style={[styles.averageValue, { color: '#6366f1' }]}>
               {formatMoney(data.promedios.balancePromedio, getMoneda())}
             </Text>
@@ -225,8 +227,8 @@ const TemporalChart: React.FC<TemporalChartProps> = ({ filters, refreshKey = 0 }
                     style={[styles.expenseBar, { height: expenseHeight }]}
                   />
                 </View>
-                <Text style={styles.chartDate}>{formatDate(item.fecha)}</Text>
-                <Text style={styles.chartMovements}>{item.cantidadMovimientos}</Text>
+                <Text style={[styles.chartDate, { color: colors.textSecondary }]}>{formatDate(item.fecha)}</Text>
+                <Text style={[styles.chartMovements, { color: colors.textSecondary }]}>{item.cantidadMovimientos}</Text>
               </View>
             );
           })}
@@ -236,11 +238,11 @@ const TemporalChart: React.FC<TemporalChartProps> = ({ filters, refreshKey = 0 }
       <View style={styles.legend}>
         <View style={styles.legendItem}>
           <View style={[styles.legendColor, { backgroundColor: '#10b981' }]} />
-          <Text style={styles.legendText}>Ingresos</Text>
+          <Text style={[styles.legendText, { color: colors.textSecondary }]}>Ingresos</Text>
         </View>
         <View style={styles.legendItem}>
           <View style={[styles.legendColor, { backgroundColor: '#ef4444' }]} />
-          <Text style={styles.legendText}>Gastos</Text>
+          <Text style={[styles.legendText, { color: colors.textSecondary }]}>Gastos</Text>
         </View>
       </View>
     </Animated.View>
@@ -254,7 +256,6 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#1e293b',
     marginBottom: 16,
   },
   loadingContainer: {
@@ -266,7 +267,6 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 8,
     fontSize: 14,
-    color: '#64748b',
   },
   emptyContainer: {
     flex: 1,
@@ -276,14 +276,12 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     marginTop: 12,
-    fontSize: 16,
-    color: '#64748b',
+    fontSize: 14,
   },
   trendsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginBottom: 20,
-    backgroundColor: '#f8fafc',
     borderRadius: 12,
     padding: 12,
   },
@@ -293,7 +291,6 @@ const styles = StyleSheet.create({
   },
   trendLabel: {
     fontSize: 12,
-    color: '#64748b',
     marginTop: 4,
   },
   trendValue: {
@@ -303,7 +300,6 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   averagesContainer: {
-    backgroundColor: '#f8fafc',
     borderRadius: 12,
     padding: 16,
     marginBottom: 20,
@@ -311,7 +307,6 @@ const styles = StyleSheet.create({
   averagesTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#1e293b',
     marginBottom: 12,
   },
   averageItems: {
@@ -324,7 +319,6 @@ const styles = StyleSheet.create({
   },
   averageLabel: {
     fontSize: 12,
-    color: '#64748b',
     marginBottom: 4,
   },
   averageValue: {
@@ -366,13 +360,11 @@ const styles = StyleSheet.create({
   },
   chartDate: {
     fontSize: 10,
-    color: '#64748b',
     marginTop: 8,
     textAlign: 'center',
   },
   chartMovements: {
     fontSize: 9,
-    color: '#94a3b8',
     marginTop: 2,
     textAlign: 'center',
   },
@@ -393,7 +385,6 @@ const styles = StyleSheet.create({
   },
   legendText: {
     fontSize: 12,
-    color: '#64748b',
   },
 });
 

@@ -23,6 +23,7 @@ import ConceptsManager from './ConceptsManager';
 import SmartInput from './SmartInput';
 import SmartNumber from './SmartNumber';
 import { CurrencyField, Moneda } from '../components/CurrencyPicker';
+import { useThemeColors } from '../theme/useThemeColors';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 
@@ -54,6 +55,7 @@ const MovementModal: React.FC<Props> = ({
   subcuentaId,
   onRefresh
 }) => {
+  const colors = useThemeColors();
   const [montoNumerico, setMontoNumerico] = useState<number | null>(null);
   const [montoValido, setMontoValido] = useState(false);
   const [erroresMonto, setErroresMonto] = useState<string[]>([]);
@@ -228,13 +230,13 @@ const MovementModal: React.FC<Props> = ({
       animationOutTiming={350}
       useNativeDriver={true}
     >
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modal}>
-        <View style={styles.handle} />
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={[styles.modal, { backgroundColor: colors.card }]}>
+        <View style={[styles.handle, { backgroundColor: colors.border }]} />
         <View style={styles.header}>
           <Ionicons name={icon} size={22} color={color} />
-          <Text style={styles.title}>Agregar {tipo}</Text>
+          <Text style={[styles.title, { color: colors.text }]}>Agregar {tipo}</Text>
           <TouchableOpacity onPress={onClose}>
-            <Ionicons name="close" size={22} color="#999" />
+            <Ionicons name="close" size={22} color={colors.textSecondary} />
           </TouchableOpacity>
         </View>
 
@@ -289,24 +291,24 @@ const MovementModal: React.FC<Props> = ({
           placeholder="Motivo"
           value={motivo}
           onChangeText={setMotivo}
-          style={styles.input}
-          placeholderTextColor="#aaa"
+          style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.border, color: colors.inputText }]}
+          placeholderTextColor={colors.placeholder}
         />
 
         <View style={styles.conceptoHeader}>
           <TextInput
             placeholder="Busca o escribe un concepto rápido"
-            placeholderTextColor="#999"
+            placeholderTextColor={colors.placeholder}
             value={conceptoBusqueda}
             onChangeText={setConceptoBusqueda}
-            style={[styles.input, { flex: 1, fontSize: 12 }]}
+            style={[styles.input, { flex: 1, fontSize: 12, backgroundColor: colors.inputBackground, borderColor: colors.border, color: colors.inputText }]}
           />
           <TouchableOpacity onPress={() => setShowConceptsManager(true)}>
             <Text style={styles.adminLink}>+ Conceptos</Text>
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.conceptosText}>Tus conceptos</Text>
+        <Text style={[styles.conceptosText, { color: colors.text }]}>Tus conceptos</Text>
         <ScrollView style={{ maxHeight: 150 }} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.conceptosBox}>
           {conceptosFiltrados.map((item) => {
             const isSelected = conceptoSeleccionado?.conceptoId === item.conceptoId;
@@ -314,19 +316,19 @@ const MovementModal: React.FC<Props> = ({
               <TouchableOpacity
                 key={item.conceptoId}
                 onPress={() => setConceptoSeleccionado(isSelected ? null : item)}
-                style={[styles.chip, isSelected && styles.chipSelected]}
+                style={[styles.chip, { backgroundColor: colors.cardSecondary }, isSelected && styles.chipSelected]}
               >
-                <Text style={styles.chipText}>{item.icono} {item.nombre}</Text>
+                <Text style={[styles.chipText, { color: isSelected ? '#fff' : colors.text }]}>{item.icono} {item.nombre}</Text>
               </TouchableOpacity>
             );
           })}
           {conceptosFiltrados.length === 0 && (
-            <Text style={{ color: '#888', fontSize: 12 }}>Sin resultados…</Text>
+            <Text style={{ color: colors.textSecondary, fontSize: 12 }}>Sin resultados…</Text>
           )}
         </ScrollView>
 
         <View style={styles.switchRow}>
-          <Text style={styles.switchLabel}>Afecta cuenta principal</Text>
+          <Text style={[styles.switchLabel, { color: colors.text }]}>Afecta cuenta principal</Text>
           <Switch value={afectaCuenta} onValueChange={setAfectaCuenta} />
         </View>
 
@@ -344,7 +346,7 @@ const MovementModal: React.FC<Props> = ({
           useNativeDriver={false}
           style={{ justifyContent: 'center', alignItems: 'center', margin: 0 }}
         >
-          <View style={styles.subModalCard}>
+          <View style={[styles.subModalCard, { backgroundColor: colors.chartBackground }]}>
             <ConceptsManager
               onClose={() => {
                 setShowConceptsManager(false);
@@ -361,7 +363,6 @@ const MovementModal: React.FC<Props> = ({
 const styles = StyleSheet.create({
   modalContainer: { justifyContent: 'flex-end', margin: 0 },
   modal: {
-    backgroundColor: '#fff',
     paddingHorizontal: 16,
     paddingTop: 10,
     paddingBottom: 24,
@@ -377,7 +378,6 @@ const styles = StyleSheet.create({
   handle: {
     width: 40,
     height: 5,
-    backgroundColor: '#ccc',
     borderRadius: 5,
     alignSelf: 'center',
     marginBottom: 8,
@@ -388,46 +388,40 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 12,
   },
-  title: { fontSize: 18, fontWeight: '600', color: '#333' },
+  title: { fontSize: 18, fontWeight: '600' },
   input: {
-    backgroundColor: '#f8f8f8',
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,
     height: 44,
     fontSize: 14,
     borderWidth: 1,
-    borderColor: '#eee',
     marginBottom: 10,
   },
   row: { flexDirection: 'row', alignItems: 'center' },
   adminLink: { marginLeft: 8, fontSize: 13, color: '#EF7725', fontWeight: '500' },
-  conceptosText: { fontSize: 14, fontWeight: '500', color: '#444', marginBottom: 8 },
+  conceptosText: { fontSize: 14, fontWeight: '500', marginBottom: 8 },
   conceptosBox: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 14 },
-  chip: { backgroundColor: '#f0f0f0', paddingVertical: 6, paddingHorizontal: 10, borderRadius: 20, margin: 3 },
+  chip: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: 20, margin: 3 },
   chipSelected: { backgroundColor: '#EF7725' },
-  chipText: { fontSize: 13, color: '#000' },
+  chipText: { fontSize: 13 },
   switchRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginVertical: 10 },
-  switchLabel: { fontSize: 14, color: '#444' },
+  switchLabel: { fontSize: 14 },
   button: { padding: 14, borderRadius: 12, alignItems: 'center', marginTop: 10, marginBottom: 40 },
   buttonText: { color: '#fff', fontWeight: '600' },
-  subModalCard: { width: '90%', maxHeight: '85%', backgroundColor: '#f0f0f3', borderRadius: 20, padding: 20 },
+  subModalCard: { width: '90%', maxHeight: '85%', borderRadius: 20, padding: 20 },
   smartInputContainer: {
-    backgroundColor: '#f8f8f8',
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,
     height: 44,
     fontSize: 14,
     borderWidth: 1,
-    borderColor: '#eee',
     marginBottom: 10,
   },
   smartInputOuter: {
-    backgroundColor: '#f8f8f8',
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#eee',
     height: 44,
     paddingHorizontal: 12,
     justifyContent: 'center',
@@ -435,7 +429,6 @@ const styles = StyleSheet.create({
   },
   smartInputText: {
     fontSize: 14,
-    color: '#333',
   },
   warningContainer: {
     flexDirection: 'row',

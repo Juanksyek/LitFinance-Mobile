@@ -12,6 +12,7 @@ import Toast from "react-native-toast-message";
 import SmartInput from './SmartInput';
 import SmartNumber from './SmartNumber';
 import { CurrencyField, Moneda } from '../components/CurrencyPicker';
+import { useThemeColors } from '../theme/useThemeColors';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -44,6 +45,7 @@ const RecurrentModal: React.FC<Props> = ({
   recurrente,
   recurrenteExistente
 }) => {
+  const colors = useThemeColors();
   // Form state
   const [nombre, setNombre] = useState('');
   const [plataforma, setPlataforma] = useState<any>(null);
@@ -371,16 +373,19 @@ const RecurrentModal: React.FC<Props> = ({
           <TouchableOpacity
             key={freq.tipo}
             onPress={() => handleFrecuenciaChange(freq.tipo as any)}
-            style={[styles.chip, frecuenciaTipo === freq.tipo && styles.chipSelected]}
+            style={[styles.chip,
+              { backgroundColor: colors.cardSecondary, borderColor: colors.border },
+              frecuenciaTipo === freq.tipo && { backgroundColor: colors.button, borderColor: colors.button }
+            ]}
             activeOpacity={0.9}
           >
             <Ionicons
               name={freq.icon as any}
               size={16}
-              color={frecuenciaTipo === freq.tipo ? '#ffffff' : '#64748b'}
+              color={frecuenciaTipo === freq.tipo ? colors.buttonText : colors.textSecondary}
               style={styles.chipIcon}
             />
-            <Text style={[styles.chipText, frecuenciaTipo === freq.tipo && styles.chipTextSelected]}>
+            <Text style={[styles.chipText, { color: colors.text }, frecuenciaTipo === freq.tipo && { color: colors.buttonText, fontWeight: '700' }]}>
               {freq.label}
             </Text>
           </TouchableOpacity>
@@ -451,6 +456,7 @@ const RecurrentModal: React.FC<Props> = ({
           <Animated.View
             style={[
               styles.modal,
+              { backgroundColor: colors.card },
               {
                 transform: [
                   { translateY: Animated.add(slideAnim, panY) },
@@ -461,7 +467,7 @@ const RecurrentModal: React.FC<Props> = ({
           >
             {/* Handle con PanResponder */}
             <View
-              style={styles.handle}
+              style={[styles.handle, { backgroundColor: colors.border }]}
               {...panResponder.panHandlers}
             />
 
@@ -469,12 +475,12 @@ const RecurrentModal: React.FC<Props> = ({
               {/* Icono de recurrente al lado del título */}
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                 <Ionicons name="repeat" size={20} color="#EF7725" style={{ marginRight: 8 }} />
-                <Text style={styles.title}>
+                <Text style={[styles.title, { color: colors.text }]}>
                   {isEditing ? 'Editar Recurrente' : 'Nuevo Recurrente'}
                 </Text>
               </View>
               <TouchableOpacity onPress={handleClose} style={styles.closeButton} activeOpacity={0.8}>
-                <Ionicons name="close" size={22} color="#999" />
+                <Ionicons name="close" size={22} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
 
@@ -486,16 +492,16 @@ const RecurrentModal: React.FC<Props> = ({
             >
               {/* Nombre */}
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Nombre del Recurrente</Text>
+                <Text style={[styles.label, { color: colors.text }]}>Nombre del Recurrente</Text>
                 <TextInput
-                  style={[styles.input, errors.nombre && styles.inputError]}
+                  style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.border, color: colors.inputText }, errors.nombre && styles.inputError]}
                   value={nombre}
                   onChangeText={(text) => {
                     setNombre(text);
                     if (errors.nombre) setErrors(prev => ({ ...prev, nombre: undefined }));
                   }}
                   placeholder="Ej. Spotify Premium, Netflix, Gym..."
-                  placeholderTextColor="#aaa"
+                  placeholderTextColor={colors.placeholder}
                   maxLength={50}
                 />
                 {renderError(errors.nombre)}
@@ -503,34 +509,34 @@ const RecurrentModal: React.FC<Props> = ({
 
               {/* Plataforma */}
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Plataforma</Text>
+                <Text style={[styles.label, { color: colors.text }]}>Plataforma</Text>
                 <TouchableOpacity
-                  style={[styles.selectorButton, errors.plataforma && styles.inputError]}
+                  style={[styles.selectorButton, { backgroundColor: colors.inputBackground, borderColor: colors.border }, errors.plataforma && styles.inputError]}
                   onPress={() => setShowPlatformSearch(!showPlatformSearch)}
                   activeOpacity={0.9}
                 >
                   {plataforma ? (
                     <View style={styles.selectedItemContainer}>
                       <View style={[styles.colorIndicator, { backgroundColor: plataforma.color }]} />
-                      <Text style={styles.selectedItemText}>{plataforma.nombre}</Text>
+                      <Text style={[styles.selectedItemText, { color: colors.text }]}>{plataforma.nombre}</Text>
                     </View>
                   ) : (
-                    <Text style={styles.placeholderText}>Selecciona una plataforma</Text>
+                    <Text style={[styles.placeholderText, { color: colors.placeholder }]}>Selecciona una plataforma</Text>
                   )}
-                  <Ionicons name={showPlatformSearch ? 'chevron-up' : 'chevron-down'} size={20} color="#64748b" />
+                  <Ionicons name={showPlatformSearch ? 'chevron-up' : 'chevron-down'} size={20} color={colors.textSecondary} />
                 </TouchableOpacity>
                 {renderError(errors.plataforma)}
 
                 {showPlatformSearch && (
-                  <View style={styles.searchContainer}>
-                    <View style={styles.searchInputContainer}>
-                      <Ionicons name="search" size={20} color="#64748b" style={styles.searchIcon} />
+                  <View style={[styles.searchContainer, { backgroundColor: colors.cardSecondary, borderColor: colors.border }]}>
+                    <View style={[styles.searchInputContainer, { backgroundColor: colors.inputBackground, borderColor: colors.border }]}>
+                      <Ionicons name="search" size={20} color={colors.textSecondary} style={styles.searchIcon} />
                       <TextInput
-                        style={styles.searchInput}
+                        style={[styles.searchInput, { color: colors.inputText }]}
                         value={search}
                         onChangeText={setSearch}
                         placeholder="Buscar plataforma..."
-                        placeholderTextColor="#999"
+                        placeholderTextColor={colors.placeholder}
                       />
                     </View>
 
@@ -557,7 +563,7 @@ const RecurrentModal: React.FC<Props> = ({
 
               {/* Moneda */}
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Moneda</Text>
+                <Text style={[styles.label, { color: colors.text }]}>Moneda</Text>
                 <CurrencyField
                   label=""
                   value={selectedMoneda}
@@ -573,7 +579,7 @@ const RecurrentModal: React.FC<Props> = ({
 
               {/* Monto */}
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Monto</Text>
+                <Text style={[styles.label, { color: colors.text }]}>Monto</Text>
                 <View>
                   <SmartInput
                     key={`monto-${recurrenteExistente?.recurrenteId || 'new'}-${montoNumerico ?? 'nil'}`}
@@ -584,25 +590,25 @@ const RecurrentModal: React.FC<Props> = ({
                     {...getLimitesRecurrente()}
                     onValueChange={handleMontoChange}
                     onValidationChange={handleMontoValidation}
-                    style={StyleSheet.flatten([...(errors.monto ? [styles.inputError] : [])])}
+                    style={StyleSheet.flatten([...(errors.monto ? [styles.inputError] : []), { backgroundColor: colors.inputBackground, borderColor: colors.border, color: colors.inputText }])}
                     autoFix
                   />
                 </View>
                 {renderError(errors.monto)}
 
                 {erroresMonto.length > 0 && (
-                  <View style={styles.warningContainer}>
-                    <Ionicons name="warning-outline" size={16} color="#F59E0B" />
+                  <View style={[styles.warningContainer, { backgroundColor: colors.backgroundSecondary, borderLeftColor: colors.warning }]}> 
+                    <Ionicons name="warning-outline" size={16} color={colors.warning} />
                     <View style={styles.warningContent}>
-                      <Text style={styles.warningTitle}>Monto muy grande</Text>
-                      <Text style={styles.warningText}>
+                      <Text style={[styles.warningTitle, { color: colors.error }]}>Monto muy grande</Text>
+                      <Text style={[styles.warningText, { color: colors.error }]}> 
                         Monto:{' '}
                         <SmartNumber
                           value={montoNumerico || 0}
                           options={{ context: 'modal', symbol: selectedMoneda?.simbolo || '$' }}
                         />
                       </Text>
-                      <Text style={styles.warningSubtext}>{erroresMonto[0]}</Text>
+                      <Text style={[styles.warningSubtext, { color: colors.warning }]}>{erroresMonto[0]}</Text>
                     </View>
                   </View>
                 )}
@@ -610,7 +616,7 @@ const RecurrentModal: React.FC<Props> = ({
 
               {/* Frecuencia */}
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Frecuencia</Text>
+                <Text style={[styles.label, { color: colors.text }]}>Frecuencia</Text>
                 {renderFrequencySelector()}
                 {renderError(errors.frecuencia)}
 
@@ -620,10 +626,13 @@ const RecurrentModal: React.FC<Props> = ({
                       <TouchableOpacity
                         key={index}
                         onPress={() => setFrecuenciaValor(String(index))}
-                        style={[styles.dayChip, frecuenciaValor === String(index) && styles.chipSelected]}
+                        style={[styles.dayChip,
+                          { backgroundColor: colors.cardSecondary, borderColor: colors.border },
+                          frecuenciaValor === String(index) && { backgroundColor: colors.button, borderColor: colors.button }
+                        ]}
                         activeOpacity={0.9}
                       >
-                        <Text style={[styles.chipText, frecuenciaValor === String(index) && styles.chipTextSelected]}>
+                        <Text style={[styles.chipText, { color: colors.text }, frecuenciaValor === String(index) && { color: colors.buttonText, fontWeight: '700' }]}>
                           {day}
                         </Text>
                       </TouchableOpacity>
@@ -637,10 +646,13 @@ const RecurrentModal: React.FC<Props> = ({
                       <TouchableOpacity
                         key={day}
                         onPress={() => setFrecuenciaValor(String(day))}
-                        style={[styles.dayChip, frecuenciaValor === String(day) && styles.chipSelected]}
+                        style={[styles.dayChip,
+                          { backgroundColor: colors.cardSecondary, borderColor: colors.border },
+                          frecuenciaValor === String(day) && { backgroundColor: colors.button, borderColor: colors.button }
+                        ]}
                         activeOpacity={0.9}
                       >
-                        <Text style={[styles.chipText, frecuenciaValor === String(day) && styles.chipTextSelected]}>
+                        <Text style={[styles.chipText, { color: colors.text }, frecuenciaValor === String(day) && { color: colors.buttonText, fontWeight: '700' }]}>
                           {day}
                         </Text>
                       </TouchableOpacity>
@@ -650,16 +662,19 @@ const RecurrentModal: React.FC<Props> = ({
 
                 {frecuenciaTipo === 'fecha_fija' && (
                   <>
-                    <Text style={styles.subLabel}>Selecciona el mes</Text>
+                    <Text style={[styles.subLabel, { color: colors.textSecondary }]}>Selecciona el mes</Text>
                     <View style={styles.chipContainer}>
                       {['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'].map((mes, index) => (
                         <TouchableOpacity
                           key={mes}
                           onPress={() => setFrecuenciaValor(`${index + 1}-1`)}
-                          style={[styles.chip, frecuenciaValor.startsWith(`${index + 1}-`) && styles.chipSelected]}
+                          style={[styles.chip,
+                            { backgroundColor: colors.cardSecondary, borderColor: colors.border },
+                            frecuenciaValor.startsWith(`${index + 1}-`) && { backgroundColor: colors.button, borderColor: colors.button }
+                          ]}
                           activeOpacity={0.9}
                         >
-                          <Text style={[styles.chipText, frecuenciaValor.startsWith(`${index + 1}-`) && styles.chipTextSelected]}>
+                          <Text style={[styles.chipText, { color: colors.text }, frecuenciaValor.startsWith(`${index + 1}-`) && { color: colors.buttonText, fontWeight: '700' }]}>
                             {mes}
                           </Text>
                         </TouchableOpacity>
@@ -668,7 +683,7 @@ const RecurrentModal: React.FC<Props> = ({
 
                     {frecuenciaValor.includes('-') && (
                       <>
-                        <Text style={styles.subLabel}>Selecciona el día</Text>
+                        <Text style={[styles.subLabel, { color: colors.textSecondary }]}>Selecciona el día</Text>
                         <View style={styles.chipContainer}>
                           {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => {
                             const [mes] = frecuenciaValor.split('-');
@@ -677,10 +692,13 @@ const RecurrentModal: React.FC<Props> = ({
                               <TouchableOpacity
                                 key={day}
                                 onPress={() => setFrecuenciaValor(nuevaFecha)}
-                                style={[styles.dayChip, frecuenciaValor === nuevaFecha && styles.chipSelected]}
+                                style={[styles.dayChip,
+                                  { backgroundColor: colors.cardSecondary, borderColor: colors.border },
+                                  frecuenciaValor === nuevaFecha && { backgroundColor: colors.button, borderColor: colors.button }
+                                ]}
                                 activeOpacity={0.9}
                               >
-                                <Text style={[styles.chipText, frecuenciaValor === nuevaFecha && styles.chipTextSelected]}>
+                                <Text style={[styles.chipText, { color: colors.text }, frecuenciaValor === nuevaFecha && { color: colors.buttonText, fontWeight: '700' }]}>
                                   {day}
                                 </Text>
                               </TouchableOpacity>
@@ -695,23 +713,26 @@ const RecurrentModal: React.FC<Props> = ({
 
               {/* Recordatorios */}
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Recordatorios</Text>
-                <Text style={styles.description}>Te notificaremos antes del próximo pago</Text>
+                <Text style={[styles.label, { color: colors.text }]}>Recordatorios</Text>
+                <Text style={[styles.description, { color: colors.textSecondary }]}>Te notificaremos antes del próximo pago</Text>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 }}>
                   {[1, 3, 7].map((dias) => (
                     <TouchableOpacity
                       key={dias}
                       onPress={() => toggleRecordatorio(dias)}
-                      style={[styles.reminderButton, recordatoriosSeleccionados.includes(dias) && styles.reminderButtonSelected]}
+                      style={[styles.reminderButton,
+                        { backgroundColor: colors.cardSecondary },
+                        recordatoriosSeleccionados.includes(dias) && { backgroundColor: colors.button }
+                      ]}
                       activeOpacity={0.9}
                     >
                       <Ionicons
                         name="alarm-outline"
                         size={16}
-                        color={recordatoriosSeleccionados.includes(dias) ? '#0f172a' : '#64748b'}
+                        color={recordatoriosSeleccionados.includes(dias) ? colors.buttonText : colors.textSecondary}
                         style={{ marginRight: 5 }}
                       />
-                      <Text style={styles.reminderText}>
+                      <Text style={[styles.reminderText, { color: recordatoriosSeleccionados.includes(dias) ? colors.buttonText : colors.text }]}>
                         {dias === 1 ? '1 día antes' : dias === 3 ? '3 días antes' : '1 semana antes'}
                       </Text>
                     </TouchableOpacity>
@@ -721,13 +742,13 @@ const RecurrentModal: React.FC<Props> = ({
 
               {/* Config de cuenta */}
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Configuración de Cuenta</Text>
+                <Text style={[styles.label, { color: colors.text }]}>Configuración de Cuenta</Text>
 
                 {!subcuentaId && (
                   <View style={styles.switchRow}>
                     <View style={styles.switchLabelContainer}>
-                      <Text style={styles.switchLabel}>Afectar cuenta principal</Text>
-                      <Text style={styles.switchDescription}>El monto se descontará de la cuenta principal</Text>
+                      <Text style={[styles.switchLabel, { color: colors.text }]}>Afectar cuenta principal</Text>
+                      <Text style={[styles.switchDescription, { color: colors.textSecondary }]}>El monto se descontará de la cuenta principal</Text>
                     </View>
                     <Switch
                       value={afectaCuentaPrincipal}
@@ -741,8 +762,8 @@ const RecurrentModal: React.FC<Props> = ({
                 {subcuentaId && (
                   <View style={styles.switchRow}>
                     <View style={styles.switchLabelContainer}>
-                      <Text style={styles.switchLabel}>Afectar subcuenta</Text>
-                      <Text style={styles.switchDescription}>El monto se descontará de la subcuenta seleccionada</Text>
+                      <Text style={[styles.switchLabel, { color: colors.text }]}>Afectar subcuenta</Text>
+                      <Text style={[styles.switchDescription, { color: colors.textSecondary }]}>El monto se descontará de la subcuenta seleccionada</Text>
                     </View>
                     <Switch
                       value={afectaSubcuenta}
@@ -758,17 +779,28 @@ const RecurrentModal: React.FC<Props> = ({
             {/* Acciones (solo botón guardar, sin cancelar) */}
             <View style={styles.actionContainer}>
               <TouchableOpacity
-                style={[styles.saveButton, saving && styles.saveButtonDisabled]}
+                style={[ 
+                  styles.saveButton,
+                  { 
+                    backgroundColor: saving ? colors.button + '99' : colors.button, // faded when saving
+                    borderColor: colors.button,
+                    shadowColor: colors.button,
+                    shadowOffset: { width: 0, height: 2 },
+                    shadowOpacity: 0.18,
+                    shadowRadius: 4,
+                    elevation: 3,
+                  },
+                ]}
                 onPress={handleGuardar}
                 disabled={saving}
                 activeOpacity={0.95}
               >
                 {saving ? (
-                  <ActivityIndicator size="small" color="#ffffff" />
+                  <ActivityIndicator size="small" color={colors.buttonText} />
                 ) : (
                   <>
-                    <Ionicons name="checkmark" size={20} color="#ffffff" style={styles.saveButtonIcon} />
-                    <Text style={styles.saveButtonText}>
+                    <Ionicons name="checkmark" size={20} color={colors.buttonText} style={styles.saveButtonIcon} />
+                    <Text style={[styles.saveButtonText, { color: colors.buttonText, fontWeight: '700', letterSpacing: 0.5 }] }>
                       {isEditing ? 'Actualizar' : 'Guardar'}
                     </Text>
                   </>
@@ -793,7 +825,6 @@ const styles = StyleSheet.create({
   /** Sheet principal: bordes & paddings como MovementModal */
   keyboardAvoid: { flex: 1, justifyContent: 'flex-end' },
   modal: {
-    backgroundColor: '#ffffff',
     paddingHorizontal: 16,
     paddingTop: 10,
     paddingBottom: 24,
@@ -807,7 +838,6 @@ const styles = StyleSheet.create({
   handle: {
     width: 40,
     height: 5,
-    backgroundColor: '#ccc',
     borderRadius: 5,
     alignSelf: 'center',
     marginBottom: 8,
@@ -818,10 +848,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 12,
   },
-  title: { fontSize: 18, fontWeight: '600', color: '#333' },
+  title: { fontSize: 18, fontWeight: '600' },
   closeButton: {
     width: 36, height: 36, borderRadius: 18,
-    alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8f8f8',
+    alignItems: 'center', justifyContent: 'center',
   },
 
   /** Scroll & grupos */
@@ -834,83 +864,76 @@ const styles = StyleSheet.create({
   inputGroup: { marginBottom: 22 },
 
   /** Tipografías e inputs como MovementModal */
-  label: { fontSize: 15, fontWeight: '600', color: '#334155', marginBottom: 8 },
-  subLabel: { fontSize: 13, fontWeight: '500', color: '#64748b', marginTop: 12, marginBottom: 8 },
-  description: { fontSize: 13, color: '#64748b', marginBottom: 10, lineHeight: 18 },
+  label: { fontSize: 15, fontWeight: '600', marginBottom: 8 },
+  subLabel: { fontSize: 13, fontWeight: '500', marginTop: 12, marginBottom: 8 },
+  description: { fontSize: 13, marginBottom: 10, lineHeight: 18 },
   input: {
-    backgroundColor: '#f8f8f8',
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,
     height: 44,
     fontSize: 14,
     borderWidth: 1,
-    borderColor: '#eee',
     marginBottom: 10,
-    color: '#0f172a',
   },
-  inputError: { borderColor: '#ef4444', backgroundColor: '#fef2f2' },
+  inputError: { borderWidth: 2 },
 
   /** Selector de plataforma */
   selectorButton: {
-    backgroundColor: '#f8f8f8',
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,
     height: 44,
     borderWidth: 1,
-    borderColor: '#eee',
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
   selectedItemContainer: { flexDirection: 'row', alignItems: 'center', flex: 1 },
-  selectedItemText: { fontSize: 14, color: '#0f172a', fontWeight: '500', marginLeft: 10 },
-  placeholderText: { fontSize: 14, color: '#94a3b8' },
+  selectedItemText: { fontSize: 14, fontWeight: '500', marginLeft: 10 },
+  placeholderText: { fontSize: 14 },
   colorIndicator: { width: 20, height: 20, borderRadius: 10, marginRight: 6 },
 
   /** Buscador de plataformas */
   searchContainer: {
-    marginTop: 12, borderWidth: 1, borderColor: '#eee', borderRadius: 14,
-    backgroundColor: '#ffffff', maxHeight: 280,
+    marginTop: 12, borderWidth: 1, borderRadius: 14, maxHeight: 280,
   },
   searchInputContainer: {
     flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 12,
-    borderBottomWidth: 1, borderBottomColor: '#f1f5f9',
+    borderBottomWidth: 1,
   },
-  searchIcon: { marginRight: 8, color: '#64748b' },
-  searchInput: { flex: 1, fontSize: 14, color: '#0f172a' },
+  searchIcon: { marginRight: 8 },
+  searchInput: { flex: 1, fontSize: 14 },
   listContainer: { maxHeight: 200 },
   listItem: { paddingVertical: 12, paddingHorizontal: 16 },
-  listItemSelected: { backgroundColor: '#f0f0f3' },
+  listItemSelected: {},
   listItemContent: { flexDirection: 'row', alignItems: 'center' },
   listItemTextContainer: { flex: 1, marginLeft: 10 },
-  listItemTitle: { fontSize: 14, fontWeight: '500', color: '#0f172a', marginBottom: 1 },
-  listItemSubtitle: { fontSize: 12, color: '#64748b' },
+  listItemTitle: { fontSize: 14, fontWeight: '500', marginBottom: 1 },
+  listItemSubtitle: { fontSize: 12 },
   emptyState: { padding: 36, alignItems: 'center' },
-  emptyStateText: { fontSize: 14, fontWeight: '500', color: '#64748b', marginTop: 10, marginBottom: 2 },
-  emptyStateSubtext: { fontSize: 12, color: '#94a3b8', textAlign: 'center' },
+  emptyStateText: { fontSize: 14, fontWeight: '500', marginTop: 10, marginBottom: 2 },
+  emptyStateSubtext: { fontSize: 12, textAlign: 'center' },
 
   /** Chips y estados */
   chipContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 },
   chip: {
     flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 14,
-    borderRadius: 20, backgroundColor: '#f0f0f0',
+    borderRadius: 20,
   },
-  chipSelected: { backgroundColor: '#EF7725' },
+  chipSelected: {},
   chipIcon: { marginRight: 6 },
-  chipText: { fontSize: 13, color: '#000' },
-  chipTextSelected: { color: '#fff', fontWeight: '700' },
+  chipText: { fontSize: 13 },
+  chipTextSelected: { fontWeight: '700' },
   dayChip: {
-    paddingVertical: 8, paddingHorizontal: 12, borderRadius: 20,
-    backgroundColor: '#f0f0f0', minWidth: 40, alignItems: 'center',
+    paddingVertical: 8, paddingHorizontal: 12, borderRadius: 20, minWidth: 40, alignItems: 'center',
   },
 
   /** Switches */
   switchRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginVertical: 10 },
   switchLabelContainer: { flex: 1, marginRight: 12 },
-  switchLabel: { fontSize: 14, fontWeight: '500', color: '#334155', marginBottom: 2 },
-  switchDescription: { fontSize: 12, color: '#64748b' },
+  switchLabel: { fontSize: 14, fontWeight: '500', marginBottom: 2 },
+  switchDescription: { fontSize: 12 },
 
   /** Botonera (idéntica) */
   actionContainer: {
@@ -919,15 +942,14 @@ const styles = StyleSheet.create({
     paddingTop: 10,
     paddingBottom: Platform.OS === 'ios' ? 34 : 16,
     gap: 12,
-    backgroundColor: '#fff',
   },
   saveButton: {
     flex: 2, flexDirection: 'row', paddingVertical: 12, borderRadius: 12,
-    backgroundColor: '#EF7725', alignItems: 'center', justifyContent: 'center'
+    alignItems: 'center', justifyContent: 'center'
   },
-  saveButtonDisabled: { backgroundColor: '#94a3b8' },
+  saveButtonDisabled: {},
   saveButtonIcon: { marginRight: 6 },
-  saveButtonText: { fontSize: 14, fontWeight: '700', color: '#ffffff' },
+  saveButtonText: { fontSize: 14, fontWeight: '700' },
 
   /** Warnings y errores iguales */
   warningContainer: {
@@ -950,13 +972,13 @@ const styles = StyleSheet.create({
 
   /** Skeleton como lista */
   skeletonContainer: { paddingVertical: 10, paddingHorizontal: 16 },
-  skeleton: { backgroundColor: '#e2e8f0', borderRadius: 6, height: 18 },
+  skeleton: { borderRadius: 6, height: 18 },
   reminderButton: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: '#f0f0f0',
+    flexDirection: 'row', alignItems: 'center',
     paddingVertical: 6, paddingHorizontal: 12, borderRadius: 18, marginHorizontal: 4,
   },
-  reminderButtonSelected: { backgroundColor: '#EF7725' },
-  reminderText: { fontSize: 10, color: '#333' },
+  reminderButtonSelected: {},
+  reminderText: { fontSize: 10 },
 });
 
 export default RecurrentModal;

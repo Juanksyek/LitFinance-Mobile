@@ -5,6 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Toast from "react-native-toast-message";
 import { API_BASE_URL } from "../constants/api";
+import { useThemeColors } from '../theme/useThemeColors';
 
 if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -58,6 +59,7 @@ export const CurrencyPicker: React.FC<CurrencyPickerProps> = ({
   showSearch = true,
   maxListHeight = 360,
 }) => {
+  const colors = useThemeColors();
   const [data, setData] = useState<MonedasResponse>({
     favoritas: [],
     otras: [],
@@ -199,14 +201,14 @@ export const CurrencyPicker: React.FC<CurrencyPickerProps> = ({
     const s = getStarAnim(m.id);
 
     return (
-      <View style={styles.row}>
+      <View style={[styles.row, { borderBottomColor: colors.border }]}>
         <Pressable style={styles.rowLeft} onPress={() => onSelect(m)}>
-          <View style={styles.bubble}>
-            <Text style={styles.bubbleTxt}>{m.simbolo || "¤"}</Text>
+          <View style={[styles.bubble, { backgroundColor: colors.inputBackground, borderColor: colors.border }]}>
+            <Text style={[styles.bubbleTxt, { color: colors.text }]}>{m.simbolo || "¤"}</Text>
           </View>
           <View style={{ marginLeft: 10 }}>
-            <Text style={styles.mName}>
-              {m.nombre} <Text style={styles.mCode}>({m.codigo})</Text>
+            <Text style={[styles.mName, { color: colors.text }]}>
+              {m.nombre} <Text style={[styles.mCode, { color: colors.textSecondary }]}>({m.codigo})</Text>
             </Text>
             <View style={styles.badgesLine}>
               {m.esPrincipal ? (
@@ -222,7 +224,7 @@ export const CurrencyPicker: React.FC<CurrencyPickerProps> = ({
             <Ionicons
               name={m.esFavorita ? "star" : "star-outline"}
               size={20}
-              color={m.esFavorita ? "#F4B400" : "#999"}
+              color={m.esFavorita ? "#F4B400" : colors.textSecondary}
             />
           </Pressable>
         </Animated.View>
@@ -246,28 +248,28 @@ export const CurrencyPicker: React.FC<CurrencyPickerProps> = ({
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         keyboardVerticalOffset={Platform.select({ ios: 0, android: 0 }) ?? 0}
       >
-        <View style={styles.sheet}>
+        <View style={[styles.sheet, { backgroundColor: colors.card }]}>
           <View style={styles.headerRow}>
-            <Text style={styles.title}>Selecciona una moneda</Text>
+            <Text style={[styles.title, { color: colors.text }]}>Selecciona una moneda</Text>
             <Pressable onPress={refresh} hitSlop={10}>
-              <Ionicons name="refresh" size={18} color="#666" />
+              <Ionicons name="refresh" size={18} color={colors.textSecondary} />
             </Pressable>
           </View>
 
           {showSearch && (
-            <View style={styles.searchWrap}>
-              <Ionicons name="search" size={16} color="#888" />
+            <View style={[styles.searchWrap, { backgroundColor: colors.inputBackground, borderColor: colors.border }]}>
+              <Ionicons name="search" size={16} color={colors.textSecondary} />
               <TextInput
                 value={q}
                 onChangeText={setQ}
                 placeholder={searchPlaceholder}
-                style={styles.searchInput}
-                placeholderTextColor="#9aa0a6"
+                style={[styles.searchInput, { color: colors.text }]}
+                placeholderTextColor={colors.placeholder}
                 returnKeyType="search"
               />
               {!!q && (
                 <Pressable onPress={() => setQ("")} hitSlop={8}>
-                  <Ionicons name="close-circle" size={18} color="#bbb" />
+                  <Ionicons name="close-circle" size={18} color={colors.textSecondary} />
                 </Pressable>
               )}
             </View>
@@ -317,7 +319,7 @@ export const CurrencyPicker: React.FC<CurrencyPickerProps> = ({
           )}
 
           <Pressable style={styles.closeBtn} onPress={onClose}>
-            <Text style={styles.closeTxt}>Cerrar</Text>
+            <Text style={[styles.closeTxt, { color: colors.textSecondary }]}>Cerrar</Text>
           </Pressable>
         </View>
       </KeyboardAvoidingView>
@@ -347,19 +349,20 @@ export const CurrencyField: React.FC<CurrencyFieldProps> = ({
   showSearch,
   maxListHeight,
 }) => {
+  const colors = useThemeColors();
   const [open, setOpen] = useState(false);
 
   return (
     <>
       <Pressable
-        style={[styles.fieldBox, disabled && { opacity: 0.5 }]}
+        style={[styles.fieldBox, { backgroundColor: colors.inputBackground, borderColor: colors.border }, disabled && { opacity: 0.5 }]}
         disabled={disabled}
         onPress={() => setOpen(true)}
       >
-        <Text style={styles.fieldValue}>
+        <Text style={[styles.fieldValue, { color: colors.text }]}>
           {value ? `${value.nombre} (${value.codigo}) ${value.simbolo}` : placeholder}
         </Text>
-        <Ionicons name="chevron-down" size={16} color="#666" />
+        <Ionicons name="chevron-down" size={16} color={colors.textSecondary} />
       </Pressable>
 
       <CurrencyPicker
@@ -381,7 +384,6 @@ export const CurrencyField: React.FC<CurrencyFieldProps> = ({
 const styles = StyleSheet.create({
   // Sheet
   sheet: {
-    backgroundColor: "#fff",
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
     padding: 26,
@@ -394,45 +396,39 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 6,
   },
-  title: { fontSize: 16, fontWeight: "700", color: "#333" },
+  title: { fontSize: 16, fontWeight: "700" },
 
   // Buscador
   searchWrap: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    backgroundColor: "#f7f7f7",
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#eee",
     paddingHorizontal: 10,
     paddingVertical: 8,
     marginVertical: 10,
   },
-  searchInput: { flex: 1, color: "#222", fontSize: 14 },
+  searchInput: { flex: 1, fontSize: 14 },
 
   // Listas
   loadingWrap: { alignItems: "center", paddingVertical: 20 },
-  loadingText: { marginTop: 6, fontSize: 12, color: "#777" },
-  groupTitle: { fontSize: 13, fontWeight: "700", color: "#555", marginBottom: 8 },
+  loadingText: { marginTop: 6, fontSize: 12 },
+  groupTitle: { fontSize: 13, fontWeight: "700", marginBottom: 8 },
   groupCard: {
-    backgroundColor: "#fafafa",
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "rgba(0,0,0,0.05)",
     overflow: "hidden",
   },
   emptyText: {
     padding: 14,
     textAlign: "center",
-    color: "#888",
     fontSize: 12,
   },
   row: {
     paddingHorizontal: 12,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(0,0,0,0.06)",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -442,15 +438,13 @@ const styles = StyleSheet.create({
     width: 30,
     height: 30,
     borderRadius: 8,
-    backgroundColor: "#f0f0f3",
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: "rgba(0,0,0,0.05)",
   },
-  bubbleTxt: { fontSize: 14, fontWeight: "700", color: "#444" },
-  mName: { fontSize: 14, color: "#222", fontWeight: "600" },
-  mCode: { fontSize: 12, color: "#777", fontWeight: "500" },
+  bubbleTxt: { fontSize: 14, fontWeight: "700" },
+  mName: { fontSize: 14, fontWeight: "600" },
+  mCode: { fontSize: 12, fontWeight: "500" },
   badgesLine: { flexDirection: "row", gap: 6, marginTop: 2 },
   badgePrincipal: {
     fontSize: 10,
@@ -473,20 +467,18 @@ const styles = StyleSheet.create({
   starBtn: { padding: 6, marginLeft: 8 },
 
   // Field
-  fieldLabel: { fontSize: 14, color: "#444", marginBottom: 6 },
+  fieldLabel: { fontSize: 14, marginBottom: 6 },
   fieldBox: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#f8f8f8",
     borderRadius: 10,
     paddingHorizontal: 12,
     height: 44,
     borderWidth: 1,
-    borderColor: "#eee",
     marginBottom: 10,
     justifyContent: "space-between",
   },
-  fieldValue: { fontSize: 14, color: "#333", marginRight: 8 },
+  fieldValue: { fontSize: 14, marginRight: 8 },
 
   closeBtn: {
     alignItems: "center",
@@ -495,5 +487,5 @@ const styles = StyleSheet.create({
     marginTop: 10,
     marginBottom: 20,
   },
-  closeTxt: { color: "#888", fontSize: 13 },
+  closeTxt: { fontSize: 13 },
 });

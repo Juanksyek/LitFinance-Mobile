@@ -7,6 +7,7 @@ import ConceptosChart from '../analytics/ConceptosChart';
 import SubcuentasChart from '../analytics/SubcuentasChart';
 import RecurrentesChart from '../analytics//RecurrentesChart';
 import TemporalChart from '../analytics/TemporalChart';
+import { useThemeColors } from '../../theme/useThemeColors';
 
 interface ChartSelectorProps {
   filters: AnalyticsFilters;
@@ -16,6 +17,7 @@ interface ChartSelectorProps {
 type ChartType = 'conceptos' | 'subcuentas' | 'recurrentes' | 'temporal';
 
 const ChartSelector: React.FC<ChartSelectorProps> = ({ filters, refreshKey = 0 }) => {
+  const colors = useThemeColors();
   const [activeChart, setActiveChart] = useState<ChartType>('conceptos');
 
   const chartOptions = [
@@ -72,6 +74,7 @@ const ChartSelector: React.FC<ChartSelectorProps> = ({ filters, refreshKey = 0 }
             key={option.id}
             style={[
               styles.tab,
+              { backgroundColor: activeChart === option.id ? '#6366f1' : colors.card },
               activeChart === option.id && styles.activeTab
             ]}
             onPress={() => setActiveChart(option.id)}
@@ -79,16 +82,18 @@ const ChartSelector: React.FC<ChartSelectorProps> = ({ filters, refreshKey = 0 }
             <Ionicons 
               name={option.icon as any} 
               size={20} 
-              color={activeChart === option.id ? '#ffffff' : '#64748b'} 
+              color={activeChart === option.id ? '#ffffff' : colors.textSecondary} 
             />
             <Text style={[
               styles.tabTitle,
+              { color: activeChart === option.id ? '#ffffff' : colors.text },
               activeChart === option.id && styles.activeTabTitle
             ]}>
               {option.title}
             </Text>
             <Text style={[
               styles.tabDescription,
+              { color: activeChart === option.id ? '#e2e8f0' : colors.textSecondary },
               activeChart === option.id && styles.activeTabDescription
             ]}>
               {option.description}
@@ -97,7 +102,7 @@ const ChartSelector: React.FC<ChartSelectorProps> = ({ filters, refreshKey = 0 }
         ))}
       </ScrollView>
 
-      <View style={styles.chartContainer}>
+      <View style={[styles.chartContainer, { backgroundColor: colors.card }]}>
         {renderChart()}
       </View>
     </View>
@@ -112,7 +117,6 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   tab: {
-    backgroundColor: '#ffffff',
     borderRadius: 12,
     padding: 16,
     marginRight: 12,
@@ -133,7 +137,6 @@ const styles = StyleSheet.create({
   tabTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#1e293b',
     marginTop: 8,
     textAlign: 'center',
   },
@@ -142,7 +145,6 @@ const styles = StyleSheet.create({
   },
   tabDescription: {
     fontSize: 12,
-    color: '#64748b',
     marginTop: 4,
     textAlign: 'center',
   },
@@ -150,7 +152,6 @@ const styles = StyleSheet.create({
     color: '#e2e8f0',
   },
   chartContainer: {
-    backgroundColor: '#ffffff',
     borderRadius: 16,
     padding: 20,
     shadowColor: '#000',

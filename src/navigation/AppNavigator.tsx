@@ -10,6 +10,7 @@ import RecurrenteDetail from '../screens/RecurrentDetail';
 import MainAccountScreen from '../screens/MainAccountScreen';
 import ResetPasswordScreen from '../screens/ResetPasswordScreen';
 import AnalyticsScreen from '../screens/AnalyticsScreen';
+import SettingsScreen from '../screens/SettingsScreen';
 import SupportScreen from '../screens/SupportScreen';
 import CreateTicketScreen from '../screens/CreateTicketScreen';
 import TicketDetailScreen from '../screens/TicketDetailScreen';
@@ -61,6 +62,7 @@ export type RootStackParamList = {
   MainAccount: undefined;
   ResetPassword: { email: string };
   Analytics: undefined;
+  Settings: undefined;
   Support: undefined;
   CreateTicket: undefined;
   TicketDetail: { ticketId: string };
@@ -81,6 +83,7 @@ export default function AppNavigator() {
       <Stack.Screen name="MainAccount" component={MainAccountScreen} />
       <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
       <Stack.Screen name="Analytics" component={AnalyticsScreen} />
+      <Stack.Screen name="Settings" component={SettingsScreen} />
       <Stack.Screen name="Support" component={SupportScreen} />
       <Stack.Screen name="CreateTicket" component={CreateTicketScreen} />
       <Stack.Screen name="TicketDetail" component={TicketDetailScreen} />

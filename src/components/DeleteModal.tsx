@@ -1,6 +1,7 @@
 import React from 'react';
 import { Modal, View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from "@expo/vector-icons";
+import { useThemeColors } from '../theme/useThemeColors';
 
 type Props = {
   visible: boolean;
@@ -23,17 +24,18 @@ export default function DeleteModal({
   confirmColor = '#EF4444',
   confirmBg = '#fef2f2',
 }: Props) {
+  const colors = useThemeColors();
   return (
     <Modal visible={visible} animationType="fade" transparent>
       <View style={styles.overlay}>
-        <View style={styles.modal}>
+        <View style={[styles.modal, { backgroundColor: colors.card, shadowColor: colors.shadow }]}>
           <Ionicons name="warning-outline" size={42} color={confirmColor} style={styles.icon} />
-          <Text style={styles.title}>{title}</Text>
-          <Text style={styles.message}>{message}</Text>
+          <Text style={[styles.title, { color: colors.text }]}>{title}</Text>
+          <Text style={[styles.message, { color: colors.textSecondary }]}>{message}</Text>
 
           <View style={styles.actions}>
-            <TouchableOpacity style={[styles.button, styles.cancel]} onPress={onCancel}>
-              <Text style={[styles.buttonText, { color: '#374151' }]}>Cancelar</Text>
+            <TouchableOpacity style={[styles.button, styles.cancel, { backgroundColor: colors.cardSecondary, borderColor: colors.border }]} onPress={onCancel}>
+              <Text style={[styles.buttonText, { color: colors.text }]}>Cancelar</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[

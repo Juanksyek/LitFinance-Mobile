@@ -4,6 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_BASE_URL } from '../constants/api';
 import Toast from 'react-native-toast-message';
+import { useThemeColors } from '../theme/useThemeColors';
 
 interface PreviewData {
   monedaActual: string;
@@ -59,6 +60,7 @@ const CurrencyChangeModal: React.FC<CurrencyChangeModalProps> = ({
   onClose,
   onSuccess,
 }) => {
+  const colors = useThemeColors();
   const [preview, setPreview] = useState<PreviewData | null>(null);
   const [loading, setLoading] = useState(false);
   const [converting, setConverting] = useState(false);
@@ -244,32 +246,32 @@ const CurrencyChangeModal: React.FC<CurrencyChangeModalProps> = ({
     <ScrollView style={styles.content}>
       <View style={styles.header}>
         <Ionicons name="swap-horizontal" size={32} color="#667EEA" />
-        <Text style={styles.title}>Vista Previa del Cambio</Text>
+        <Text style={[styles.title, { color: colors.text }]}>Vista Previa del Cambio</Text>
       </View>
 
-      <View style={styles.conversionInfo}>
+      <View style={[styles.conversionInfo, { backgroundColor: colors.cardSecondary }]}>
         <View style={styles.currencyRow}>
-          <Text style={styles.fromCurrency}>{preview?.monedaActual}</Text>
-          <Ionicons name="arrow-forward" size={20} color="#64748B" />
-          <Text style={styles.toCurrency}>{preview?.nuevaMoneda}</Text>
+          <Text style={[styles.fromCurrency, { color: colors.textSecondary }]}>{preview?.monedaActual}</Text>
+          <Ionicons name="arrow-forward" size={20} color={colors.textSecondary} />
+          <Text style={[styles.toCurrency, { color: '#667EEA' }]}>{preview?.nuevaMoneda}</Text>
         </View>
-        <Text style={styles.exchangeRate}>
+        <Text style={[styles.exchangeRate, { color: colors.textSecondary }]}>
           Tasa de cambio: 1 {preview?.monedaActual} = {preview?.tasaCambio} {preview?.nuevaMoneda}
         </Text>
       </View>
 
       <View style={styles.affectedItemsContainer}>
-        <Text style={styles.sectionTitle}>Elementos que serán convertidos:</Text>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>Elementos que serán convertidos:</Text>
         
         <View style={styles.itemRow}>
           <Ionicons name="wallet" size={20} color="#4CAF50" />
-          <Text style={styles.itemText}>Cuenta principal</Text>
+          <Text style={[styles.itemText, { color: colors.textSecondary }]}>Cuenta principal</Text>
           <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
         </View>
         
         <View style={styles.itemRow}>
           <Ionicons name="list" size={20} color="#4CAF50" />
-          <Text style={styles.itemText}>
+          <Text style={[styles.itemText, { color: colors.textSecondary }]}>
             {preview?.elementosAfectados.transacciones} transacciones
           </Text>
           <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
@@ -277,7 +279,7 @@ const CurrencyChangeModal: React.FC<CurrencyChangeModalProps> = ({
         
         <View style={styles.itemRow}>
           <Ionicons name="time" size={20} color="#4CAF50" />
-          <Text style={styles.itemText}>
+          <Text style={[styles.itemText, { color: colors.textSecondary }]}>
             {preview?.elementosAfectados.historialCuenta} registros de historial
           </Text>
           <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
@@ -285,14 +287,14 @@ const CurrencyChangeModal: React.FC<CurrencyChangeModalProps> = ({
         
         <View style={styles.itemRow}>
           <Ionicons name="repeat" size={20} color="#4CAF50" />
-          <Text style={styles.itemText}>
+          <Text style={[styles.itemText, { color: colors.textSecondary }]}>
             {preview?.elementosAfectados.recurrentes} pagos recurrentes
           </Text>
           <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
         </View>
 
-        <View style={styles.totalRow}>
-          <Text style={styles.totalText}>
+        <View style={[styles.totalRow, { backgroundColor: colors.cardSecondary }]}>
+          <Text style={[styles.totalText, { color: colors.text }]}>
             Total: {preview?.elementosAfectados.total} elementos
           </Text>
         </View>
@@ -312,7 +314,7 @@ const CurrencyChangeModal: React.FC<CurrencyChangeModalProps> = ({
       </View>
 
       <View style={styles.notAffectedContainer}>
-        <Text style={styles.sectionTitle}>NO se verán afectadas:</Text>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>NO se verán afectadas:</Text>
         <View style={styles.itemRow}>
           <Ionicons name="business" size={20} color="#94A3B8" />
           <Text style={styles.itemTextDisabled}>Subcuentas</Text>
@@ -329,26 +331,26 @@ const CurrencyChangeModal: React.FC<CurrencyChangeModalProps> = ({
       presentationStyle="pageSheet"
       onRequestClose={onClose}
     >
-      <View style={styles.container}>
-        <View style={styles.modalHeader}>
-          <Text style={styles.modalTitle}>Cambio de Moneda</Text>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
+          <Text style={[styles.modalTitle, { color: colors.text }]}>Cambio de Moneda</Text>
           <TouchableOpacity onPress={onClose} disabled={converting}>
-            <Ionicons name="close" size={24} color="#64748B" />
+            <Ionicons name="close" size={24} color={colors.textSecondary} />
           </TouchableOpacity>
         </View>
 
         {loading ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color="#667EEA" />
-            <Text style={styles.loadingText}>Cargando vista previa...</Text>
+            <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Cargando vista previa...</Text>
           </View>
         ) : converting ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color="#667EEA" />
-            <Text style={styles.loadingText}>
+            <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
               Convirtiendo moneda... Esto puede tomar unos momentos
             </Text>
-            <Text style={styles.loadingSubtext}>
+            <Text style={[styles.loadingSubtext, { color: colors.textTertiary }]}>
               Por favor no cierres la aplicación
             </Text>
           </View>
@@ -356,13 +358,13 @@ const CurrencyChangeModal: React.FC<CurrencyChangeModalProps> = ({
           <>
             {renderPreview()}
             
-            <View style={styles.footer}>
+            <View style={[styles.footer, { borderTopColor: colors.border, backgroundColor: colors.card }]}>
               <TouchableOpacity
-                style={styles.cancelButton}
+                style={[styles.cancelButton, { backgroundColor: colors.cardSecondary }]}
                 onPress={onClose}
                 disabled={converting}
               >
-                <Text style={styles.cancelButtonText}>Cancelar</Text>
+                <Text style={[styles.cancelButtonText, { color: colors.textSecondary }]}>Cancelar</Text>
               </TouchableOpacity>
               
               <TouchableOpacity
@@ -383,7 +385,6 @@ const CurrencyChangeModal: React.FC<CurrencyChangeModalProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
   },
   modalHeader: {
     flexDirection: 'row',
@@ -391,12 +392,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
   },
   modalTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#1E293B',
   },
   content: {
     flex: 1,
@@ -409,11 +408,9 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 20,
     fontWeight: '600',
-    color: '#1E293B',
     marginTop: 8,
   },
   conversionInfo: {
-    backgroundColor: '#F8FAFC',
     borderRadius: 12,
     padding: 16,
     marginBottom: 24,
@@ -427,18 +424,15 @@ const styles = StyleSheet.create({
   fromCurrency: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#64748B',
     marginRight: 16,
   },
   toCurrency: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#667EEA',
     marginLeft: 16,
   },
   exchangeRate: {
     fontSize: 14,
-    color: '#64748B',
     textAlign: 'center',
   },
   affectedItemsContainer: {
@@ -447,7 +441,6 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1E293B',
     marginBottom: 12,
   },
   itemRow: {
@@ -458,7 +451,6 @@ const styles = StyleSheet.create({
   itemText: {
     flex: 1,
     fontSize: 14,
-    color: '#475569',
     marginLeft: 12,
   },
   itemTextDisabled: {
@@ -468,7 +460,6 @@ const styles = StyleSheet.create({
     marginLeft: 12,
   },
   totalRow: {
-    backgroundColor: '#F1F5F9',
     borderRadius: 8,
     padding: 12,
     marginTop: 8,
@@ -476,7 +467,6 @@ const styles = StyleSheet.create({
   totalText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#334155',
     textAlign: 'center',
   },
   warningContainer: {
@@ -504,13 +494,11 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 16,
-    color: '#64748B',
     textAlign: 'center',
     marginTop: 16,
   },
   loadingSubtext: {
     fontSize: 14,
-    color: '#94A3B8',
     textAlign: 'center',
     marginTop: 8,
   },
@@ -518,11 +506,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     padding: 20,
     borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
   },
   cancelButton: {
     flex: 1,
-    backgroundColor: '#F1F5F9',
     borderRadius: 8,
     paddingVertical: 16,
     marginRight: 8,
@@ -530,7 +516,6 @@ const styles = StyleSheet.create({
   cancelButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#64748B',
     textAlign: 'center',
   },
   confirmButton: {

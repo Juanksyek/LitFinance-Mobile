@@ -7,6 +7,7 @@ import RecurrentModal from './RecurrentModal';
 import { API_BASE_URL } from "../constants/api";
 import Toast from "react-native-toast-message";
 import { useNavigation } from '@react-navigation/native';
+import { useThemeColors } from "../theme/useThemeColors";
 
 const { width } = Dimensions.get("window");
 
@@ -39,6 +40,7 @@ const ActionButtons = ({
   plataformas = [],
   userId,
 }: ActionButtonsProps) => {
+  const colors = useThemeColors();
 
   const [modalVisible, setModalVisible] = useState(false);
   const [subcuentaModalVisible, setSubcuentaModalVisible] = useState(false);
@@ -140,12 +142,12 @@ const ActionButtons = ({
             }}
           >
             <TouchableOpacity
-              style={[styles.button, styles.neumorphic]}
+              style={[styles.button, { backgroundColor: colors.card, shadowColor: colors.shadow, borderColor: colors.border }]}
               onPress={() => handlePress(action.label)}
             >
-              <Ionicons name={action.icon} size={20} color="#EF6C00" />
+              <Ionicons name={action.icon} size={20} color={colors.button} />
             </TouchableOpacity>
-            <Text style={styles.label}>{action.label}</Text>
+            <Text style={[styles.label, { color: colors.textSecondary }]}>{action.label}</Text>
           </Animated.View>
         ))}
       </View>
@@ -201,30 +203,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 6,
-  },
-  label: {
-    fontSize: 10,
-    color: "#757575",
-  },
-  neumorphic: {
-    backgroundColor: "#f0f0f3",
-    shadowColor: "#000",
     shadowOffset: { width: 6, height: 6 },
     shadowOpacity: 0.12,
     shadowRadius: 10,
     elevation: 6,
     borderWidth: 1,
-    borderColor: "#f0f0f3",
   },
-  neumorphicPressed: {
-    backgroundColor: "#f0f0f3",
-    shadowColor: "#000",
-    shadowOffset: { width: 2, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    elevation: 4,
-    borderWidth: 1,
-    borderColor: "#f0f0f3",
+  label: {
+    fontSize: 10,
   },
 });
 

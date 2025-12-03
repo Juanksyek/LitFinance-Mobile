@@ -1,6 +1,7 @@
 import React from 'react';
 import { Modal, View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useThemeColors } from '../theme/useThemeColors';
 
 interface DataPrivacyModalProps {
   visible: boolean;
@@ -8,17 +9,19 @@ interface DataPrivacyModalProps {
 }
 
 const DataPrivacyModal: React.FC<DataPrivacyModalProps> = ({ visible, onClose }) => {
+  const colors = useThemeColors();
+  
   return (
     <Modal
       visible={visible}
       animationType="slide"
       presentationStyle="pageSheet"
     >
-      <View style={styles.modalContainer}>
-        <View style={styles.modalHeader}>
-          <Text style={styles.modalTitle}>Información sobre tus datos</Text>
+      <View style={[styles.modalContainer, { backgroundColor: colors.background }]}>
+        <View style={[styles.modalHeader, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
+          <Text style={[styles.modalTitle, { color: colors.text }]}>Información sobre tus datos</Text>
           <TouchableOpacity onPress={onClose}>
-            <Ionicons name="close" size={24} color="#64748B" />
+            <Ionicons name="close" size={24} color={colors.textSecondary} />
           </TouchableOpacity>
         </View>
         
@@ -28,11 +31,11 @@ const DataPrivacyModal: React.FC<DataPrivacyModalProps> = ({ visible, onClose })
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
                 <Ionicons name="shield-checkmark" size={24} color="#4CAF50" />
-                <Text style={styles.sectionTitle}>
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>
                   Información completamente opcional
                 </Text>
               </View>
-              <Text style={styles.sectionText}>
+              <Text style={[styles.sectionText, { color: colors.textSecondary }]}>
                 Todos los campos de información adicional son <Text style={styles.boldText}>completamente opcionales</Text>. 
                 Solo completa los que desees compartir con nosotros.
               </Text>
@@ -42,21 +45,21 @@ const DataPrivacyModal: React.FC<DataPrivacyModalProps> = ({ visible, onClose })
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
                 <Ionicons name="analytics" size={24} color="#2196F3" />
-                <Text style={styles.sectionTitle}>
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>
                   ¿Para qué usamos esta información?
                 </Text>
               </View>
               <View style={styles.bulletList}>
-                <Text style={styles.bulletText}>
+                <Text style={[styles.bulletText, { color: colors.textSecondary }]}>
                   • <Text style={styles.boldText}>Estadísticas internas:</Text> Nos ayuda a entender mejor a nuestros usuarios
                 </Text>
-                <Text style={styles.bulletText}>
+                <Text style={[styles.bulletText, { color: colors.textSecondary }]}>
                   • <Text style={styles.boldText}>Reportes demográficos:</Text> Ver de qué regiones y edades son nuestros usuarios
                 </Text>
-                <Text style={styles.bulletText}>
+                <Text style={[styles.bulletText, { color: colors.textSecondary }]}>
                   • <Text style={styles.boldText}>Mejoras de la app:</Text> Adaptar funcionalidades según las profesiones de nuestros usuarios
                 </Text>
-                <Text style={styles.bulletText}>
+                <Text style={[styles.bulletText, { color: colors.textSecondary }]}>
                   • <Text style={styles.boldText}>Soporte técnico:</Text> En caso de que necesites ayuda, podemos contactarte
                 </Text>
               </View>
@@ -66,15 +69,15 @@ const DataPrivacyModal: React.FC<DataPrivacyModalProps> = ({ visible, onClose })
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
                 <Ionicons name="lock-closed" size={24} color="#EF6C00" />
-                <Text style={styles.sectionTitle}>
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>
                   Tu privacidad es importante
                 </Text>
               </View>
-              <Text style={styles.sectionText}>
+              <Text style={[styles.sectionText, { color: colors.textSecondary }]}>
                 <Text style={styles.highlightText}>Nunca compartimos</Text> tus datos con terceros. 
                 Solo nuestro equipo tiene acceso a esta información para los propósitos mencionados.
               </Text>
-              <Text style={styles.sectionText}>
+              <Text style={[styles.sectionText, { color: colors.textSecondary }]}>
                 Tú decides qué información compartir y puedes <Text style={styles.boldText}>editarla o eliminarla</Text> en cualquier momento.
               </Text>
             </View>
@@ -98,7 +101,6 @@ const DataPrivacyModal: React.FC<DataPrivacyModalProps> = ({ visible, onClose })
 const styles = StyleSheet.create({
   modalContainer: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
   },
   modalHeader: {
     flexDirection: 'row',
@@ -107,13 +109,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
-    backgroundColor: 'white',
   },
   modalTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#1E293B',
   },
   contentList: {
     flex: 1,
@@ -134,11 +133,9 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     marginLeft: 8,
-    color: '#1E293B',
   },
   sectionText: {
     fontSize: 14,
-    color: '#64748B',
     lineHeight: 20,
     marginBottom: 8,
   },
@@ -147,7 +144,6 @@ const styles = StyleSheet.create({
   },
   bulletText: {
     fontSize: 14,
-    color: '#64748B',
     lineHeight: 20,
     marginBottom: 8,
   },

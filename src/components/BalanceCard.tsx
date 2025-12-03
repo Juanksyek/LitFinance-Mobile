@@ -6,7 +6,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { API_BASE_URL } from "../constants/api";
 import AccountSettingsModal from "./AccountSettingsModal";
 import SmartNumber from "./SmartNumber";
-import Toast from "react-native-toast-message"; 
+import Toast from "react-native-toast-message";
+import { useThemeColors } from "../theme/useThemeColors"; 
 
 interface Transaccion {
   tipo: 'ingreso' | 'egreso';
@@ -29,6 +30,7 @@ if (Platform.OS === 'android') {
 
 const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChange }) => {
   console.log('🚀 [BalanceCard] Componente inicializado con reloadTrigger:', reloadTrigger);
+  const colors = useThemeColors();
   
   const [saldo, setSaldo] = useState(0);
   const [monedaActual, setMonedaActual] = useState('MXN');
@@ -349,16 +351,16 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
   }, [reloadTrigger, periodo]);
 
   return (
-    <View style={styles.card}>
+    <View style={[styles.card, { backgroundColor: colors.card, shadowColor: colors.shadow, borderColor: colors.border }]}>
       {/* Header con título y configuración */}
       <View style={styles.headerRow}>
-        <Text style={styles.title}>Saldo total</Text>
+        <Text style={[styles.title, { color: colors.text }]}>Saldo total</Text>
         <TouchableOpacity 
           style={styles.settingsButton}
           onPress={() => setSettingsVisible(true)}
           activeOpacity={0.7}
         >
-          <Ionicons name="settings-outline" size={18} color="#8E8E93" />
+          <Ionicons name="settings-outline" size={18} color={colors.textTertiary} />
         </TouchableOpacity>
       </View>
 
@@ -380,7 +382,7 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
             console.log('🚀 [BalanceCard] Ejecutando handleCurrencyChange desde SmartNumber (Saldo)...');
             handleCurrencyChange(moneda);
           }}
-          textStyle={styles.balanceAmount}
+          textStyle={[styles.balanceAmount, { color: colors.text }]}
           options={{
             context: 'card',
             currency: monedaActual,
@@ -391,12 +393,12 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
 
       {/* Contenedor de ingresos y egresos */}
       <View style={styles.statsContainer}>
-        <View style={styles.statItem}>
+        <View style={[styles.statItem, { shadowColor: colors.shadow, borderColor: colors.border }]}>
           <View style={styles.statIconWrapper}>
             <Ionicons name="arrow-up" size={14} color="#34C759" />
           </View>
           <View style={styles.statTextContainer}>
-            <Text style={styles.statLabel}>Ingreso</Text>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Ingreso</Text>
             <SmartNumber
               value={ingresos}
               currentCurrency={monedaActual}
@@ -413,7 +415,7 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
                 console.log('🚀 [BalanceCard] Ejecutando handleCurrencyChange desde SmartNumber (Ingresos)...');
                 handleCurrencyChange(moneda);
               }}
-              textStyle={styles.statValue}
+              textStyle={[styles.statValue, { color: colors.text }]}
               options={{
                 context: 'list',
                 currency: monedaActual,
@@ -423,12 +425,12 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
           </View>
         </View>
 
-        <View style={styles.statItem}>
+        <View style={[styles.statItem, { shadowColor: colors.shadow, borderColor: colors.border }]}>
           <View style={styles.statIconWrapper}>
             <Ionicons name="arrow-down" size={14} color="#FF3B30" />
           </View>
           <View style={styles.statTextContainer}>
-            <Text style={styles.statLabel}>Egreso</Text>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Egreso</Text>
             <SmartNumber
               value={egresos}
               currentCurrency={monedaActual}
@@ -445,7 +447,7 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
                 console.log('🚀 [BalanceCard] Ejecutando handleCurrencyChange desde SmartNumber (Egresos)...');
                 handleCurrencyChange(moneda);
               }}
-              textStyle={styles.statValue}
+              textStyle={[styles.statValue, { color: colors.text }]}
               options={{
                 context: 'list',
                 currency: monedaActual,
@@ -459,7 +461,7 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
       {/* Sección de filtros con animación */}
       <View style={styles.filterSection}>
         <TouchableOpacity 
-          style={styles.filterToggle} 
+          style={[styles.filterToggle, { shadowColor: colors.shadow, borderColor: colors.border }]} 
           onPress={toggleFiltros}
           activeOpacity={0.8}
         >
@@ -467,11 +469,11 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
             <View style={styles.filterIconWrapper}>
               <Ionicons name="funnel" size={16} color="#FF9500" />
             </View>
-            <Text style={styles.filterText}>{etiquetasFiltro[periodo]}</Text>
+            <Text style={[styles.filterText, { color: colors.text }]}>{etiquetasFiltro[periodo]}</Text>
             <Ionicons 
               name={mostrarFiltros ? 'chevron-up' : 'chevron-down'} 
               size={16} 
-              color="#8E8E93" 
+              color={colors.textSecondary} 
             />
           </View>
         </TouchableOpacity>
@@ -482,7 +484,7 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
           opacity: animatedOpacity,
         }}>
           {mostrarFiltros && (
-            <View style={styles.filterOptions}>
+            <View style={[styles.filterOptions, { backgroundColor: colors.cardSecondary, shadowColor: colors.shadow, borderColor: colors.border }]}>
               {Object.entries(etiquetasFiltro).map(([key, label]) => (
                 <TouchableOpacity
                   key={key}
@@ -499,6 +501,7 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
                 >
                   <Text style={[
                     styles.filterOptionText,
+                    { color: colors.textSecondary },
                     periodo === key && styles.filterOptionTextActive
                   ]}>
                     {label}
@@ -517,11 +520,9 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: "#F2F2F7", 
     borderRadius: 20,
     padding: 12,
     marginBottom: 12,
-    shadowColor: "#000",
     shadowOffset: {
       width: 3,
       height: 3,
@@ -530,7 +531,6 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 2,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.8)",
   },
   headerRow: {
     flexDirection: "row",
@@ -541,7 +541,6 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 13,
     fontWeight: "600",
-    color: "#1D1D1F",
     letterSpacing: -0.2,
   },
   settingsButton: {
@@ -569,7 +568,6 @@ const styles = StyleSheet.create({
   balanceAmount: {
     fontSize: 28,
     fontWeight: "700",
-    color: "#1D1D1F",
     letterSpacing: -1,
     lineHeight: 32,
   },
@@ -609,23 +607,19 @@ const styles = StyleSheet.create({
   statLabel: {
     fontSize: 10,
     fontWeight: "500",
-    color: "#8E8E93",
     marginBottom: 0.5,
     letterSpacing: -0.1,
   },
   statValue: {
     fontSize: 13,
     fontWeight: "600",
-    color: "#1D1D1F",
     letterSpacing: -0.3,
   },
   filterSection: {
     marginTop: 4,
   },
   filterToggle: {
-    backgroundColor: "#F2F2F7",
     borderRadius: 12,
-    shadowColor: "#000",
     shadowOffset: {
       width: 2,
       height: 2,
@@ -634,7 +628,6 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 1,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.8)",
   },
   filterContent: {
     flexDirection: "row",
@@ -655,15 +648,12 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 12,
     fontWeight: "500",
-    color: "#1D1D1F",
     letterSpacing: -0.2,
   },
   filterOptions: {
     marginTop: 6,
-    backgroundColor: "#F2F2F7",
     borderRadius: 12,
     padding: 4,
-    shadowColor: "#000",
     shadowOffset: {
       width: 0,
       height: 1,
@@ -672,7 +662,6 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     elevation: 1,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.9)",
   },
   filterOption: {
     paddingHorizontal: 10,
@@ -694,7 +683,6 @@ const styles = StyleSheet.create({
   filterOptionText: {
     fontSize: 12,
     fontWeight: "500",
-    color: "#8E8E93",
     letterSpacing: -0.1,
   },
   filterOptionTextActive: {

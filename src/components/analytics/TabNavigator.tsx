@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { useThemeColors } from '../../theme/useThemeColors';
 
 interface Tab {
   key: string;
@@ -20,12 +21,14 @@ const TabNavigator: React.FC<TabNavigatorProps> = ({
   onTabChange,
   children
 }) => {
+  const colors = useThemeColors();
+
   return (
     <View style={styles.container}>
       <ScrollView 
         horizontal 
         showsHorizontalScrollIndicator={false}
-        style={styles.tabsContainer}
+        style={[styles.tabsContainer, { backgroundColor: colors.card, borderBottomColor: colors.border }]}
         contentContainerStyle={styles.tabsContent}
       >
         {tabs.map((tab) => (
@@ -33,14 +36,15 @@ const TabNavigator: React.FC<TabNavigatorProps> = ({
             key={tab.key}
             style={[
               styles.tab,
-              activeTab === tab.key && styles.activeTab
+              activeTab === tab.key && { backgroundColor: colors.inputBackground, borderColor: '#3B82F6', borderWidth: 1 }
             ]}
             onPress={() => onTabChange(tab.key)}
           >
             <Text style={styles.tabIcon}>{tab.icon}</Text>
             <Text style={[
               styles.tabTitle,
-              activeTab === tab.key && styles.activeTabTitle
+              { color: colors.textSecondary },
+              activeTab === tab.key && { color: '#3B82F6', fontWeight: '600' }
             ]}>
               {tab.title}
             </Text>
@@ -60,9 +64,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   tabsContainer: {
-    backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
   },
   tabsContent: {
     paddingHorizontal: 16,
@@ -76,24 +78,14 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     minWidth: 80,
   },
-  activeTab: {
-    backgroundColor: '#EBF4FF',
-    borderColor: '#3B82F6',
-    borderWidth: 1,
-  },
   tabIcon: {
     fontSize: 18,
     marginBottom: 4,
   },
   tabTitle: {
     fontSize: 12,
-    color: '#6B7280',
     fontWeight: '500',
     textAlign: 'center',
-  },
-  activeTabTitle: {
-    color: '#3B82F6',
-    fontWeight: '600',
   },
   content: {
     flex: 1,

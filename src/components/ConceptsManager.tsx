@@ -5,6 +5,7 @@ import Toast from "react-native-toast-message";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
 import { API_BASE_URL } from "../constants/api";
+import { useThemeColors } from "../theme/useThemeColors";
 
 interface Concepto {
   conceptoId: string;
@@ -28,6 +29,7 @@ const EMOJIS = ["💰", "🛒", "🍽️", "🚗", "🏠", "🎉", "📌", "📈
 const SCREEN_HEIGHT = Dimensions.get("window").height;
 
 const ConceptsManager: React.FC<Props> = ({ onClose }) => {
+  const colors = useThemeColors();
   const [nuevoConcepto, setNuevoConcepto] = useState("");
   const [conceptos, setConceptos] = useState<Concepto[]>([]);
   const [busqueda, setBusqueda] = useState("");
@@ -87,11 +89,11 @@ const ConceptsManager: React.FC<Props> = ({ onClose }) => {
   }, []);
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.cardSecondary }]}>
       <View style={styles.header}>
-        <Text style={styles.title}>Mis Conceptos</Text>
+        <Text style={[styles.title, { color: colors.text }]}>Mis Conceptos</Text>
         <TouchableOpacity onPress={onClose}>
-          <Ionicons name="close" size={26} color="#555" />
+          <Ionicons name="close" size={26} color={colors.textSecondary} />
         </TouchableOpacity>
       </View>
 
@@ -99,8 +101,8 @@ const ConceptsManager: React.FC<Props> = ({ onClose }) => {
         placeholder="Buscar concepto..."
         value={busqueda}
         onChangeText={setBusqueda}
-        style={styles.inputFull}
-        placeholderTextColor="#999"
+        style={[styles.inputFull, { backgroundColor: colors.card, borderColor: colors.border, color: colors.inputText }]}
+        placeholderTextColor={colors.placeholder}
       />
 
       <View style={styles.addRow}>
@@ -108,23 +110,23 @@ const ConceptsManager: React.FC<Props> = ({ onClose }) => {
           placeholder="Nuevo concepto"
           value={nuevoConcepto}
           onChangeText={setNuevoConcepto}
-          style={styles.inputInline}
-          placeholderTextColor="#999"
+          style={[styles.inputInline, { backgroundColor: colors.card, borderColor: colors.border, color: colors.inputText }]}
+          placeholderTextColor={colors.placeholder}
         />
-        <TouchableOpacity style={styles.addButton} onPress={crearConcepto}>
+        <TouchableOpacity style={[styles.addButton, { backgroundColor: colors.card, borderColor: colors.border }]} onPress={crearConcepto}>
           <Ionicons name="add-circle-outline" size={26} color="#EF6C00" />
         </TouchableOpacity>
       </View>
 
       <View style={styles.symbolRow}>
-        <Text style={styles.symbolLabel}>Símbolo:</Text>
+        <Text style={[styles.symbolLabel, { color: colors.text }]}>Símbolo:</Text>
         <TextInput
           value={emojiSeleccionado}
           onChangeText={(text) => {
             const emojiOnly = text.replace(/[^\p{Emoji}\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, '');
             setEmojiSeleccionado(emojiOnly);
           }}
-          style={styles.emojiInput}
+          style={[styles.emojiInput, { backgroundColor: colors.card, borderColor: colors.border }]}
           placeholder="💰"
           maxLength={2}
           keyboardType="default"
@@ -132,7 +134,7 @@ const ConceptsManager: React.FC<Props> = ({ onClose }) => {
         />
       </View>
 
-      <Text style={styles.subLabel}>Color:</Text>
+      <Text style={[styles.subLabel, { color: colors.text }]}>Color:</Text>
       <View style={styles.colorGrid}>
         {COLORS.map((c) => (
           <TouchableOpacity
@@ -150,7 +152,7 @@ const ConceptsManager: React.FC<Props> = ({ onClose }) => {
       </View>
 
       {conceptos.length === 0 ? (
-        <Text style={styles.emptyText}>No tienes conceptos registrados aún.</Text>
+        <Text style={[styles.emptyText, { color: colors.textSecondary }]}>No tienes conceptos registrados aún.</Text>
       ) : (
         <FlatList
           data={conceptos}
@@ -158,9 +160,9 @@ const ConceptsManager: React.FC<Props> = ({ onClose }) => {
           numColumns={2}
           columnWrapperStyle={styles.row}
           renderItem={({ item }) => (
-            <View style={[styles.conceptCard, { borderColor: item.color }]}>
+            <View style={[styles.conceptCard, { borderColor: item.color, backgroundColor: colors.card }]}>
               <Text style={styles.icon}>{item.icono}</Text>
-              <Text style={styles.nombre}>{item.nombre}</Text>
+              <Text style={[styles.nombre, { color: colors.text }]}>{item.nombre}</Text>
             </View>
           )}
           style={{ maxHeight: 120 }}
@@ -175,7 +177,6 @@ const styles = StyleSheet.create({
   container: {
     width: "100%",
     maxHeight: SCREEN_HEIGHT * 0.85,
-    backgroundColor: "#f0f0f3",
     padding: 16,
     borderRadius: 20,
   },
@@ -188,26 +189,21 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: "600",
-    color: "#333",
   },
   inputFull: {
     width: "100%",
-    backgroundColor: "#fff",
     padding: 10,
     borderRadius: 12,
     marginBottom: 10,
     fontSize: 14,
     borderWidth: 1,
-    borderColor: "#ddd",
   },
   inputInline: {
     flex: 1,
-    backgroundColor: "#fff",
     padding: 10,
     borderRadius: 12,
     fontSize: 14,
     borderWidth: 1,
-    borderColor: "#ddd",
   },
   addRow: {
     flexDirection: "row",
@@ -216,16 +212,13 @@ const styles = StyleSheet.create({
   },
   addButton: {
     marginLeft: 8,
-    backgroundColor: "#fff",
     borderRadius: 12,
     padding: 6,
     elevation: 2,
     borderWidth: 1,
-    borderColor: "#ddd",
   },
   subLabel: {
     fontSize: 14,
-    color: "#444",
     fontWeight: "500",
     marginBottom: 4,
   },
@@ -237,31 +230,26 @@ const styles = StyleSheet.create({
   symbolLabel: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#444',
     marginRight: 8,
   },
   emojiButtonInline: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderWidth: 1,
-    borderColor: '#ccc',
   },
   emojiInline: {
     fontSize: 20,
     marginRight: 6,
   },
   emojiInput: {
-    backgroundColor: '#fff',
     paddingHorizontal: 12,
     paddingVertical: 6,
     fontSize: 20,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#ccc',
     minWidth: 60,
   },
   colorGrid: {
@@ -284,7 +272,6 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   conceptCard: {
-    backgroundColor: "#fff",
     borderRadius: 12,
     paddingVertical: 16,
     paddingHorizontal: 12,
@@ -301,12 +288,10 @@ const styles = StyleSheet.create({
   nombre: {
     fontSize: 14,
     fontWeight: "500",
-    color: "#333",
   },
   emptyText: {
     marginTop: 16,
     textAlign: "center",
-    color: "#888",
     fontSize: 14,
   },
 });

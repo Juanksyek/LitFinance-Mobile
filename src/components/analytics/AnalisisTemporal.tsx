@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import type { AnalisisTemporal as AnalisisTemporalType } from '../../types/analytics';
+import { useThemeColors } from '../../theme/useThemeColors';
 
 interface AnalisisTemporalProps {
   data: AnalisisTemporalType | null;
@@ -13,6 +14,8 @@ const AnalisisTemporal: React.FC<AnalisisTemporalProps> = ({
   isLoading = false,
   error
 }) => {
+  const colors = useThemeColors();
+
   const formatAmount = (amount: number): string => {
     return `$${amount.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
   };
@@ -46,15 +49,15 @@ const AnalisisTemporal: React.FC<AnalisisTemporalProps> = ({
 
   if (isLoading) {
     return (
-      <View style={styles.container}>
-        <Text style={styles.loadingText}>Cargando análisis temporal...</Text>
+      <View style={[styles.container, { backgroundColor: colors.card, shadowColor: colors.shadow }]}>
+        <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Cargando análisis temporal...</Text>
       </View>
     );
   }
 
   if (error) {
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: colors.card, shadowColor: colors.shadow }]}>
         <Text style={styles.errorText}>Error: {error}</Text>
       </View>
     );
@@ -62,24 +65,24 @@ const AnalisisTemporal: React.FC<AnalisisTemporalProps> = ({
 
   if (!data) {
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: colors.card, shadowColor: colors.shadow }]}>
         <Text style={styles.errorText}>No hay datos disponibles</Text>
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Análisis Temporal</Text>
-      <Text style={styles.periodo}>Periodo: {data.periodoAnalisis}</Text>
+    <View style={[styles.container, { backgroundColor: colors.card, shadowColor: colors.shadow }]}>
+      <Text style={[styles.title, { color: colors.text }]}>Análisis Temporal</Text>
+      <Text style={[styles.periodo, { color: colors.textSecondary }]}>Periodo: {data.periodoAnalisis}</Text>
       
       {/* Tendencias */}
       <View style={styles.tendenciasContainer}>
-        <Text style={styles.sectionTitle}>Tendencias</Text>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>Tendencias</Text>
         
         <View style={styles.tendenciaItem}>
           <Text style={styles.tendenciaIcon}>{getTendenciaIcon(data.tendencias.ingresosTendencia)}</Text>
-          <Text style={styles.tendenciaLabel}>Ingresos</Text>
+          <Text style={[styles.tendenciaLabel, { color: colors.textSecondary }]}>Ingresos</Text>
           <Text style={[styles.tendenciaValue, { color: getTendenciaColor(data.tendencias.ingresosTendencia) }]}>
             {getTendenciaText(data.tendencias.ingresosTendencia)}
           </Text>
@@ -87,7 +90,7 @@ const AnalisisTemporal: React.FC<AnalisisTemporalProps> = ({
         
         <View style={styles.tendenciaItem}>
           <Text style={styles.tendenciaIcon}>{getTendenciaIcon(data.tendencias.gastosTendencia)}</Text>
-          <Text style={styles.tendenciaLabel}>Gastos</Text>
+          <Text style={[styles.tendenciaLabel, { color: colors.textSecondary }]}>Gastos</Text>
           <Text style={[styles.tendenciaValue, { color: getTendenciaColor(data.tendencias.gastosTendencia) }]}>
             {getTendenciaText(data.tendencias.gastosTendencia)}
           </Text>
@@ -95,7 +98,7 @@ const AnalisisTemporal: React.FC<AnalisisTemporalProps> = ({
         
         <View style={styles.tendenciaItem}>
           <Text style={styles.tendenciaIcon}>{getTendenciaIcon(data.tendencias.balanceTendencia)}</Text>
-          <Text style={styles.tendenciaLabel}>Balance</Text>
+          <Text style={[styles.tendenciaLabel, { color: colors.textSecondary }]}>Balance</Text>
           <Text style={[styles.tendenciaValue, { color: getTendenciaColor(data.tendencias.balanceTendencia) }]}>
             {getTendenciaText(data.tendencias.balanceTendencia)}
           </Text>
@@ -104,25 +107,25 @@ const AnalisisTemporal: React.FC<AnalisisTemporalProps> = ({
       
       {/* Promedios */}
       <View style={styles.promediosContainer}>
-        <Text style={styles.sectionTitle}>Promedios</Text>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>Promedios</Text>
         
         <View style={styles.promediosGrid}>
           <View style={styles.promedioItem}>
-            <Text style={styles.promedioLabel}>Ingreso Promedio</Text>
+            <Text style={[styles.promedioLabel, { color: colors.textSecondary }]}>Ingreso Promedio</Text>
             <Text style={[styles.promedioValue, styles.incomeText]}>
               {formatAmount(data.promedios.ingresoPromedio)}
             </Text>
           </View>
           
           <View style={styles.promedioItem}>
-            <Text style={styles.promedioLabel}>Gasto Promedio</Text>
+            <Text style={[styles.promedioLabel, { color: colors.textSecondary }]}>Gasto Promedio</Text>
             <Text style={[styles.promedioValue, styles.expenseText]}>
               {formatAmount(data.promedios.gastoPromedio)}
             </Text>
           </View>
           
           <View style={styles.promedioItem}>
-            <Text style={styles.promedioLabel}>Balance Promedio</Text>
+            <Text style={[styles.promedioLabel, { color: colors.textSecondary }]}>Balance Promedio</Text>
             <Text style={[styles.promedioValue, { color: data.promedios.balancePromedio >= 0 ? '#10B981' : '#EF4444' }]}>
               {formatAmount(data.promedios.balancePromedio)}
             </Text>
@@ -133,14 +136,14 @@ const AnalisisTemporal: React.FC<AnalisisTemporalProps> = ({
       {/* Datos recientes */}
       {data.datos.length > 0 && (
         <View style={styles.datosRecientesContainer}>
-          <Text style={styles.sectionTitle}>Últimos Datos</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Últimos Datos</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             {data.datos.slice(-7).map((dato, index) => (
               <View key={index} style={styles.datoItem}>
-                <Text style={styles.datoFecha}>{new Date(dato.fecha).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' })}</Text>
+                <Text style={[styles.datoFecha, { color: colors.textSecondary }]}>{new Date(dato.fecha).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' })}</Text>
                 <Text style={[styles.datoValue, styles.incomeText]}>{formatAmount(dato.ingresos)}</Text>
                 <Text style={[styles.datoValue, styles.expenseText]}>{formatAmount(dato.gastos)}</Text>
-                <Text style={styles.datoMovimientos}>{dato.cantidadMovimientos} mov.</Text>
+                <Text style={[styles.datoMovimientos, { color: colors.textSecondary }]}>{dato.cantidadMovimientos} mov.</Text>
               </View>
             ))}
           </ScrollView>
@@ -152,12 +155,10 @@ const AnalisisTemporal: React.FC<AnalisisTemporalProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#FFFFFF',
     borderRadius: 12,
     padding: 16,
     marginHorizontal: 16,
     marginVertical: 8,
-    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 3.84,
@@ -166,19 +167,16 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#1F2937',
     marginBottom: 4,
   },
   periodo: {
     fontSize: 14,
-    color: '#6B7280',
     marginBottom: 16,
     textTransform: 'capitalize',
   },
   sectionTitle: {
     fontSize: 16,
     fontWeight: '500',
-    color: '#1F2937',
     marginBottom: 12,
   },
   tendenciasContainer: {
@@ -196,7 +194,6 @@ const styles = StyleSheet.create({
   tendenciaLabel: {
     flex: 1,
     fontSize: 14,
-    color: '#6B7280',
   },
   tendenciaValue: {
     fontSize: 14,
@@ -215,7 +212,6 @@ const styles = StyleSheet.create({
   },
   promedioLabel: {
     fontSize: 11,
-    color: '#6B7280',
     marginBottom: 4,
     textAlign: 'center',
     textTransform: 'uppercase',
@@ -240,7 +236,6 @@ const styles = StyleSheet.create({
   },
   datoFecha: {
     fontSize: 11,
-    color: '#6B7280',
     marginBottom: 4,
   },
   datoValue: {
@@ -249,12 +244,10 @@ const styles = StyleSheet.create({
   },
   datoMovimientos: {
     fontSize: 10,
-    color: '#9CA3AF',
     marginTop: 2,
   },
   loadingText: {
     textAlign: 'center',
-    color: '#6B7280',
     fontSize: 14,
   },
   errorText: {

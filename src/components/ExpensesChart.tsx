@@ -4,6 +4,7 @@ import { LineChart } from "react-native-chart-kit";
 import { Ionicons } from "@expo/vector-icons";
 import { analyticsService, AnalyticsFilters } from "../services/analyticsService";
 import Toast from "react-native-toast-message";
+import { useThemeColors } from "../theme/useThemeColors";
 
 const { width } = Dimensions.get("window");
 const CHART_WIDTH = width - 48;
@@ -16,6 +17,7 @@ interface ExpensesChartProps {
 }
 
 const ExpensesChart: React.FC<ExpensesChartProps> = ({ refreshKey = 0 }) => {
+  const colors = useThemeColors();
   const [periodoSeleccionado, setPeriodoSeleccionado] = useState<PeriodoFiltro>('mes');
   const [tipoSeleccionado, setTipoSeleccionado] = useState<TipoTransaccionFiltro>('ambos');
   const [loading, setLoading] = useState(true);
@@ -118,22 +120,22 @@ const ExpensesChart: React.FC<ExpensesChartProps> = ({ refreshKey = 0 }) => {
             height={220}
             chartConfig={{
               backgroundColor: 'transparent',
-              backgroundGradientFrom: '#f0f0f3',
-              backgroundGradientTo: '#f0f0f3',
+              backgroundGradientFrom: colors.chartBackground,
+              backgroundGradientTo: colors.chartBackground,
               decimalPlaces: 0,
-              color: (opacity = 1) => `rgba(51, 51, 51, ${opacity * 0.3})`,
-              labelColor: (opacity = 1) => `rgba(51, 51, 51, ${opacity})`,
+              color: (opacity = 1) => `rgba(${colors.text === '#F2F3F5' ? '242, 243, 245' : '51, 51, 51'}, ${opacity * 0.3})`,
+              labelColor: (opacity = 1) => `rgba(${colors.text === '#F2F3F5' ? '181, 186, 193' : '51, 51, 51'}, ${opacity})`,
               style: {
                 borderRadius: 12,
               },
               propsForDots: {
                 r: '4',
                 strokeWidth: '2',
-                stroke: '#fff',
+                stroke: colors.card,
               },
               propsForBackgroundLines: {
                 strokeDasharray: '',
-                stroke: '#ddd',
+                stroke: colors.chartLine,
                 strokeWidth: 1,
               },
             }}
@@ -155,14 +157,14 @@ const ExpensesChart: React.FC<ExpensesChartProps> = ({ refreshKey = 0 }) => {
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="small" color="#666" />
+      <View style={[styles.loadingContainer, { backgroundColor: colors.chartBackground }]}>
+        <ActivityIndicator size="small" color={colors.textSecondary} />
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.chartBackground, shadowColor: colors.shadow }]}>
       {/* Filtros minimalistas */}
       <View style={styles.filtersRow}>
         <View style={styles.filterGroup}>
@@ -171,6 +173,7 @@ const ExpensesChart: React.FC<ExpensesChartProps> = ({ refreshKey = 0 }) => {
               key={periodo}
               style={[
                 styles.filterChip,
+                { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow },
                 periodoSeleccionado === periodo && styles.filterChipActive,
               ]}
               onPress={() => setPeriodoSeleccionado(periodo)}
@@ -179,6 +182,7 @@ const ExpensesChart: React.FC<ExpensesChartProps> = ({ refreshKey = 0 }) => {
               <Text
                 style={[
                   styles.filterChipText,
+                  { color: colors.text },
                   periodoSeleccionado === periodo && styles.filterChipTextActive,
                 ]}
               >
@@ -194,6 +198,7 @@ const ExpensesChart: React.FC<ExpensesChartProps> = ({ refreshKey = 0 }) => {
               key={tipo}
               style={[
                 styles.filterChip,
+                { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow },
                 tipoSeleccionado === tipo && styles.filterChipActive,
               ]}
               onPress={() => setTipoSeleccionado(tipo)}
@@ -202,7 +207,7 @@ const ExpensesChart: React.FC<ExpensesChartProps> = ({ refreshKey = 0 }) => {
               <Ionicons
                 name={tipo === 'ingreso' ? 'arrow-up' : tipo === 'egreso' ? 'arrow-down' : 'swap-vertical'}
                 size={12}
-                color={tipoSeleccionado === tipo ? '#fff' : '#999'}
+                color={tipoSeleccionado === tipo ? '#fff' : colors.textTertiary}
               />
             </TouchableOpacity>
           ))}
@@ -225,10 +230,8 @@ const ExpensesChart: React.FC<ExpensesChartProps> = ({ refreshKey = 0 }) => {
 const styles = StyleSheet.create({
   container: {
     marginBottom: 24,
-    backgroundColor: "#f0f0f3",
     borderRadius: 14,
     padding: 16,
-    shadowColor: "#000",
     shadowOpacity: 0.06,
     shadowRadius: 5,
     elevation: 3,
@@ -237,6 +240,7 @@ const styles = StyleSheet.create({
     height: 200,
     justifyContent: 'center',
     alignItems: 'center',
+    borderRadius: 14,
   },
   filtersRow: {
     flexDirection: 'row',
@@ -252,12 +256,9 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 10,
-    backgroundColor: '#f3f3f3',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#ddd',
-    shadowColor: '#000',
     shadowOpacity: 0.04,
     shadowRadius: 3,
     elevation: 1,
@@ -269,7 +270,6 @@ const styles = StyleSheet.create({
   filterChipText: {
     fontSize: 11,
     fontWeight: '600',
-    color: '#333',
   },
   filterChipTextActive: {
     color: '#fff',
@@ -286,13 +286,11 @@ const styles = StyleSheet.create({
     height: 200,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f3f3f3',
     borderRadius: 12,
   },
   emptyText: {
     marginTop: 12,
     fontSize: 13,
-    color: '#999',
     fontWeight: '500',
   },
 });
