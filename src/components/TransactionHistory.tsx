@@ -7,6 +7,7 @@ import { API_BASE_URL } from "../constants/api";
 import Toast from "react-native-toast-message";
 import HistorialDetalleModal from "./HistorialDetalleModal";
 import SmartNumber from './SmartNumber';
+import { useThemeColors } from "../theme/useThemeColors";
 
 type HistorialItem = {
   id: string;
@@ -33,6 +34,7 @@ interface JwtPayload {
 }
 
 const TransactionHistory = ({ refreshKey }: { refreshKey?: number }) => {
+  const colors = useThemeColors();
   const [historial, setHistorial] = useState<HistorialItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -150,26 +152,26 @@ const TransactionHistory = ({ refreshKey }: { refreshKey?: number }) => {
     date: string;
     onPress: () => void;
   }) => (
-    <TouchableOpacity style={styles.transactionItem} onPress={onPress}>
-      <View style={[styles.transactionIconContainer, styles.neumorphicInset]}>
+    <TouchableOpacity style={[styles.transactionItem, { backgroundColor: colors.card, borderColor: colors.border }]} onPress={onPress}>
+      <View style={[styles.transactionIconContainer, { backgroundColor: colors.cardSecondary, borderColor: colors.border }]}>
         {icon}
       </View>
       <View style={styles.transactionDetails}>
-        <Text style={styles.transactionTitle}>{title}</Text>
-        <Text style={styles.transactionDate}>{date}</Text>
+        <Text style={[styles.transactionTitle, { color: colors.text }]}>{title}</Text>
+        <Text style={[styles.transactionDate, { color: colors.textSecondary }]}>{date}</Text>
       </View>
-      <Text style={styles.transactionAmount}>{amount}</Text>
+      <Text style={[styles.transactionAmount, { color: colors.text }]}>{amount}</Text>
     </TouchableOpacity>
   );
 
   return (
-    <View style={[styles.card, styles.neumorphicLight]}>
-      <Text style={styles.cardLabel}>Historial de transacciones</Text>
+    <View style={[styles.card, { backgroundColor: colors.chartBackground, shadowColor: colors.shadow, borderColor: colors.border }]}>
+      <Text style={[styles.cardLabel, { color: colors.text }]}>Historial de transacciones</Text>
 
       <TextInput
-        style={styles.searchInput}
+        style={[styles.searchInput, { backgroundColor: colors.inputBackground, borderColor: colors.border, color: colors.inputText }]}
         placeholder="Buscar por descripción..."
-        placeholderTextColor="#aaa"
+        placeholderTextColor={colors.placeholder}
         value={search}
         onChangeText={(text) => {
           setPage(1);
@@ -178,7 +180,7 @@ const TransactionHistory = ({ refreshKey }: { refreshKey?: number }) => {
       />
 
       {loading ? (
-        <ActivityIndicator size="small" color="#EF6C00" />
+        <ActivityIndicator size="small" color={colors.button} />
       ) : historial.length > 0 ? (
         historial.map((item) => (
           <TransactionItem
@@ -199,7 +201,7 @@ const TransactionHistory = ({ refreshKey }: { refreshKey?: number }) => {
           />
         ))
       ) : (
-        <Text style={{ color: "#757575", marginTop: 10 }}>
+        <Text style={{ color: colors.textSecondary, marginTop: 10 }}>
           No hay movimientos registrados.
         </Text>
       )}
@@ -208,19 +210,19 @@ const TransactionHistory = ({ refreshKey }: { refreshKey?: number }) => {
         <TouchableOpacity
           disabled={page === 1}
           onPress={() => setPage((prev) => Math.max(prev - 1, 1))}
-          style={[styles.viewAllButton, styles.neumorphicLight, page === 1 && { opacity: 0.4 }]}
+          style={[styles.viewAllButton, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow }, page === 1 && { opacity: 0.4 }]}
         >
-          <Ionicons name="chevron-back-outline" size={16} color="#EF6C00" />
-          <Text style={styles.viewAllText}>Anterior</Text>
+          <Ionicons name="chevron-back-outline" size={16} color={colors.button} />
+          <Text style={[styles.viewAllText, { color: colors.textSecondary }]}>Anterior</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
           disabled={!hasMore}
           onPress={() => setPage((prev) => prev + 1)}
-          style={[styles.viewAllButton, styles.neumorphicLight, !hasMore && { opacity: 0.4 }]}
+          style={[styles.viewAllButton, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow }, !hasMore && { opacity: 0.4 }]}
         >
-          <Text style={styles.viewAllText}>Siguiente</Text>
-          <Ionicons name="chevron-forward-outline" size={16} color="#EF6C00" />
+          <Text style={[styles.viewAllText, { color: colors.textSecondary }]}>Siguiente</Text>
+          <Ionicons name="chevron-forward-outline" size={16} color={colors.button} />
         </TouchableOpacity>
       </View>
 
@@ -240,12 +242,15 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 20,
     marginBottom: 24,
-    backgroundColor: "#f0f0f3",
+    shadowOffset: { width: 4, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+    borderWidth: 1,
   },
   cardLabel: {
     fontSize: 16,
     fontWeight: "500",
-    color: "#EF6C00",
     marginBottom: 10,
   },
   transactionItem: {
@@ -253,7 +258,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: "#f0f0f3",
+    borderRadius: 12,
+    marginBottom: 8,
+    padding: 12,
   },
   transactionIconContainer: {
     width: 42,
@@ -262,6 +269,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginRight: 12,
+    borderWidth: 1,
   },
   transactionDetails: {
     flex: 1,
@@ -269,17 +277,14 @@ const styles = StyleSheet.create({
   transactionTitle: {
     fontSize: 15,
     fontWeight: "500",
-    color: "#424242",
     marginBottom: 2,
   },
   transactionDate: {
     fontSize: 13,
-    color: "#9e9e9e",
   },
   transactionAmount: {
     fontSize: 15,
     fontWeight: "600",
-    color: "#424242",
   },
   viewAllButton: {
     flexDirection: "row",
@@ -288,43 +293,24 @@ const styles = StyleSheet.create({
     marginTop: 16,
     padding: 14,
     borderRadius: 12,
+    shadowOffset: { width: 4, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 2,
+    borderWidth: 1,
   },
   viewAllText: {
     fontSize: 14,
     fontWeight: "500",
-    color: "#EF6C00",
     marginRight: 6,
   },
-  neumorphicLight: {
-    backgroundColor: "#f0f0f3",
-    shadowColor: "#000",
-    shadowOffset: { width: 10, height: 10 },
-    shadowOpacity: 0.16,
-    shadowRadius: 14,
-    elevation: 8,
-    borderWidth: 1,
-    borderColor: "#f0f0f3",
-  },
-  neumorphicInset: {
-    backgroundColor: "#e6e6e9",
-    shadowColor: "#000",
-    shadowOffset: { width: 2, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 1,
-    borderWidth: 1,
-    borderColor: "#f0f0f3",
-  },
   searchInput: {
-    backgroundColor: "#fff",
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: 12,
     fontSize: 14,
-    borderColor: "#f0f0f3",
     borderWidth: 1,
     marginBottom: 12,
-    color: "#000",
   },
   pagination: {
     flexDirection: "row",
