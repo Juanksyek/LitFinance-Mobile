@@ -55,7 +55,7 @@ const ForgotPasswordScreen: React.FC = () => {
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         <View style={styles.header}>
           {/* Logo Container con efecto neumorphic */}
-          <View style={[styles.logoContainer, { backgroundColor: colors.card }]}>
+          <View style={[styles.logoContainer]}>
             <Image source={require("../images/LitFinance.png")} style={styles.logo} />
           </View>
           
