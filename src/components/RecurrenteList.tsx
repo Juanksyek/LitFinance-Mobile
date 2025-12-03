@@ -5,6 +5,7 @@ import { API_BASE_URL } from "../constants/api";
 import { useNavigation, NavigationProp } from "@react-navigation/native";
 import { RootStackParamList } from "../navigation/AppNavigator";
 import { Ionicons } from "@expo/vector-icons";
+import { useThemeColors } from "../theme/useThemeColors";
 
 const { width } = Dimensions.get("window");
 const LIMIT = 4;
@@ -36,6 +37,7 @@ const RecurrentesList = ({
     esSubcuenta?: boolean;
     refreshKey?: number;
 }) => {
+    const colors = useThemeColors();
     const [recurrentes, setRecurrentes] = useState<Recurrente[]>([]);
     const [page, setPage] = useState(1);
     const [search, setSearch] = useState("");
@@ -126,12 +128,12 @@ const RecurrentesList = ({
             onPress={() => navigation.navigate("RecurrenteDetail", { recurrente: item })}
             style={[
               styles.card,
-              { borderColor: item.plataforma?.color || "#EF7725" },
+              { borderColor: item.plataforma?.color || "#EF7725", backgroundColor: colors.card, shadowColor: colors.shadow },
             ]}
           >
             <View>
-              <Text style={styles.nombre} numberOfLines={1}>{item.nombre}</Text>
-              <Text style={styles.monto}>
+              <Text style={[styles.nombre, { color: colors.text }]} numberOfLines={1}>{item.nombre}</Text>
+              <Text style={[styles.monto, { color: colors.text }]}>
                 ${item.monto >= 1000000 
                   ? `${(item.monto / 1000000).toFixed(1)}M`
                   : item.monto.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -154,17 +156,17 @@ const RecurrentesList = ({
       };
 
     return (
-        <View style={styles.wrapper}>
-            <Text style={styles.title}>Recurrentes</Text>
+        <View style={[styles.wrapper, { backgroundColor: colors.chartBackground, shadowColor: colors.shadow, borderColor: colors.border }]}>
+            <Text style={[styles.title, { color: colors.text }]}>Recurrentes</Text>
             <TextInput
-                style={styles.searchInput}
+                style={[styles.searchInput, { backgroundColor: colors.inputBackground, borderColor: colors.border, color: colors.inputText }]}
                 placeholder="Buscar recurrente..."
                 value={search}
                 onChangeText={setSearch}
-                placeholderTextColor="#aaa"
+                placeholderTextColor={colors.placeholder}
             />
             {loading ? (
-                <ActivityIndicator color="#EF7725" style={{ marginTop: 20 }} />
+                <ActivityIndicator color={colors.button} style={{ marginTop: 20 }} />
             ) : (
                 <>
                     <FlatList
@@ -181,22 +183,24 @@ const RecurrentesList = ({
                             onPress={() => setPage((p) => Math.max(p - 1, 1))}
                             style={[
                                 styles.pageButton,
+                                { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow },
                                 page === 1 && styles.pageButtonDisabled,
                             ]}
                             disabled={page === 1}
                         >
-                            <Text style={styles.pageButtonText}>Anterior</Text>
+                            <Text style={[styles.pageButtonText, { color: colors.textSecondary }]}>Anterior</Text>
                         </TouchableOpacity>
-                        <Text style={styles.pageIndicator}>Página {page}</Text>
+                        <Text style={[styles.pageIndicator, { color: colors.text }]}>Página {page}</Text>
                         <TouchableOpacity
                             onPress={() => hasMore && setPage((p) => p + 1)}
                             style={[
                                 styles.pageButton,
+                                { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow },
                                 !hasMore && styles.pageButtonDisabled,
                             ]}
                             disabled={!hasMore}
                         >
-                            <Text style={styles.pageButtonText}>Siguiente</Text>
+                            <Text style={[styles.pageButtonText, { color: colors.textSecondary }]}>Siguiente</Text>
                         </TouchableOpacity>
                     </View>
                 </>
@@ -209,30 +213,25 @@ export default RecurrentesList;
 
 const styles = StyleSheet.create({
     wrapper: {
-        backgroundColor: "#f0f0f3",
         marginBottom: 40,
         borderRadius: 14,
         padding: 16,
-        shadowColor: "#000",
         shadowOpacity: 0.06,
         shadowRadius: 5,
         elevation: 3,
+        borderWidth: 1,
     },
     title: {
         fontSize: 18,
         fontWeight: "600",
         marginBottom: 10,
-        color: "#333",
     },
     searchInput: {
-        backgroundColor: "#f3f3f3",
         borderRadius: 10,
         paddingHorizontal: 12,
         paddingVertical: 8,
         borderWidth: 1,
-        borderColor: "#ddd",
         marginBottom: 14,
-        color: "#333",
     },
     rowWrapper: {
         justifyContent: "space-between",
@@ -244,9 +243,7 @@ const styles = StyleSheet.create({
         marginBottom: -5,
         padding: 8,
         borderRadius: 10,
-        backgroundColor: "#f3f3f3",
         borderWidth: 2,
-        shadowColor: "#000",
         shadowOpacity: 0.04,
         shadowRadius: 3,
         elevation: 1,
@@ -255,12 +252,10 @@ const styles = StyleSheet.create({
     nombre: {
         fontSize: 12,
         fontWeight: "600",
-        color: "#1e293b",
     },
     monto: {
         fontSize: 14,
         fontWeight: "700",
-        color: "#0f172a",
     },
     badge: {
         backgroundColor: "#E0E7FF",
@@ -282,20 +277,21 @@ const styles = StyleSheet.create({
         marginTop: 12,
     },
     pageButton: {
-        backgroundColor: "#EF7725",
         paddingHorizontal: 16,
         paddingVertical: 8,
         borderRadius: 10,
+        borderWidth: 1,
+        shadowOpacity: 0.06,
+        shadowRadius: 4,
+        elevation: 2,
     },
     pageButtonDisabled: {
-        backgroundColor: "#ccc",
+        opacity: 0.4,
     },
     pageButtonText: {
-        color: "#fff",
         fontWeight: "600",
     },
     pageIndicator: {
-        color: "#444",
         fontWeight: "500",
     },
 });
