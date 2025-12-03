@@ -9,6 +9,7 @@ import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../navigation/AppNavigator';
 import SmartNumber from './SmartNumber';
+import { useThemeColors } from '../theme/useThemeColors';
 
 const { width } = Dimensions.get('window');
 
@@ -19,6 +20,7 @@ interface Props {
 }
 
 const SubaccountRecurrentesList = ({ subcuentaId, userId, onRefresh }: Props) => {
+  const colors = useThemeColors();
   interface Recurrente {
     recurrenteId: string;
     nombre: string;
@@ -91,15 +93,15 @@ const SubaccountRecurrentesList = ({ subcuentaId, userId, onRefresh }: Props) =>
   }, [subcuentaId, userId]);
 
   if (loading) {
-    return <ActivityIndicator color="#EF7725" style={{ marginTop: 20 }} />;
+    return <ActivityIndicator color={colors.button} style={{ marginTop: 20 }} />;
   }
 
   if (!recurrentes.length) {
     return (
-      <View style={styles.emptyContainer}>
-        <Ionicons name="calendar-outline" size={48} color="#9ca3af" />
-        <Text style={styles.emptyTitle}>Sin recurrentes</Text>
-        <Text style={styles.emptySubtitle}>
+      <View style={[styles.emptyContainer, { backgroundColor: colors.card }]}>
+        <Ionicons name="calendar-outline" size={48} color={colors.placeholder} />
+        <Text style={[styles.emptyTitle, { color: colors.text }]}>Sin recurrentes</Text>
+        <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
           No hay recurrentes registrados para esta subcuenta.
         </Text>
       </View>
@@ -107,19 +109,19 @@ const SubaccountRecurrentesList = ({ subcuentaId, userId, onRefresh }: Props) =>
   }
 
   return (
-    <View style={styles.wrapper}>
-      <Text style={styles.title}>Recurrentes</Text>
+    <View style={[styles.wrapper, { backgroundColor: colors.inputBackground, shadowColor: colors.shadow }]}>
+      <Text style={[styles.title, { color: colors.text }]}>Recurrentes</Text>
       <FlatList
         data={recurrentes}
         keyExtractor={(item) => item.recurrenteId}
         renderItem={({ item }) => (
           <TouchableOpacity
             onPress={() => navigation.navigate('RecurrenteDetail', { recurrente: { ...item, pausado: item.pausado ?? false } })}
-            style={[styles.card, { borderColor: '#EF7725' }]}
+            style={[styles.card, { borderColor: colors.button, backgroundColor: colors.card }]}
           >
             <View>
-              <Text style={styles.nombre} numberOfLines={1}>{item.nombre}</Text>
-              <Text style={styles.monto}>
+              <Text style={[styles.nombre, { color: colors.text }]} numberOfLines={1}>{item.nombre}</Text>
+              <Text style={[styles.monto, { color: colors.text }]}>
                 ${item.monto >= 1000000 
                   ? `${(item.monto / 1000000).toFixed(1)}M`
                   : item.monto.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -142,11 +144,9 @@ const SubaccountRecurrentesList = ({ subcuentaId, userId, onRefresh }: Props) =>
 
 const styles = StyleSheet.create({
   wrapper: {
-    backgroundColor: '#f0f0f3',
     marginBottom: 40,
     borderRadius: 14,
     padding: 16,
-    shadowColor: '#000',
     shadowOpacity: 0.06,
     shadowRadius: 5,
     elevation: 3,
@@ -155,26 +155,22 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     marginBottom: 10,
-    color: '#333',
   },
   card: {
     width: (width - 64) / 2 - 8,
     height: 100,
     padding: 12,
     borderRadius: 10,
-    backgroundColor: '#f3f3f3',
     borderWidth: 2,
     justifyContent: 'space-between',
   },
   nombre: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#1e293b',
   },
   monto: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#0f172a',
   },
   badge: {
     backgroundColor: '#E0E7FF',
@@ -195,7 +191,6 @@ const styles = StyleSheet.create({
     right: 6,
   },
   emptyContainer: {
-    backgroundColor: '#f3f3f3',
     padding: 40,
     borderRadius: 20,
     alignItems: 'center',
@@ -204,13 +199,11 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#374151',
     marginTop: 16,
     marginBottom: 8,
   },
   emptySubtitle: {
     fontSize: 16,
-    color: '#6b7280',
     textAlign: 'center',
     lineHeight: 24,
     fontWeight: '400',
