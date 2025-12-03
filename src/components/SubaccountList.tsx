@@ -4,6 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { API_BASE_URL } from "../constants/api";
 import { useNavigation } from '@react-navigation/native';
+import { useThemeColors } from "../theme/useThemeColors";
 // ✅ NUEVO: Importar SmartNumber para mostrar cifras grandes de forma segura
 import SmartNumber from './SmartNumber';
 
@@ -30,6 +31,7 @@ interface Props {
 const LIMIT = 5;
 
 const SubaccountsList: React.FC<Props> = ({ userId, refreshKey = 0 }) => {
+  const colors = useThemeColors();
   const [subcuentas, setSubcuentas] = useState<Subcuenta[]>([]);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
@@ -129,10 +131,10 @@ const SubaccountsList: React.FC<Props> = ({ userId, refreshKey = 0 }) => {
           onGlobalRefresh: fetchSubcuentas,
         })
       }
-      style={[styles.card, { borderColor: item.color }]}
+      style={[styles.card, { borderColor: item.color, backgroundColor: colors.card, shadowColor: colors.shadow }]}
     >
       <View style={styles.cardHeader}>
-        <Text style={styles.cardTitle} numberOfLines={1} ellipsizeMode="tail">
+        <Text style={[styles.cardTitle, { color: colors.text }]} numberOfLines={1} ellipsizeMode="tail">
           {item.nombre}
         </Text>
         {item.afectaCuenta && (
@@ -140,7 +142,7 @@ const SubaccountsList: React.FC<Props> = ({ userId, refreshKey = 0 }) => {
         )}
       </View>
 
-      <Text style={styles.cardAmount} numberOfLines={1} ellipsizeMode="tail">
+      <Text style={[styles.cardAmount, { color: colors.text }]} numberOfLines={1} ellipsizeMode="tail">
         {item.simbolo}
         {item.cantidad >= 1000000 
           ? `${(item.cantidad / 1000000).toFixed(1)}M`
@@ -158,18 +160,18 @@ const SubaccountsList: React.FC<Props> = ({ userId, refreshKey = 0 }) => {
   );
 
   return (
-    <View style={styles.wrapper}>
-      <Text style={styles.title}>Subcuentas</Text>
+    <View style={[styles.wrapper, { backgroundColor: colors.chartBackground, shadowColor: colors.shadow, borderColor: colors.border }]}>
+      <Text style={[styles.title, { color: colors.text }]}>Subcuentas</Text>
       <TextInput
-        style={styles.searchInput}
+        style={[styles.searchInput, { backgroundColor: colors.inputBackground, borderColor: colors.border, color: colors.inputText }]}
         placeholder="Buscar subcuenta..."
         value={search}
         onChangeText={setSearch}
-        placeholderTextColor="#aaa"
+        placeholderTextColor={colors.placeholder}
       />
 
       <View style={styles.toggleContainer}>
-        <Text style={styles.toggleLabel}>Mostrar solo activas</Text>
+        <Text style={[styles.toggleLabel, { color: colors.textSecondary }]}>Mostrar solo activas</Text>
         <TouchableOpacity
           style={[
             styles.toggleSwitch,
@@ -190,9 +192,9 @@ const SubaccountsList: React.FC<Props> = ({ userId, refreshKey = 0 }) => {
       </View>
 
       {loading ? (
-        <ActivityIndicator style={{ marginTop: 20 }} color="#EF7725" />
+        <ActivityIndicator style={{ marginTop: 20 }} color={colors.button} />
       ) : subcuentas.length === 0 ? (
-        <Text style={styles.noData}>No hay subcuentas registradas.</Text>
+        <Text style={[styles.noData, { color: colors.textSecondary }]}>No hay subcuentas registradas.</Text>
       ) : (
         <>
           <FlatList
@@ -209,20 +211,25 @@ const SubaccountsList: React.FC<Props> = ({ userId, refreshKey = 0 }) => {
             <TouchableOpacity
               style={[
                 styles.pageButton,
+                { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow },
                 page <= 1 && styles.pageButtonDisabled,
               ]}
               onPress={handlePrev}
               disabled={page <= 1}
             >
-              <Text style={styles.pageButtonText}>Anterior</Text>
+              <Text style={[styles.pageButtonText, { color: colors.textSecondary }]}>Anterior</Text>
             </TouchableOpacity>
-            <Text style={styles.pageIndicator}>Página {page}</Text>
+            <Text style={[styles.pageIndicator, { color: colors.text }]}>Página {page}</Text>
             <TouchableOpacity
-              style={[styles.pageButton, !hasMore && styles.pageButtonDisabled]}
+              style={[
+                styles.pageButton,
+                { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow },
+                !hasMore && styles.pageButtonDisabled
+              ]}
               onPress={handleNext}
               disabled={!hasMore}
             >
-              <Text style={styles.pageButtonText}>Siguiente</Text>
+              <Text style={[styles.pageButtonText, { color: colors.textSecondary }]}>Siguiente</Text>
             </TouchableOpacity>
           </View>
         </>
@@ -234,29 +241,24 @@ const SubaccountsList: React.FC<Props> = ({ userId, refreshKey = 0 }) => {
 const styles = StyleSheet.create({
   wrapper: {
     marginBottom: 24,
-    backgroundColor: "#f0f0f3",
     borderRadius: 14,
     padding: 16,
-    shadowColor: "#000",
     shadowOpacity: 0.06,
     shadowRadius: 5,
     elevation: 3,
+    borderWidth: 1,
   },
   title: {
     fontSize: 18,
     fontWeight: "600",
     marginBottom: 10,
-    color: "#333",
   },
   searchInput: {
-    backgroundColor: "#f3f3f3",
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderWidth: 1,
-    borderColor: "#ddd",
     marginBottom: 14,
-    color: "#333",
   },
   rowWrapper: {
     justifyContent: "space-between",
@@ -267,10 +269,7 @@ const styles = StyleSheet.create({
     height: 80,
     padding: 8,
     borderRadius: 10,
-    backgroundColor: "#f3f3f3",
     borderWidth: 2,
-    borderColor: "#ddd",
-    shadowColor: "#000",
     shadowOpacity: 0.04,
     shadowRadius: 3,
     elevation: 1,
@@ -278,14 +277,12 @@ const styles = StyleSheet.create({
     minHeight: 60,
   },
   cardTitle: {
-    color: "#333",
     fontWeight: "600",
     fontSize: 12,
     flex: 1,
     marginRight: 4,
   },
   cardAmount: {
-    color: "#000",
     fontSize: 13,
     fontWeight: "700",
     marginTop: 2,
@@ -300,7 +297,6 @@ const styles = StyleSheet.create({
   noData: {
     textAlign: "center",
     marginTop: 20,
-    color: "#999",
   },
   pagination: {
     flexDirection: "row",
@@ -309,20 +305,21 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   pageButton: {
-    backgroundColor: "#EF7725",
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 10,
+    borderWidth: 1,
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
   },
   pageButtonDisabled: {
-    backgroundColor: "#ccc",
+    opacity: 0.4,
   },
   pageButtonText: {
-    color: "#fff",
     fontWeight: "600",
   },
   pageIndicator: {
-    color: "#444",
     fontWeight: "500",
   },
   statusBadge: {
@@ -344,7 +341,6 @@ const styles = StyleSheet.create({
   },
   toggleLabel: {
     fontSize: 14,
-    color: '#333',
     fontWeight: '600',
   },
   toggleSwitch: {
