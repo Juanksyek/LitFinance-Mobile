@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Animated } from 
 import { Ionicons } from '@expo/vector-icons';
 import { analyticsService, EstadisticaRecurrente, AnalyticsFilters } from '../../services/analyticsService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useThemeColors } from '../../theme/useThemeColors';
 
 interface RecurrentesChartProps {
   filters: AnalyticsFilters;
@@ -10,6 +11,7 @@ interface RecurrentesChartProps {
 }
 
 const RecurrentesChart: React.FC<RecurrentesChartProps> = ({ filters, refreshKey = 0 }) => {
+  const colors = useThemeColors();
   const [data, setData] = useState<EstadisticaRecurrente[]>([]);
   const [loading, setLoading] = useState(true);
   const [userCurrency, setUserCurrency] = useState<string>('MXN');
@@ -131,7 +133,7 @@ const RecurrentesChart: React.FC<RecurrentesChartProps> = ({ filters, refreshKey
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="small" color="#6366f1" />
-        <Text style={styles.loadingText}>Cargando pagos recurrentes...</Text>
+        <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Cargando pagos recurrentes...</Text>
       </View>
     );
   }
@@ -139,8 +141,8 @@ const RecurrentesChart: React.FC<RecurrentesChartProps> = ({ filters, refreshKey
   if (data.length === 0) {
     return (
       <View style={styles.emptyContainer}>
-        <Ionicons name="repeat-outline" size={48} color="#94a3b8" />
-        <Text style={styles.emptyText}>No hay pagos recurrentes</Text>
+        <Ionicons name="repeat-outline" size={48} color={colors.textSecondary} />
+        <Text style={[styles.emptyText, { color: colors.textSecondary }]}>No hay pagos recurrentes</Text>
       </View>
     );
   }
@@ -149,7 +151,7 @@ const RecurrentesChart: React.FC<RecurrentesChartProps> = ({ filters, refreshKey
 
   return (
     <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
-      <Text style={styles.title}>Pagos Recurrentes</Text>
+      <Text style={[styles.title, { color: colors.text }]}>Pagos Recurrentes</Text>
       
       <View style={styles.summaryCard}>
         <Text style={styles.summaryLabel}>Total mensual</Text>
@@ -159,7 +161,7 @@ const RecurrentesChart: React.FC<RecurrentesChartProps> = ({ filters, refreshKey
       
       <ScrollView style={styles.itemsContainer} showsVerticalScrollIndicator={false}>
         {data.map((item) => (
-          <View key={item.recurrente.id} style={styles.item}>
+          <View key={item.recurrente.id} style={[styles.item, { backgroundColor: colors.card }]}>
             <View style={styles.itemHeader}>
               <View style={styles.recurrenteInfo}>
                 <View style={[
@@ -171,8 +173,8 @@ const RecurrentesChart: React.FC<RecurrentesChartProps> = ({ filters, refreshKey
                   </Text>
                 </View>
                 <View style={styles.recurrenteText}>
-                  <Text style={styles.recurrenteName}>{item.recurrente.nombre}</Text>
-                  <Text style={styles.plataformaName}>
+                  <Text style={[styles.recurrenteName, { color: colors.text }]}>{item.recurrente.nombre}</Text>
+                  <Text style={[styles.plataformaName, { color: colors.textSecondary }]}>
                     {item.recurrente.plataforma.nombre} • {item.recurrente.plataforma.categoria}
                   </Text>
                 </View>
@@ -189,40 +191,40 @@ const RecurrentesChart: React.FC<RecurrentesChartProps> = ({ filters, refreshKey
               </View>
             </View>
 
-            <View style={styles.amountContainer}>
-              <Text style={styles.montoMensual}>{formatMoney(item.montoMensual, getMoneda(item))}</Text>
-              <Text style={styles.montoLabel}>por mes</Text>
+            <View style={[styles.amountContainer, { backgroundColor: colors.inputBackground }]}>
+              <Text style={[styles.montoMensual, { color: colors.text }]}>{formatMoney(item.montoMensual, getMoneda(item))}</Text>
+              <Text style={[styles.montoLabel, { color: colors.textSecondary }]}>por mes</Text>
             </View>
 
             <View style={styles.statsContainer}>
               <View style={styles.statItem}>
-                <Text style={styles.statLabel}>Total ejecutado</Text>
-                <Text style={styles.statValue}>{formatMoney(item.totalEjecutado, getMoneda(item))}</Text>
+                <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Total ejecutado</Text>
+                <Text style={[styles.statValue, { color: colors.text }]}>{formatMoney(item.totalEjecutado, getMoneda(item))}</Text>
               </View>
               <View style={styles.statItem}>
-                <Text style={styles.statLabel}>Ejecuciones</Text>
-                <Text style={styles.statValue}>{item.cantidadEjecuciones}</Text>
+                <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Ejecuciones</Text>
+                <Text style={[styles.statValue, { color: colors.text }]}>{item.cantidadEjecuciones}</Text>
               </View>
             </View>
 
             <View style={styles.datesContainer}>
               <View style={styles.dateItem}>
-                <Ionicons name="time-outline" size={14} color="#64748b" />
-                <Text style={styles.dateLabel}>Última: </Text>
-                <Text style={styles.dateValue}>
+                <Ionicons name="time-outline" size={14} color={colors.textSecondary} />
+                <Text style={[styles.dateLabel, { color: colors.textSecondary }]}>Última: </Text>
+                <Text style={[styles.dateValue, { color: colors.text }]}>
                   {formatDate(item.ultimaEjecucion)}
                 </Text>
               </View>
               <View style={styles.dateItem}>
                 <Ionicons name="calendar-outline" size={14} color="#6366f1" />
-                <Text style={styles.dateLabel}>Próxima: </Text>
+                <Text style={[styles.dateLabel, { color: colors.textSecondary }]}>Próxima: </Text>
                 <Text style={[styles.dateValue, { color: '#6366f1' }]}>
                   {formatDate(item.proximaEjecucion)}
                 </Text>
               </View>
             </View>
 
-            <Text style={styles.frecuencia}>
+            <Text style={[styles.frecuencia, { color: colors.textSecondary }]}>
               Frecuencia: {item.recurrente.frecuencia}
             </Text>
           </View>
@@ -239,7 +241,6 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#1e293b',
     marginBottom: 16,
   },
   summaryCard: {
@@ -273,7 +274,6 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 8,
     fontSize: 14,
-    color: '#64748b',
   },
   emptyContainer: {
     flex: 1,
@@ -284,13 +284,11 @@ const styles = StyleSheet.create({
   emptyText: {
     marginTop: 12,
     fontSize: 16,
-    color: '#64748b',
   },
   itemsContainer: {
     maxHeight: 350,
   },
   item: {
-    backgroundColor: '#f8fafc',
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
@@ -317,7 +315,6 @@ const styles = StyleSheet.create({
   plataformaLetter: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#1e293b',
   },
   recurrenteText: {
     flex: 1,
@@ -325,11 +322,9 @@ const styles = StyleSheet.create({
   recurrenteName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1e293b',
   },
   plataformaName: {
     fontSize: 12,
-    color: '#64748b',
     marginTop: 2,
   },
   statusContainer: {
@@ -350,11 +345,9 @@ const styles = StyleSheet.create({
   montoMensual: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#1e293b',
   },
   montoLabel: {
     fontSize: 14,
-    color: '#64748b',
     marginLeft: 4,
   },
   statsContainer: {
@@ -367,13 +360,11 @@ const styles = StyleSheet.create({
   },
   statLabel: {
     fontSize: 12,
-    color: '#64748b',
     marginBottom: 2,
   },
   statValue: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#1e293b',
   },
   datesContainer: {
     gap: 8,
@@ -386,16 +377,13 @@ const styles = StyleSheet.create({
   },
   dateLabel: {
     fontSize: 12,
-    color: '#64748b',
   },
   dateValue: {
     fontSize: 12,
     fontWeight: '500',
-    color: '#1e293b',
   },
   frecuencia: {
     fontSize: 11,
-    color: '#94a3b8',
     textAlign: 'center',
     marginTop: 8,
     fontStyle: 'italic',
