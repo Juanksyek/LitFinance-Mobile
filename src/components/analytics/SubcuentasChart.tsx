@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Animated } from 
 import { Ionicons } from '@expo/vector-icons';
 import { analyticsService, EstadisticaSubcuenta, AnalyticsFilters } from '../../services/analyticsService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useThemeColors } from '../../theme/useThemeColors';
 
 interface SubcuentasChartProps {
   filters: AnalyticsFilters;
@@ -10,6 +11,7 @@ interface SubcuentasChartProps {
 }
 
 const SubcuentasChart: React.FC<SubcuentasChartProps> = ({ filters, refreshKey = 0 }) => {
+  const colors = useThemeColors();
   const [data, setData] = useState<EstadisticaSubcuenta[]>([]);
   const [loading, setLoading] = useState(true);
   const fadeAnim = useState(new Animated.Value(0))[0];
@@ -74,7 +76,7 @@ const SubcuentasChart: React.FC<SubcuentasChartProps> = ({ filters, refreshKey =
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="small" color="#6366f1" />
-        <Text style={styles.loadingText}>Cargando datos de subcuentas...</Text>
+        <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Cargando datos de subcuentas...</Text>
       </View>
     );
   }
@@ -82,28 +84,29 @@ const SubcuentasChart: React.FC<SubcuentasChartProps> = ({ filters, refreshKey =
   if (data.length === 0) {
     return (
       <View style={styles.emptyContainer}>
-        <Ionicons name="wallet-outline" size={48} color="#94a3b8" />
-        <Text style={styles.emptyText}>No hay subcuentas disponibles</Text>
+        <Ionicons name="wallet-outline" size={48} color={colors.textSecondary} />
+        <Text style={[styles.emptyText, { color: colors.textSecondary }]}>No hay subcuentas disponibles</Text>
       </View>
     );
   }
 
   return (
     <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
-      <Text style={styles.title}>Estado de Subcuentas</Text>
+      <Text style={[styles.title, { color: colors.text }]}>Estado de Subcuentas</Text>
       
       <ScrollView style={styles.itemsContainer} showsVerticalScrollIndicator={false}>
         {data.map((item) => (
           <View key={item.subcuenta.id} style={[
             styles.item,
-            !item.subcuenta.activa && styles.inactiveItem
+            { backgroundColor: colors.card },
+            !item.subcuenta.activa && [styles.inactiveItem, { opacity: 0.6 }]
           ]}>
             <View style={styles.itemHeader}>
               <View style={styles.subcuentaInfo}>
                 <View style={[styles.colorIndicator, { backgroundColor: item.subcuenta.color }]} />
                 <View style={styles.subcuentaText}>
-                  <Text style={styles.subcuentaName}>{item.subcuenta.nombre}</Text>
-                  <Text style={styles.subcuentaStats}>
+                  <Text style={[styles.subcuentaName, { color: colors.text }]}>{item.subcuenta.nombre}</Text>
+                  <Text style={[styles.subcuentaStats, { color: colors.textSecondary }]}>
                     {item.cantidadMovimientos} movimientos
                     {!item.subcuenta.activa && ' • Inactiva'}
                   </Text>
@@ -124,9 +127,9 @@ const SubcuentasChart: React.FC<SubcuentasChartProps> = ({ filters, refreshKey =
               </View>
             </View>
 
-            <View style={styles.balanceContainer}>
-              <Text style={styles.saldoLabel}>Saldo actual</Text>
-              <Text style={styles.saldoValue}>
+            <View style={[styles.balanceContainer, { backgroundColor: colors.inputBackground }]}>
+              <Text style={[styles.saldoLabel, { color: colors.textSecondary }]}>Saldo actual</Text>
+              <Text style={[styles.saldoValue, { color: colors.text }]}>
                 {formatMoney(item.saldoActual, item.subcuenta.moneda)}
               </Text>
             </View>
@@ -136,7 +139,7 @@ const SubcuentasChart: React.FC<SubcuentasChartProps> = ({ filters, refreshKey =
                 <View style={styles.movementIcon}>
                   <Ionicons name="arrow-down" size={12} color="#10b981" />
                 </View>
-                <Text style={styles.movementLabel}>Ingresos</Text>
+                <Text style={[styles.movementLabel, { color: colors.textSecondary }]}>Ingresos</Text>
                 <Text style={[styles.movementValue, { color: '#10b981' }]}>
                   {formatMoney(item.totalIngresos, item.subcuenta.moneda)}
                 </Text>
@@ -146,7 +149,7 @@ const SubcuentasChart: React.FC<SubcuentasChartProps> = ({ filters, refreshKey =
                 <View style={styles.movementIcon}>
                   <Ionicons name="arrow-up" size={12} color="#ef4444" />
                 </View>
-                <Text style={styles.movementLabel}>Egresos</Text>
+                <Text style={[styles.movementLabel, { color: colors.textSecondary }]}>Egresos</Text>
                 <Text style={[styles.movementValue, { color: '#ef4444' }]}>
                   {formatMoney(item.totalEgresos, item.subcuenta.moneda)}
                 </Text>
@@ -154,7 +157,7 @@ const SubcuentasChart: React.FC<SubcuentasChartProps> = ({ filters, refreshKey =
             </View>
 
             {item.ultimoMovimiento && (
-              <Text style={styles.ultimoMovimiento}>
+              <Text style={[styles.ultimoMovimiento, { color: colors.textSecondary }]}>
                 Último movimiento: {new Date(item.ultimoMovimiento).toLocaleDateString()}
               </Text>
             )}
@@ -172,7 +175,6 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#1e293b',
     marginBottom: 16,
   },
   loadingContainer: {
@@ -184,7 +186,6 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 8,
     fontSize: 14,
-    color: '#64748b',
   },
   emptyContainer: {
     flex: 1,
@@ -195,13 +196,11 @@ const styles = StyleSheet.create({
   emptyText: {
     marginTop: 12,
     fontSize: 16,
-    color: '#64748b',
   },
   itemsContainer: {
     maxHeight: 400,
   },
   item: {
-    backgroundColor: '#f8fafc',
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
@@ -209,7 +208,6 @@ const styles = StyleSheet.create({
     borderLeftColor: 'transparent',
   },
   inactiveItem: {
-    opacity: 0.6,
     borderLeftColor: '#94a3b8',
   },
   itemHeader: {
@@ -235,11 +233,9 @@ const styles = StyleSheet.create({
   subcuentaName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1e293b',
   },
   subcuentaStats: {
     fontSize: 12,
-    color: '#64748b',
     marginTop: 2,
   },
   statusContainer: {
@@ -252,20 +248,17 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   balanceContainer: {
-    backgroundColor: '#ffffff',
     borderRadius: 8,
     padding: 12,
     marginBottom: 12,
   },
   saldoLabel: {
     fontSize: 12,
-    color: '#64748b',
     marginBottom: 4,
   },
   saldoValue: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#1e293b',
   },
   movementsContainer: {
     flexDirection: 'row',
@@ -288,7 +281,6 @@ const styles = StyleSheet.create({
   },
   movementLabel: {
     fontSize: 12,
-    color: '#64748b',
     flex: 1,
   },
   movementValue: {
@@ -297,7 +289,6 @@ const styles = StyleSheet.create({
   },
   ultimoMovimiento: {
     fontSize: 11,
-    color: '#94a3b8',
     textAlign: 'center',
     marginTop: 8,
   },
