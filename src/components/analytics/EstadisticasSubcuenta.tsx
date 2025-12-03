@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, FlatList } from 'react-native';
 import type { EstadisticaSubcuenta } from '../../types/analytics';
+import { useThemeColors } from '../../theme/useThemeColors';
 
 interface EstadisticasSubcuentaProps {
   data: EstadisticaSubcuenta[];
@@ -13,6 +14,8 @@ const EstadisticasSubcuenta: React.FC<EstadisticasSubcuentaProps> = ({
   isLoading = false,
   error
 }) => {
+  const colors = useThemeColors();
+
   const formatAmount = (amount: number, currency: string): string => {
     return `${amount.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency}`;
   };
@@ -29,17 +32,17 @@ const EstadisticasSubcuenta: React.FC<EstadisticasSubcuentaProps> = ({
   };
 
   const renderSubcuentaItem = ({ item }: { item: EstadisticaSubcuenta }) => (
-    <View style={styles.subcuentaItem}>
+    <View style={[styles.subcuentaItem, { borderBottomColor: colors.border }]}>
       <View style={styles.subcuentaHeader}>
         <View style={[styles.colorIndicator, { backgroundColor: item.subcuenta.color }]} />
         <View style={styles.subcuentaInfo}>
-          <Text style={styles.subcuentaNombre}>{item.subcuenta.nombre}</Text>
-          <Text style={styles.subcuentaStatus}>
+          <Text style={[styles.subcuentaNombre, { color: colors.text }]}>{item.subcuenta.nombre}</Text>
+          <Text style={[styles.subcuentaStatus, { color: colors.textSecondary }]}>
             {item.subcuenta.activa ? 'Activa' : 'Inactiva'}
           </Text>
         </View>
         <View style={styles.saldoContainer}>
-          <Text style={styles.saldoActual}>
+          <Text style={[styles.saldoActual, { color: colors.text }]}>
             {formatAmount(item.saldoActual, item.subcuenta.simbolo)}
           </Text>
           <Text style={[styles.crecimiento, { color: getGrowthColor(item.crecimientoMensual) }]}>
@@ -50,22 +53,22 @@ const EstadisticasSubcuenta: React.FC<EstadisticasSubcuentaProps> = ({
       
       <View style={styles.subcuentaStats}>
         <View style={styles.statItem}>
-          <Text style={styles.statLabel}>Ingresos</Text>
+          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Ingresos</Text>
           <Text style={[styles.statValue, styles.incomeText]}>
             {formatAmount(item.totalIngresos, item.subcuenta.simbolo)}
           </Text>
         </View>
         
         <View style={styles.statItem}>
-          <Text style={styles.statLabel}>Egresos</Text>
+          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Egresos</Text>
           <Text style={[styles.statValue, styles.expenseText]}>
             {formatAmount(item.totalEgresos, item.subcuenta.simbolo)}
           </Text>
         </View>
         
         <View style={styles.statItem}>
-          <Text style={styles.statLabel}>Movimientos</Text>
-          <Text style={styles.statValue}>{item.cantidadMovimientos}</Text>
+          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Movimientos</Text>
+          <Text style={[styles.statValue, { color: colors.text }]}>{item.cantidadMovimientos}</Text>
         </View>
       </View>
     </View>
@@ -73,23 +76,23 @@ const EstadisticasSubcuenta: React.FC<EstadisticasSubcuentaProps> = ({
 
   if (isLoading) {
     return (
-      <View style={styles.container}>
-        <Text style={styles.loadingText}>Cargando subcuentas...</Text>
+      <View style={[styles.container, { backgroundColor: colors.card, shadowColor: colors.shadow }]}>
+        <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Cargando subcuentas...</Text>
       </View>
     );
   }
 
   if (error) {
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: colors.card, shadowColor: colors.shadow }]}>
         <Text style={styles.errorText}>Error: {error}</Text>
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Estadísticas por Subcuenta</Text>
+    <View style={[styles.container, { backgroundColor: colors.card, shadowColor: colors.shadow }]}>
+      <Text style={[styles.title, { color: colors.text }]}>Estadísticas por Subcuenta</Text>
       <FlatList
         data={data}
         renderItem={renderSubcuentaItem}
@@ -102,12 +105,10 @@ const EstadisticasSubcuenta: React.FC<EstadisticasSubcuentaProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#FFFFFF',
     borderRadius: 12,
     padding: 16,
     marginHorizontal: 16,
     marginVertical: 8,
-    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 3.84,
@@ -116,14 +117,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#1F2937',
     marginBottom: 16,
   },
   subcuentaItem: {
     marginBottom: 16,
     paddingBottom: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
   },
   subcuentaHeader: {
     flexDirection: 'row',
@@ -142,11 +141,9 @@ const styles = StyleSheet.create({
   subcuentaNombre: {
     fontSize: 16,
     fontWeight: '500',
-    color: '#1F2937',
   },
   subcuentaStatus: {
     fontSize: 12,
-    color: '#6B7280',
     marginTop: 2,
   },
   saldoContainer: {
@@ -155,7 +152,6 @@ const styles = StyleSheet.create({
   saldoActual: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1F2937',
   },
   crecimiento: {
     fontSize: 12,
@@ -171,14 +167,12 @@ const styles = StyleSheet.create({
   },
   statLabel: {
     fontSize: 11,
-    color: '#6B7280',
     marginBottom: 4,
     textTransform: 'uppercase',
   },
   statValue: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#1F2937',
   },
   incomeText: {
     color: '#10B981',
@@ -188,7 +182,6 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     textAlign: 'center',
-    color: '#6B7280',
     fontSize: 14,
   },
   errorText: {
