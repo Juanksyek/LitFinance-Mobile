@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, TextInput, StyleSheet, TouchableOpacity, ViewStyle, TextStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useCurrencyInput, useNumericInput } from '../hooks/useNumericInput';
+import { useThemeColors } from '../theme/useThemeColors';
 
 interface UseNumericInputOptions {
   initialValue?: number;
@@ -90,17 +91,18 @@ const SmartInput: React.FC<SmartInputProps> = ({
   };
 
   const numericInput = getNumericHook();
+  const colors = useThemeColors();
 
   const getInputColor = () => {
-    if (disabled) return '#9CA3AF';
-    if (!numericInput.hasBeenTouched) return '#6B7280';
+    if (disabled) return colors.placeholder;
+    if (!numericInput.hasBeenTouched) return colors.textSecondary;
     return numericInput.isValid ? '#059669' : '#DC2626';
   };
 
   const getBorderColor = () => {
-    if (disabled) return '#E5E7EB';
+    if (disabled) return colors.border;
     if (numericInput.isFocused) return numericInput.isValid ? '#10B981' : '#EF4444';
-    if (!numericInput.hasBeenTouched) return '#D1D5DB';
+    if (!numericInput.hasBeenTouched) return colors.border;
     return numericInput.isValid ? '#D1FAE5' : '#FEE2E2';
   };
 
@@ -187,7 +189,7 @@ const SmartInput: React.FC<SmartInputProps> = ({
   };
 
   return (
-    <View style={[styles.container, style]}>
+    <View style={[styles.container, { backgroundColor: colors.inputBackground }, style]}>
       {label != null && (
         typeof label === 'string' || typeof label === 'number'
           ? <Text style={[styles.label, labelStyle, { color: getInputColor() }]}>{label}</Text>
@@ -198,7 +200,7 @@ const SmartInput: React.FC<SmartInputProps> = ({
         style={[
           styles.inputContainer,
           { borderColor: getBorderColor() },
-          disabled && styles.disabledContainer,
+          disabled && { backgroundColor: colors.cardSecondary },
         ]}
       >
         {renderPrefix()}
@@ -207,7 +209,7 @@ const SmartInput: React.FC<SmartInputProps> = ({
           {...numericInput.textInputProps}
           style={[styles.input, inputStyle, { color: getInputColor() }]}
           placeholder={getPlaceholder()}
-          placeholderTextColor="#9CA3AF"
+          placeholderTextColor={colors.placeholder}
           editable={!disabled}
           selectTextOnFocus
         />
@@ -219,8 +221,8 @@ const SmartInput: React.FC<SmartInputProps> = ({
 };
 
 const styles = StyleSheet.create({
-  container: { marginBottom: 16, backgroundColor: '#f8f8f8', borderRadius: 12 },
-  label: { fontSize: 14, fontWeight: '600', marginBottom: 6, color: '#374151' },
+  container: { marginBottom: 16, borderRadius: 12 },
+  label: { fontSize: 14, fontWeight: '600', marginBottom: 6 },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -229,7 +231,6 @@ const styles = StyleSheet.create({
     minHeight: 40,
     paddingHorizontal: 12,
   },
-  disabledContainer: { backgroundColor: '#F9FAFB' },
   prefixContainer: { marginRight: 8 },
   prefixText: { fontSize: 16, fontWeight: '600' },
   input: { flex: 1, fontSize: 16, fontWeight: '500', paddingVertical: 12, textAlign: 'right' },
@@ -245,10 +246,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 6,
     padding: 8,
-    backgroundColor: '#F3F4F6',
     borderRadius: 6,
   },
-  infoText: { fontSize: 12, color: '#6B7280', marginLeft: 6, flex: 1 },
+  infoText: { fontSize: 12, marginLeft: 6, flex: 1 },
 });
 
 export default SmartInput;
