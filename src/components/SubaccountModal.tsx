@@ -8,6 +8,7 @@ import { API_BASE_URL } from "../constants/api";
 import SmartInput from './SmartInput';
 import SmartNumber from './SmartNumber';
 import { CurrencyField, Moneda } from "../components/CurrencyPicker"; // ✅ reutilizable
+import { useThemeColors } from "../theme/useThemeColors";
 
 const SCREEN_HEIGHT = Dimensions.get("window").height;
 
@@ -41,6 +42,7 @@ const SubaccountModal: React.FC<Props> = ({
   onSuccess,
   subcuentaToEdit,
 }) => {
+  const colors = useThemeColors();
   const [nombre, setNombre] = useState(subcuentaToEdit?.nombre || "");
   const [moneda, setMoneda] = useState(subcuentaToEdit?.moneda || "MXN");
   const [simbolo, setSimbolo] = useState(subcuentaToEdit?.simbolo || "$");
@@ -187,14 +189,14 @@ const SubaccountModal: React.FC<Props> = ({
     >
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : undefined}
-        style={styles.modal}
+        style={[styles.modal, { backgroundColor: colors.card }]}
       >
-        <View style={styles.handle} />
+        <View style={[styles.handle, { backgroundColor: colors.border }]} />
         <View style={styles.header}>
           <Ionicons name="wallet-outline" size={22} color="#EF7725" />
-          <Text style={styles.title}>Nueva Subcuenta</Text>
+          <Text style={[styles.title, { color: colors.text }]}>Nueva Subcuenta</Text>
           <TouchableOpacity onPress={onClose}>
-            <Ionicons name="close" size={22} color="#999" />
+            <Ionicons name="close" size={22} color={colors.textSecondary} />
           </TouchableOpacity>
         </View>
 
@@ -202,7 +204,8 @@ const SubaccountModal: React.FC<Props> = ({
           placeholder="Nombre de la subcuenta"
           value={nombre}
           onChangeText={setNombre}
-          style={styles.input}
+          style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.border, color: colors.inputText }]}
+          placeholderTextColor={colors.placeholder}
         />
 
         {/* ✅ CurrencyPicker reutilizable */}
@@ -252,7 +255,7 @@ const SubaccountModal: React.FC<Props> = ({
         )}
 
         <View style={{ marginBottom: 16 }}>
-          <Text style={styles.switchLabel}>Color</Text>
+          <Text style={[styles.switchLabel, { color: colors.text }]}>Color</Text>
           <View style={styles.colorGrid}>
             {presetColors.map((c) => {
               const selected = c === color;
@@ -262,8 +265,8 @@ const SubaccountModal: React.FC<Props> = ({
                   onPress={() => setColor(c)}
                   style={[
                     styles.colorCircle,
-                    { backgroundColor: c },
-                    selected && styles.colorSelected,
+                    { backgroundColor: c, borderColor: colors.border },
+                    selected && { borderWidth: 3, borderColor: colors.text },
                   ]}
                 />
               );
@@ -272,7 +275,7 @@ const SubaccountModal: React.FC<Props> = ({
         </View>
 
         <View style={styles.switchRow}>
-          <Text style={styles.switchLabel}>¿Afecta cuenta principal?</Text>
+          <Text style={[styles.switchLabel, { color: colors.text }]}>¿Afecta cuenta principal?</Text>
           <Switch value={afectaCuenta} onValueChange={setAfectaCuenta} />
         </View>
 
@@ -293,7 +296,6 @@ const SubaccountModal: React.FC<Props> = ({
 const styles = StyleSheet.create({
   modalContainer: { justifyContent: "flex-end", margin: 0 },
   modal: {
-    backgroundColor: "#fff",
     paddingHorizontal: 16,
     paddingTop: 10,
     paddingBottom: 24,
@@ -304,7 +306,6 @@ const styles = StyleSheet.create({
   handle: {
     width: 40,
     height: 5,
-    backgroundColor: "#ccc",
     borderRadius: 5,
     alignSelf: "center",
     marginBottom: 8,
@@ -318,17 +319,14 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: "600",
-    color: "#333",
   },
   input: {
-    backgroundColor: "#f8f8f8",
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,
     height: 44,
     fontSize: 14,
     borderWidth: 1,
-    borderColor: "#eee",
     marginBottom: 10,
   },
   switchRow: {
@@ -337,7 +335,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginVertical: 10,
   },
-  switchLabel: { fontSize: 14, color: "#444" },
+  switchLabel: { fontSize: 14 },
   button: {
     padding: 14,
     borderRadius: 12,
@@ -362,7 +360,6 @@ const styles = StyleSheet.create({
     marginRight: 10,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: "#ccc",
   },
   colorSelected: {
     borderWidth: 2,
@@ -375,13 +372,11 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     paddingHorizontal: 10,
     paddingVertical: 8,
-    backgroundColor: "#f0f0f0",
     borderRadius: 10,
   },
   symbolValue: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#333",
     marginLeft: 4,
   },
   // ✅ Estilos para SmartInput y advertencias
