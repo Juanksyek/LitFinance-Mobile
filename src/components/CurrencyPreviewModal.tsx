@@ -6,6 +6,7 @@ import Toast from "react-native-toast-message";
 import { analyticsService, PreviewBalance } from "../services/analyticsService";
 import { CurrencyField, Moneda } from "./CurrencyPicker";
 import SmartNumber from "./SmartNumber";
+import { useThemeColors } from "../theme/useThemeColors";
 
 interface Props {
   visible: boolean;
@@ -13,6 +14,7 @@ interface Props {
 }
 
 const CurrencyPreviewModal: React.FC<Props> = ({ visible, onClose }) => {
+  const colors = useThemeColors();
   const [loading, setLoading] = useState(false);
   const [previewData, setPreviewData] = useState<PreviewBalance | null>(null);
   const [selectedMoneda, setSelectedMoneda] = useState<Moneda | null>({
@@ -64,18 +66,18 @@ const CurrencyPreviewModal: React.FC<Props> = ({ visible, onClose }) => {
       animationOutTiming={350}
       useNativeDriver={true}
     >
-      <View style={styles.modal}>
-        <View style={styles.grabber} />
+      <View style={[styles.modal, { backgroundColor: colors.background }]}>
+        <View style={[styles.grabber, { backgroundColor: colors.border }]} />
 
         <View style={styles.header}>
           <Ionicons name="cash-outline" size={24} color="#EF6C00" />
-          <Text style={styles.title}>Vista previa de moneda</Text>
+          <Text style={[styles.title, { color: colors.text }]}>Vista previa de moneda</Text>
           <TouchableOpacity onPress={onClose}>
-            <Ionicons name="close" size={24} color="#999" />
+            <Ionicons name="close" size={24} color={colors.textSecondary} />
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.description}>
+        <Text style={[styles.description, { color: colors.textSecondary }]}>
           Visualiza tus balances convertidos a cualquier moneda sin modificar tu configuración.
         </Text>
 
@@ -91,16 +93,16 @@ const CurrencyPreviewModal: React.FC<Props> = ({ visible, onClose }) => {
         {loading ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color="#EF6C00" />
-            <Text style={styles.loadingText}>Convirtiendo balances...</Text>
+            <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Convirtiendo balances...</Text>
           </View>
         ) : previewData ? (
           <ScrollView style={styles.previewContent} showsVerticalScrollIndicator={false}>
             {/* Cuenta Principal */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Cuenta Principal</Text>
-              <View style={styles.balanceCard}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Cuenta Principal</Text>
+              <View style={[styles.balanceCard, { backgroundColor: colors.card, shadowColor: colors.shadow }]}>
                 <View style={styles.balanceRow}>
-                  <Text style={styles.balanceLabel}>Balance convertido:</Text>
+                  <Text style={[styles.balanceLabel, { color: colors.textSecondary }]}>Balance convertido:</Text>
                   <SmartNumber
                     value={previewData.cuentaPrincipal.cantidad}
                     currentCurrency={previewData.monedaPreview}
@@ -113,13 +115,13 @@ const CurrencyPreviewModal: React.FC<Props> = ({ visible, onClose }) => {
                     }}
                   />
                 </View>
-                <View style={styles.infoRow}>
-                  <Text style={styles.infoLabel}>Moneda original:</Text>
-                  <Text style={styles.infoValue}>{previewData.cuentaPrincipal.monedaOriginal}</Text>
+                <View style={[styles.infoRow, { borderTopColor: colors.border }]}>
+                  <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Moneda original:</Text>
+                  <Text style={[styles.infoValue, { color: colors.text }]}>{previewData.cuentaPrincipal.monedaOriginal}</Text>
                 </View>
-                <View style={styles.infoRow}>
-                  <Text style={styles.infoLabel}>Tasa de conversión:</Text>
-                  <Text style={styles.infoValue}>{previewData.cuentaPrincipal.tasaConversion.toFixed(6)}</Text>
+                <View style={[styles.infoRow, { borderTopColor: colors.border }]}>
+                  <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Tasa de conversión:</Text>
+                  <Text style={[styles.infoValue, { color: colors.text }]}>{previewData.cuentaPrincipal.tasaConversion.toFixed(6)}</Text>
                 </View>
               </View>
             </View>
@@ -127,20 +129,21 @@ const CurrencyPreviewModal: React.FC<Props> = ({ visible, onClose }) => {
             {/* Subcuentas */}
             {previewData.subcuentas.length > 0 && (
               <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Subcuentas</Text>
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>Subcuentas</Text>
                 {previewData.subcuentas.map((subcuenta) => (
                   <View
                     key={subcuenta.id}
                     style={[
                       styles.subcuentaCard,
+                      { backgroundColor: colors.card },
                       !subcuenta.activa && styles.subcuentaInactiva,
                     ]}
                   >
                     <View style={styles.subcuentaHeader}>
                       <View style={[styles.colorDot, { backgroundColor: subcuenta.color }]} />
-                      <Text style={styles.subcuentaNombre}>{subcuenta.nombre}</Text>
+                      <Text style={[styles.subcuentaNombre, { color: colors.text }]}>{subcuenta.nombre}</Text>
                       {!subcuenta.activa && (
-                        <Text style={styles.inactiveTag}>Inactiva</Text>
+                        <Text style={[styles.inactiveTag, { color: colors.textSecondary, backgroundColor: colors.inputBackground }]}>Inactiva</Text>
                       )}
                     </View>
                     <View style={styles.subcuentaContent}>
@@ -155,7 +158,7 @@ const CurrencyPreviewModal: React.FC<Props> = ({ visible, onClose }) => {
                           maxLength: 15
                         }}
                       />
-                      <Text style={styles.subcuentaOriginal}>
+                      <Text style={[styles.subcuentaOriginal, { color: colors.textSecondary }]}>
                         De {subcuenta.monedaOriginal} • {subcuenta.tasaConversion.toFixed(4)}
                       </Text>
                     </View>
@@ -181,19 +184,19 @@ const CurrencyPreviewModal: React.FC<Props> = ({ visible, onClose }) => {
             </View>
 
             {/* Timestamp */}
-            <Text style={styles.timestamp}>
+            <Text style={[styles.timestamp, { color: colors.textSecondary }]}>
               Actualizado: {new Date(previewData.timestamp).toLocaleString()}
             </Text>
           </ScrollView>
         ) : (
           <View style={styles.emptyContainer}>
-            <Ionicons name="information-circle-outline" size={48} color="#999" />
-            <Text style={styles.emptyText}>Selecciona una moneda para ver el preview</Text>
+            <Ionicons name="information-circle-outline" size={48} color={colors.textSecondary} />
+            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>Selecciona una moneda para ver el preview</Text>
           </View>
         )}
 
         <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-          <Text style={styles.closeButtonText}>Cerrar</Text>
+          <Text style={[styles.closeButtonText, { color: colors.textSecondary }]}>Cerrar</Text>
         </TouchableOpacity>
       </View>
     </Modal>
@@ -206,7 +209,6 @@ const styles = StyleSheet.create({
     margin: 0,
   },
   modal: {
-    backgroundColor: "#f0f0f3",
     paddingHorizontal: 20,
     paddingTop: 16,
     paddingBottom: 30,
@@ -217,7 +219,6 @@ const styles = StyleSheet.create({
   grabber: {
     width: 40,
     height: 5,
-    backgroundColor: "#ccc",
     borderRadius: 3,
     alignSelf: "center",
     marginBottom: 16,
@@ -231,13 +232,11 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: "600",
-    color: "#333",
     flex: 1,
     textAlign: "center",
   },
   description: {
     fontSize: 13,
-    color: "#666",
     textAlign: "center",
     marginBottom: 16,
     lineHeight: 18,
@@ -253,7 +252,6 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 12,
     fontSize: 14,
-    color: "#666",
   },
   previewContent: {
     maxHeight: 400,
@@ -264,14 +262,11 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#444",
     marginBottom: 10,
   },
   balanceCard: {
-    backgroundColor: "#fff",
     borderRadius: 12,
     padding: 16,
-    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 4,
@@ -285,32 +280,26 @@ const styles = StyleSheet.create({
   },
   balanceLabel: {
     fontSize: 13,
-    color: "#666",
     fontWeight: "500",
   },
   balanceAmount: {
     fontSize: 20,
     fontWeight: "700",
-    color: "#333",
   },
   infoRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     paddingVertical: 6,
     borderTopWidth: 1,
-    borderTopColor: "#f0f0f0",
   },
   infoLabel: {
     fontSize: 12,
-    color: "#888",
   },
   infoValue: {
     fontSize: 12,
-    color: "#444",
     fontWeight: "500",
   },
   subcuentaCard: {
-    backgroundColor: "#fff",
     borderRadius: 10,
     padding: 12,
     marginBottom: 8,
@@ -335,13 +324,10 @@ const styles = StyleSheet.create({
   subcuentaNombre: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#333",
     flex: 1,
   },
   inactiveTag: {
     fontSize: 10,
-    color: "#999",
-    backgroundColor: "#f0f0f0",
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
@@ -352,12 +338,10 @@ const styles = StyleSheet.create({
   subcuentaAmount: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#444",
     marginBottom: 4,
   },
   subcuentaOriginal: {
     fontSize: 11,
-    color: "#888",
   },
   totalSection: {
     backgroundColor: "#EF6C0015",
@@ -381,7 +365,6 @@ const styles = StyleSheet.create({
   },
   timestamp: {
     fontSize: 10,
-    color: "#999",
     textAlign: "center",
     marginTop: 8,
     marginBottom: 16,
@@ -394,7 +377,6 @@ const styles = StyleSheet.create({
   emptyText: {
     marginTop: 12,
     fontSize: 14,
-    color: "#999",
     textAlign: "center",
   },
   closeButton: {
@@ -404,7 +386,6 @@ const styles = StyleSheet.create({
   },
   closeButtonText: {
     fontSize: 15,
-    color: "#888",
     fontWeight: "500",
   },
 });
