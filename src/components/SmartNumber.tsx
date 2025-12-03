@@ -6,6 +6,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import Toast from 'react-native-toast-message';
 import CurrencyChangeModal from './CurrencyChangeModal';
 import { CurrencyField, Moneda } from '../components/CurrencyPicker'; // ✅ reutilizable
+import { useThemeColors } from '../theme/useThemeColors';
 
 interface SmartNumberProps {
   value: number;
@@ -30,12 +31,16 @@ const SmartNumber: React.FC<SmartNumberProps> = ({
   textStyle,
   showWarnings = true,
   allowTooltip = true,
-  color = '#1E293B',
+  color,
   allowCurrencyChange = false,
   currentCurrency = 'MXN',
   onCurrencyChange,
   refreshPreferences = 0
 }) => {
+  const colors = useThemeColors();
+  // Si no se pasa color, usar el color del tema
+  const effectiveColor = color ?? colors.text;
+  
   // Tooltip
   const [tooltipVisible, setTooltipVisible] = useState(false);
 
@@ -87,7 +92,7 @@ const SmartNumber: React.FC<SmartNumberProps> = ({
   const getWarningColor = () => {
     if (result.warnings.some(w => w.includes('excede límites'))) return '#EF4444';
     if (result.warnings.some(w => w.includes('muy grande'))) return '#F59E0B';
-    return color;
+    return effectiveColor;
   };
 
   // ✅ Cuando el usuario elige moneda en el CurrencyField
@@ -126,36 +131,36 @@ const SmartNumber: React.FC<SmartNumberProps> = ({
         activeOpacity={1}
         onPress={() => setTooltipVisible(false)}
       >
-        <View style={styles.tooltipContainer}>
-          <View style={styles.tooltipHeader}>
+        <View style={[styles.tooltipContainer, { backgroundColor: colors.card }]}>
+          <View style={[styles.tooltipHeader, { borderBottomColor: colors.border }]}>
             <Ionicons name="calculator" size={20} color="#4CAF50" />
-            <Text style={styles.tooltipTitle}>Información del Número</Text>
+            <Text style={[styles.tooltipTitle, { color: colors.text }]}>Información del Número</Text>
             <TouchableOpacity onPress={() => setTooltipVisible(false)}>
-              <Ionicons name="close" size={20} color="#64748B" />
+              <Ionicons name="close" size={20} color={colors.textSecondary} />
             </TouchableOpacity>
           </View>
 
           <View style={styles.tooltipContent}>
             <View style={styles.tooltipSection}>
-              <Text style={styles.tooltipLabel}>Valor mostrado:</Text>
-              <Text style={styles.tooltipValue}>{result.formatted}</Text>
+              <Text style={[styles.tooltipLabel, { color: colors.textSecondary }]}>Valor mostrado:</Text>
+              <Text style={[styles.tooltipValue, { color: colors.text }]}>{result.formatted}</Text>
             </View>
 
             <View style={styles.tooltipSection}>
-              <Text style={styles.tooltipLabel}>Valor completo:</Text>
-              <Text style={[styles.tooltipValue, styles.fullValueText]}>{result.fullValue}</Text>
+              <Text style={[styles.tooltipLabel, { color: colors.textSecondary }]}>Valor completo:</Text>
+              <Text style={[styles.tooltipValue, styles.fullValueText, { color: colors.text, backgroundColor: colors.inputBackground }]}>{result.fullValue}</Text>
             </View>
 
             {result.scientific && (
               <View style={styles.tooltipSection}>
-                <Text style={styles.tooltipLabel}>Notación científica:</Text>
+                <Text style={[styles.tooltipLabel, { color: colors.textSecondary }]}>Notación científica:</Text>
                 <Text style={[styles.tooltipValue, styles.scientificText]}>{result.scientific}</Text>
               </View>
             )}
 
             <View style={styles.infoGrid}>
-              <View style={styles.infoItem}>
-                <Text style={styles.infoItemLabel}>Estado:</Text>
+              <View style={[styles.infoItem, { backgroundColor: colors.inputBackground }]}>
+                <Text style={[styles.infoItemLabel, { color: colors.textSecondary }]}>Estado:</Text>
                 <Text
                   style={[
                     styles.infoItemValue,
@@ -166,9 +171,9 @@ const SmartNumber: React.FC<SmartNumberProps> = ({
                 </Text>
               </View>
 
-              <View style={styles.infoItem}>
-                <Text style={styles.infoItemLabel}>Formato:</Text>
-                <Text style={styles.infoItemValue}>
+              <View style={[styles.infoItem, { backgroundColor: colors.inputBackground }]}>
+                <Text style={[styles.infoItemLabel, { color: colors.textSecondary }]}>Formato:</Text>
+                <Text style={[styles.infoItemValue, { color: colors.text }]}>
                   {result.isTruncated ? 'Compacto' : 'Completo'}
                 </Text>
               </View>
@@ -192,7 +197,7 @@ const SmartNumber: React.FC<SmartNumberProps> = ({
             <View style={styles.actionButtons}>
               {allowCurrencyChange && (
                 <TouchableOpacity
-                  style={[styles.actionButton, styles.currencyActionButton]}
+                  style={[styles.actionButton, styles.currencyActionButton, { backgroundColor: colors.inputBackground, borderColor: colors.border }]}
                   onPress={() => {
                     setTooltipVisible(false);
                     setPickerVisible(true);
@@ -206,11 +211,11 @@ const SmartNumber: React.FC<SmartNumberProps> = ({
               )}
 
               <TouchableOpacity
-                style={styles.actionButton}
+                style={[styles.actionButton, { backgroundColor: colors.inputBackground, borderColor: colors.border }]}
                 onPress={() => setTooltipVisible(false)}
               >
-                <Ionicons name="checkmark" size={16} color="#64748B" />
-                <Text style={styles.actionButtonText}>Entendido</Text>
+                <Ionicons name="checkmark" size={16} color={colors.textSecondary} />
+                <Text style={[styles.actionButtonText, { color: colors.textSecondary }]}>Entendido</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -252,11 +257,11 @@ const SmartNumber: React.FC<SmartNumberProps> = ({
         presentationStyle="pageSheet"
         onRequestClose={() => setPickerVisible(false)}
       >
-        <View style={{ flex: 1, backgroundColor: '#fff' }}>
-          <View style={styles.currencyModalHeader}>
-            <Text style={styles.currencyModalTitle}>Cambiar Moneda</Text>
+        <View style={[{ flex: 1 }, { backgroundColor: colors.background }]}>
+          <View style={[styles.currencyModalHeader, { borderBottomColor: colors.border, backgroundColor: colors.card }]}>
+            <Text style={[styles.currencyModalTitle, { color: colors.text }]}>Cambiar Moneda</Text>
             <TouchableOpacity onPress={() => setPickerVisible(false)}>
-              <Ionicons name="close" size={24} color="#64748B" />
+              <Ionicons name="close" size={24} color={colors.textSecondary} />
             </TouchableOpacity>
           </View>
 
@@ -271,7 +276,7 @@ const SmartNumber: React.FC<SmartNumberProps> = ({
           </View>
 
           <View style={{ padding: 20 }}>
-            <Text style={styles.exchangeDisclaimer}>
+            <Text style={[styles.exchangeDisclaimer, { color: colors.textSecondary }]}>
               💡 La conversión se realizará automáticamente en el servidor.
             </Text>
           </View>
@@ -299,24 +304,24 @@ const styles = StyleSheet.create({
     justifyContent: 'center', alignItems: 'center', padding: 20
   },
   tooltipContainer: {
-    backgroundColor: 'white', borderRadius: 16, width: width * 0.9, maxWidth: 400,
+    borderRadius: 16, width: width * 0.9, maxWidth: 400,
     shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.25, shadowRadius: 20, elevation: 16,
   },
   tooltipHeader: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    padding: 20, borderBottomWidth: 1, borderBottomColor: '#E2E8F0',
+    padding: 20, borderBottomWidth: 1,
   },
-  tooltipTitle: { fontSize: 18, fontWeight: '700', color: '#1E293B', flex: 1, marginLeft: 12 },
+  tooltipTitle: { fontSize: 18, fontWeight: '700', flex: 1, marginLeft: 12 },
   tooltipContent: { padding: 20 },
   tooltipSection: { marginBottom: 16 },
-  tooltipLabel: { fontSize: 14, fontWeight: '600', color: '#64748B', marginBottom: 4 },
-  tooltipValue: { fontSize: 16, fontWeight: '700', color: '#1E293B' },
-  fullValueText: { fontFamily: 'monospace', backgroundColor: '#F1F5F9', padding: 8, borderRadius: 6 },
+  tooltipLabel: { fontSize: 14, fontWeight: '600', marginBottom: 4 },
+  tooltipValue: { fontSize: 16, fontWeight: '700' },
+  fullValueText: { fontFamily: 'monospace', padding: 8, borderRadius: 6 },
   scientificText: { fontFamily: 'monospace', color: '#7C3AED' },
   infoGrid: { flexDirection: 'row', gap: 16, marginBottom: 16 },
-  infoItem: { flex: 1, backgroundColor: '#F8FAFC', padding: 12, borderRadius: 8 },
-  infoItemLabel: { fontSize: 12, fontWeight: '600', color: '#64748B', marginBottom: 4 },
-  infoItemValue: { fontSize: 14, fontWeight: '600', color: '#1E293B' },
+  infoItem: { flex: 1, padding: 12, borderRadius: 8 },
+  infoItemLabel: { fontSize: 12, fontWeight: '600', marginBottom: 4 },
+  infoItemValue: { fontSize: 14, fontWeight: '600' },
   warningsContainer: {
     backgroundColor: '#FEF3C7', padding: 12, borderRadius: 8, marginBottom: 16, borderLeftWidth: 4, borderLeftColor: '#F59E0B',
   },
@@ -327,18 +332,18 @@ const styles = StyleSheet.create({
   actionButtons: { flexDirection: 'row', gap: 12 },
   actionButton: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    padding: 12, borderRadius: 8, backgroundColor: '#F1F5F9', borderWidth: 1, borderColor: '#E2E8F0',
+    padding: 12, borderRadius: 8, borderWidth: 1,
   },
-  actionButtonText: { fontSize: 14, fontWeight: '600', color: '#475569', marginLeft: 6 },
+  actionButtonText: { fontSize: 14, fontWeight: '600', marginLeft: 6 },
   currencyActionButton: { borderColor: '#667EEA', borderWidth: 1 },
 
   // Encabezado del modal de picker
   currencyModalHeader: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    padding: 20, borderBottomWidth: 1, borderBottomColor: '#E2E8F0', backgroundColor: 'white',
+    padding: 20, borderBottomWidth: 1,
   },
-  currencyModalTitle: { fontSize: 20, fontWeight: '700', color: '#1E293B' },
-  exchangeDisclaimer: { fontSize: 13, color: '#64748B', textAlign: 'center', lineHeight: 18 },
+  currencyModalTitle: { fontSize: 20, fontWeight: '700' },
+  exchangeDisclaimer: { fontSize: 13, textAlign: 'center', lineHeight: 18 },
 });
 
 export default SmartNumber;
