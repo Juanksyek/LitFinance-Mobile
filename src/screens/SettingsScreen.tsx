@@ -1,21 +1,70 @@
-import React from "react";
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Animated } from "react-native";
+import React, { useState, useEffect } from "react";
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Animated, Alert } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { StatusBar } from "expo-status-bar";
 import { useTheme } from "../theme/ThemeContext";
 import { useThemeColors } from "../theme/useThemeColors";
+import * as Notifications from 'expo-notifications';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { sendTestNotification } from '../services/notificationService';
 
 export default function SettingsScreen() {
   const navigation = useNavigation();
   const { themeMode, setThemeMode, isDark } = useTheme();
   const colors = useThemeColors();
+  const [notificationsEnabled, setNotificationsEnabled] = useState<boolean | null>(null);
+  const [expoPushToken, setExpoPushToken] = useState<string | null>(null);
 
   const themeAnimations = React.useRef({
     light: new Animated.Value(themeMode === "light" ? 1 : 0.5),
     dark: new Animated.Value(themeMode === "dark" ? 1 : 0.5),
     auto: new Animated.Value(themeMode === "auto" ? 1 : 0.5),
   }).current;
+
+  useEffect(() => {
+    checkNotificationStatus();
+  }, []);
+
+  const checkNotificationStatus = async () => {
+    try {
+      const { status } = await Notifications.getPermissionsAsync();
+      setNotificationsEnabled(status === 'granted');
+      
+      const token = await AsyncStorage.getItem('expoPushToken');
+      setExpoPushToken(token);
+    } catch (error) {
+      console.error('Error verificando estado de notificaciones:', error);
+    }
+  };
+
+  const handleTestNotification = async () => {
+    try {
+      if (notificationsEnabled) {
+        await sendTestNotification();
+        Alert.alert(
+          '✅ Notificación enviada',
+          'Deberías ver una notificación de prueba en 2 segundos',
+          [{ text: 'OK' }]
+        );
+      } else {
+        Alert.alert(
+          '⚠️ Notificaciones desactivadas',
+          'Necesitas activar los permisos de notificación para recibir notificaciones',
+          [
+            { text: 'Cancelar', style: 'cancel' },
+            { 
+              text: 'Activar', 
+              onPress: () => Notifications.requestPermissionsAsync()
+                .then(() => checkNotificationStatus())
+            }
+          ]
+        );
+      }
+    } catch (error) {
+      Alert.alert('Error', 'No se pudo enviar la notificación de prueba');
+    }
+  };
 
   const handleThemeChange = (mode: "light" | "dark" | "auto") => {
     Object.keys(themeAnimations).forEach((key) => {
@@ -215,20 +264,63 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Sección de Notificaciones - Placeholder */}
+        {/* Sección de Notificaciones */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Notificaciones</Text>
           
-          <TouchableOpacity 
-            style={[styles.settingItem, { backgroundColor: colors.card, borderColor: colors.border }]}
-            activeOpacity={0.7}
-          >
-            <View style={styles.settingItemLeft}>
-              <Ionicons name="notifications-outline" size={20} color={colors.textSecondary} />
-              <Text style={[styles.settingItemText, { color: colors.text }]}>Preferencias de notificación</Text>
+          <View style={[styles.card, { backgroundColor: colors.card, shadowColor: colors.shadow, borderColor: colors.border }]}>
+            <View style={styles.notificationStatus}>
+              <View style={styles.settingItemLeft}>
+                <Ionicons 
+                  name={notificationsEnabled ? "notifications" : "notifications-off"} 
+                  size={20} 
+                  color={notificationsEnabled ? colors.success : colors.textSecondary} 
+                />
+                <Text style={[styles.settingItemText, { color: colors.text }]}>
+                  Estado de notificaciones
+                </Text>
+              </View>
+              <View style={[
+                styles.statusBadge,
+                { backgroundColor: notificationsEnabled ? colors.success : colors.error }
+              ]}>
+                <Text style={styles.statusBadgeText}>
+                  {notificationsEnabled === null ? '...' : notificationsEnabled ? 'Activas' : 'Desactivadas'}
+                </Text>
+              </View>
             </View>
-            <Ionicons name="chevron-forward" size={20} color={colors.textTertiary} />
-          </TouchableOpacity>
+
+            {expoPushToken && (
+              <View style={styles.tokenInfo}>
+                <Text style={[styles.tokenLabel, { color: colors.textSecondary }]}>
+                  Token registrado
+                </Text>
+                <Text style={[styles.tokenValue, { color: colors.textTertiary }]} numberOfLines={1}>
+                  {expoPushToken.substring(0, 30)}...
+                </Text>
+              </View>
+            )}
+
+            <TouchableOpacity 
+              style={[
+                styles.testButton,
+                { 
+                  backgroundColor: colors.button,
+                  opacity: notificationsEnabled ? 1 : 0.5
+                }
+              ]}
+              onPress={handleTestNotification}
+              disabled={!notificationsEnabled}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="paper-plane" size={18} color="#fff" />
+              <Text style={styles.testButtonText}>Enviar notificación de prueba</Text>
+            </TouchableOpacity>
+
+            <Text style={[styles.notificationNote, { color: colors.textTertiary }]}>
+              Las notificaciones te informarán sobre recurrentes próximos, recordatorios y actualizaciones importantes.
+            </Text>
+          </View>
         </View>
 
         {/* Sección Acerca de - Placeholder */}
@@ -365,5 +457,57 @@ const styles = StyleSheet.create({
   versionText: {
     fontSize: 14,
     fontWeight: "500",
+  },
+  notificationStatus: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 16,
+  },
+  statusBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  statusBadgeText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  tokenInfo: {
+    backgroundColor: "rgba(128, 128, 128, 0.1)",
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+  },
+  tokenLabel: {
+    fontSize: 11,
+    fontWeight: "600",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  tokenValue: {
+    fontSize: 11,
+    fontFamily: "monospace",
+  },
+  testButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 12,
+    borderRadius: 10,
+    marginBottom: 16,
+  },
+  testButtonText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  notificationNote: {
+    fontSize: 12,
+    lineHeight: 16,
+    textAlign: "center",
   },
 });
