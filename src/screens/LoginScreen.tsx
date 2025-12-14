@@ -9,6 +9,7 @@ import { useNavigation, NavigationProp, StackActions } from "@react-navigation/n
 import { RootStackParamList } from "../navigation/AppNavigator";
 import { API_BASE_URL } from "../constants/api";
 import { Ionicons } from "@expo/vector-icons";
+import { registerForPushNotifications } from "../services/notificationService";
 
 const LoginScreen: React.FC = () => {
   const colors = useThemeColors();
@@ -58,6 +59,15 @@ const LoginScreen: React.FC = () => {
         text1: message || "Inicio de sesión exitoso",
         text2: `Bienvenido, ${user.nombre || "usuario"}`,
       });
+
+      // 🔔 IMPORTANTE: Registrar notificaciones después de login
+      try {
+        await registerForPushNotifications();
+        console.log('✅ Notificaciones registradas correctamente');
+      } catch (notifError) {
+        console.warn('⚠️ Error registrando notificaciones:', notifError);
+        // No bloquear el login si falla el registro de notificaciones
+      }
   
       navigation.dispatch(StackActions.replace("Dashboard"));
     } catch (error: any) {
