@@ -6,6 +6,7 @@ import { useNavigation } from "@react-navigation/native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "../theme/ThemeContext";
 import { useThemeColors } from "../theme/useThemeColors";
+import { unregisterPushNotifications } from "../services/notificationService";
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 
@@ -90,6 +91,15 @@ const Header = () => {
 
   const handleLogout = async () => {
     try {
+      // 🔔 IMPORTANTE: Eliminar token de notificaciones antes de logout
+      try {
+        await unregisterPushNotifications();
+        console.log('✅ Token de notificaciones eliminado');
+      } catch (notifError) {
+        console.warn('⚠️ Error eliminando token de notificaciones:', notifError);
+        // Continuar con el logout aunque falle la eliminación del token
+      }
+
       await AsyncStorage.removeItem("authToken");
       await AsyncStorage.removeItem("userData");
       Toast.show({
