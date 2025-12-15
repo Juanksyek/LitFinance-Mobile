@@ -53,6 +53,10 @@ const MainAccountScreen = () => {
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(10)).current;
+  const profileFadeAnim = useRef(new Animated.Value(0)).current;
+  const profileSlideAnim = useRef(new Animated.Value(15)).current;
+  const gridItemsAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(1)).current;
 
   const fetchCuentaPrincipal = async () => {
     try {
@@ -94,6 +98,15 @@ const MainAccountScreen = () => {
   const fetchData = async () => {
     await Promise.all([fetchCuentaPrincipal(), fetchUsuario()]);
     setLoading(false);
+    
+    // Animate profile section
+    Animated.parallel([
+      Animated.timing(profileFadeAnim, { toValue: 1, duration: 500, delay: 100, useNativeDriver: true }),
+      Animated.timing(profileSlideAnim, { toValue: 0, duration: 400, delay: 100, useNativeDriver: true }),
+    ]).start();
+
+    // Animate grid items
+    Animated.timing(gridItemsAnim, { toValue: 1, duration: 400, delay: 200, useNativeDriver: true }).start();
   };
 
   const handleUpdateProfile = async () => {
@@ -137,7 +150,19 @@ const MainAccountScreen = () => {
   const handleCancel = () => {
     Alert.alert('Descartar cambios', '¿Quieres descartar los cambios?', [
       { text: 'No', style: 'cancel' },
-      { text: 'Sí, descartar', style: 'destructive', onPress: () => { setFormData(usuario || {}); setEditMode(false); } },
+      { 
+        text: 'Sí, descartar', 
+        style: 'destructive', 
+        onPress: () => { 
+          setFormData(usuario || {}); 
+          setEditMode(false);
+          // Animate exit
+          Animated.sequence([
+            Animated.timing(scaleAnim, { toValue: 0.98, duration: 100, useNativeDriver: true }),
+            Animated.timing(scaleAnim, { toValue: 1, duration: 200, useNativeDriver: true }),
+          ]).start();
+        } 
+      },
     ]);
   };
 
@@ -178,7 +203,7 @@ const MainAccountScreen = () => {
           <TouchableOpacity 
             onPress={() => navigation.goBack()}
             style={[styles.backButton, { backgroundColor: colors.inputBackground, borderColor: colors.border }]}
-            activeOpacity={0.7}
+            activeOpacity={0.6}
           >
             <Ionicons name="chevron-back" size={20} color={colors.text} />
           </TouchableOpacity>
@@ -197,197 +222,333 @@ const MainAccountScreen = () => {
       >
         <ScrollView
           style={[styles.container, { backgroundColor: colors.background }]}
-          contentContainerStyle={{ paddingBottom: 0 }}
+          contentContainerStyle={{ paddingBottom: 24 }}
           showsVerticalScrollIndicator={false}
         >
-          <Animated.View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow, opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}> 
-          <View style={styles.rowBetween}>
-            <View style={styles.rowCenter}>
-              <View style={[styles.iconChip, { backgroundColor: colors.inputBackground }]}>
-                <Ionicons name="wallet-outline" size={16} color="#4f46e5" />
-              </View>
-              <Text style={[styles.title, { color: colors.text }]}>{cuenta.nombre}</Text>
-            </View>
-
-            <View style={[styles.chipOutline, { backgroundColor: colors.inputBackground, borderColor: colors.border }]}>
-              <Ionicons name="cash-outline" size={14} color={colors.textSecondary} />
-              <Text style={[styles.chipText, { color: colors.textSecondary }]}>{cuenta.moneda}</Text>
-            </View>
-          </View>
-
-          <View style={styles.balanceRow}>
-            <Text style={[styles.currency, { color: colors.text }]}>{cuenta.simbolo}</Text>
-            <Text style={[styles.amount, { color: colors.text }]}>{cuenta.cantidad.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>
-          </View>
-
-          <View style={styles.rowBetween}>
-            <Text style={[styles.mutedXs, { color: colors.placeholder }]}>Actualizado {formatDate(cuenta.updatedAt)}</Text>
-            <View style={[styles.chipSoft, { backgroundColor: '#eafaf1' }]}>
-              <Ionicons name="star" size={12} color="#16a34a" />
-              <Text style={styles.chipSoftText}>Principal</Text>
-            </View>
-          </View>
-        </Animated.View>
-
-        <View style={styles.grid}>
-          <View style={[styles.cardSm, styles.neuInset, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow }]}>
-            <Text style={[styles.label, { color: colors.placeholder }]}>ID Cuenta</Text>
-            <Text numberOfLines={1} ellipsizeMode="middle" style={[styles.valueMono, { color: colors.text }]}>{cuenta.id}</Text>
-          </View>
-          <View style={[styles.cardSm, styles.neuInset, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow }]}>
-            <Text style={[styles.label, { color: colors.placeholder }]}>Usuario</Text>
-            <Text numberOfLines={1} ellipsizeMode="middle" style={[styles.value, { color: colors.text }]}>{cuenta.userId}</Text>
-          </View>
-          <View style={[styles.cardSm, styles.neuInset, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow }]}>
-            <Text style={[styles.label, { color: colors.placeholder }]}>Moneda</Text>
-            <Text style={[styles.value, { color: colors.text }]}>{cuenta.moneda}</Text>
-          </View>
-          <View style={[styles.cardSm, styles.neuInset, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow }]}>
-            <Text style={[styles.label, { color: colors.placeholder }]}>DB ID</Text>
-            <Text numberOfLines={1} ellipsizeMode="middle" style={[styles.valueMono, { color: colors.text }]}>{cuenta._id}</Text>
-          </View>
-        </View>
-
-        {usuario && (
-          <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow }]}>
+          <Animated.View style={[
+            styles.card, 
+            styles.mainCard,
+            { 
+              backgroundColor: colors.card, 
+              borderColor: colors.border, 
+              shadowColor: colors.shadow, 
+              opacity: fadeAnim, 
+              transform: [{ translateY: slideAnim }] 
+            }
+          ]}> 
             <View style={styles.rowBetween}>
-              <Text style={[styles.titleSm, { color: colors.text }]}>Mi perfil</Text>
               <View style={styles.rowCenter}>
-                <TouchableOpacity onPress={() => setInfoModalVisible(true)} style={[styles.iconBtn, { backgroundColor: colors.inputBackground }]}>
-                  <Ionicons name="help-circle-outline" size={18} color={colors.textSecondary} />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => setEditMode(!editMode)}
-                  style={[styles.btn, styles.btnLight, { backgroundColor: colors.card, borderColor: colors.border, height: 34, marginLeft: 6 }]}
-                >
-                  <Ionicons name={editMode ? 'close' : 'pencil'} size={14} color={colors.text} />
-                  <Text style={[styles.btnLightText, { color: colors.text }]}>{editMode ? 'Cancelar' : 'Editar'}</Text>
-                </TouchableOpacity>
+                <View style={[styles.iconChip, styles.iconChipLarge, { backgroundColor: '#eef2ff' }]}>
+                  <Ionicons name="wallet" size={20} color="#4f46e5" />
+                </View>
+                <View>
+                  <Text style={[styles.title, { color: colors.text }]}>{cuenta.nombre}</Text>
+                  <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Cuenta activa</Text>
+                </View>
+              </View>
+
+              <View style={[styles.chipOutline, styles.chipOutlinePrimary, { backgroundColor: '#eef2ff', borderColor: '#c7d2fe' }]}>
+                <Ionicons name="cash" size={14} color="#4f46e5" />
+                <Text style={[styles.chipText, { color: '#4f46e5' }]}>{cuenta.moneda}</Text>
               </View>
             </View>
 
-            {editMode ? (
-              <>
-                <View style={styles.fieldRow}>
-                  <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Nombre</Text>
-                  <TextInput style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.border, color: colors.text }]} value={formData.nombreCompleto || ''} onChangeText={(t) => handleChange('nombreCompleto', t)} placeholder="Tu nombre" placeholderTextColor={colors.placeholder} />
-                </View>
+            <View style={styles.balanceContainer}>
+              <View style={styles.balanceRow}>
+                <Text style={[styles.currency, { color: colors.textSecondary }]}>{cuenta.simbolo}</Text>
+                <Text style={[styles.amount, { color: colors.text }]}>{cuenta.cantidad.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>
+              </View>
+              <View style={[styles.chipSoft, { backgroundColor: '#ecfdf5', borderWidth: 1, borderColor: '#a7f3d0' }]}>
+                <Ionicons name="checkmark-circle" size={14} color="#059669" />
+                <Text style={styles.chipSoftText}>Principal</Text>
+              </View>
+            </View>
 
-                <View style={styles.fieldRow}>
-                  <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Email</Text>
-                  <TextInput style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.border, color: colors.text }]} value={formData.email || ''} onChangeText={(t) => handleChange('email', t)} placeholder="correo@ejemplo.com" placeholderTextColor={colors.placeholder} keyboardType="email-address" autoCapitalize="none" />
-                </View>
+            <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
-                <View style={styles.inline}>
-                  <View style={[styles.fieldRow, styles.inlineItem]}>
-                    <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Edad</Text>
-                    <TextInput style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.border, color: colors.text }]} value={formData.edad?.toString() || ''} onChangeText={(t) => handleChange('edad', parseInt(t) || 0)} keyboardType="numeric" placeholder="0" placeholderTextColor={colors.placeholder} />
+            <View style={styles.rowBetween}>
+              <Text style={[styles.mutedXs, { color: colors.placeholder }]}>
+                <Ionicons name="time-outline" size={11} color={colors.placeholder} /> Actualizado {formatDate(cuenta.updatedAt)}
+              </Text>
+            </View>
+          </Animated.View>
+
+          <Animated.View style={[
+            styles.grid,
+            { opacity: gridItemsAnim, transform: [{ translateY: gridItemsAnim.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) }] }
+          ]}>
+            <View style={[styles.cardSm, styles.gridCard, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow }]}>
+              <View style={[styles.gridIconChip, { backgroundColor: '#fef3c7' }]}>
+                <Ionicons name="key-outline" size={16} color="#d97706" />
+              </View>
+              <Text style={[styles.label, { color: colors.placeholder }]}>ID Cuenta</Text>
+              <Text numberOfLines={1} ellipsizeMode="middle" style={[styles.valueMono, { color: colors.text }]}>{cuenta.id}</Text>
+            </View>
+            <View style={[styles.cardSm, styles.gridCard, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow }]}>
+              <View style={[styles.gridIconChip, { backgroundColor: '#ddd6fe' }]}>
+                <Ionicons name="person-outline" size={16} color="#7c3aed" />
+              </View>
+              <Text style={[styles.label, { color: colors.placeholder }]}>Usuario</Text>
+              <Text numberOfLines={1} ellipsizeMode="middle" style={[styles.value, { color: colors.text }]}>{cuenta.userId}</Text>
+            </View>
+            <View style={[styles.cardSm, styles.gridCard, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow }]}>
+              <View style={[styles.gridIconChip, { backgroundColor: '#ccfbf1' }]}>
+                <Ionicons name="globe-outline" size={16} color="#0d9488" />
+              </View>
+              <Text style={[styles.label, { color: colors.placeholder }]}>Moneda</Text>
+              <Text style={[styles.value, { color: colors.text }]}>{cuenta.moneda}</Text>
+            </View>
+            <View style={[styles.cardSm, styles.gridCard, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow }]}>
+              <View style={[styles.gridIconChip, { backgroundColor: '#fce7f3' }]}>
+                <Ionicons name="server-outline" size={16} color="#db2777" />
+              </View>
+              <Text style={[styles.label, { color: colors.placeholder }]}>DB ID</Text>
+              <Text numberOfLines={1} ellipsizeMode="middle" style={[styles.valueMono, { color: colors.text }]}>{cuenta._id}</Text>
+            </View>
+          </Animated.View>
+
+          {usuario && (
+            <Animated.View style={[
+              styles.card,
+              { 
+                backgroundColor: colors.card, 
+                borderColor: colors.border, 
+                shadowColor: colors.shadow,
+                opacity: profileFadeAnim,
+                transform: [{ translateY: profileSlideAnim }, { scale: scaleAnim }]
+              }
+            ]}>
+              <View style={styles.rowBetween}>
+                <View style={styles.rowCenter}>
+                  <View style={[styles.iconChip, styles.iconChipLarge, { backgroundColor: '#f0fdf4' }]}>
+                    <Ionicons name="person" size={18} color="#16a34a" />
                   </View>
-                  <View style={[styles.fieldRow, styles.inlineItem]}>
-                    <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Ocupación</Text>
-                    <TextInput style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.border, color: colors.text }]} value={formData.ocupacion || ''} onChangeText={(t) => handleChange('ocupacion', t)} placeholder="Tu ocupación" placeholderTextColor={colors.placeholder} />
-                  </View>
+                  <Text style={[styles.titleSm, { color: colors.text }]}>Mi perfil</Text>
                 </View>
-
-                {/* Moneda preferida solo visualización, no editable ni enviada al backend */}
-                <View style={styles.fieldRow}>
-                  <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Moneda preferida (solo visualización)</Text>
-                  <View style={[styles.chipOutline, { backgroundColor: colors.inputBackground, borderColor: colors.border }]}>
-                    <Ionicons name="cash-outline" size={14} color={colors.textSecondary} />
-                    <Text style={[styles.chipText, { color: colors.textSecondary }]}>{usuario.monedaPreferencia || 'No establecida'}</Text>
-                  </View>
-                  <Text style={[styles.helperText, { color: colors.placeholder }]}>La moneda principal se establece en el registro y no se puede cambiar.</Text>
+                <View style={styles.rowCenter}>
+                  <TouchableOpacity 
+                    onPress={() => setInfoModalVisible(true)} 
+                    style={[styles.iconBtn, { backgroundColor: colors.inputBackground, borderWidth: 1, borderColor: colors.border }]}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="help-circle-outline" size={18} color={colors.textSecondary} />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setEditMode(!editMode);
+                      Animated.sequence([
+                        Animated.timing(scaleAnim, { toValue: 0.96, duration: 100, useNativeDriver: true }),
+                        Animated.timing(scaleAnim, { toValue: 1, duration: 200, useNativeDriver: true }),
+                      ]).start();
+                    }}
+                    style={[styles.btn, styles.btnLight, { backgroundColor: editMode ? colors.inputBackground : colors.button, borderColor: editMode ? colors.border : colors.button, height: 36, marginLeft: 8 }]}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name={editMode ? 'close' : 'pencil'} size={14} color={editMode ? colors.text : '#fff'} />
+                    <Text style={[styles.btnLightText, { color: editMode ? colors.text : '#fff', fontWeight: '800' }]}>
+                      {editMode ? 'Cancelar' : 'Editar'}
+                    </Text>
+                  </TouchableOpacity>
                 </View>
+              </View>
 
-                <View style={[styles.neuInset, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow, marginTop: 10 }]}>
-                  <Text style={[styles.sectionMinor, { color: colors.textSecondary }]}>Datos personales</Text>
+              {editMode ? (
+                <>
+                  <View style={[styles.divider, { backgroundColor: colors.border, marginVertical: 14 }]} />
 
                   <View style={styles.fieldRow}>
-                    <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Teléfono</Text>
-                    <TextInput style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.border, color: colors.text }]} value={formData.telefono || ''} onChangeText={(t) => handleChange('telefono', t)} keyboardType="phone-pad" placeholder="Ej. 55 1234 5678" placeholderTextColor={colors.placeholder} />
+                    <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>
+                      <Ionicons name="person-outline" size={12} /> Nombre completo
+                    </Text>
+                    <TextInput 
+                      style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.border, color: colors.text }]} 
+                      value={formData.nombreCompleto || ''} 
+                      onChangeText={(t) => handleChange('nombreCompleto', t)} 
+                      placeholder="Tu nombre" 
+                      placeholderTextColor={colors.placeholder} 
+                    />
                   </View>
 
                   <View style={styles.fieldRow}>
-                    <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>País</Text>
-                    <TextInput style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.border, color: colors.text }]} value={formData.pais || ''} onChangeText={(t) => handleChange('pais', t)} placeholder="Ej. México" placeholderTextColor={colors.placeholder} />
+                    <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>
+                      <Ionicons name="mail-outline" size={12} /> Email
+                    </Text>
+                    <TextInput 
+                      style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.border, color: colors.text }]} 
+                      value={formData.email || ''} 
+                      onChangeText={(t) => handleChange('email', t)} 
+                      placeholder="correo@ejemplo.com" 
+                      placeholderTextColor={colors.placeholder} 
+                      keyboardType="email-address" 
+                      autoCapitalize="none" 
+                    />
                   </View>
 
                   <View style={styles.inline}>
                     <View style={[styles.fieldRow, styles.inlineItem]}>
-                      <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Estado</Text>
-                      <TextInput style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.border, color: colors.text }]} value={formData.estado || ''} onChangeText={(t) => handleChange('estado', t)} placeholder="Ej. Jalisco" placeholderTextColor={colors.placeholder} />
+                      <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>
+                        <Ionicons name="calendar-outline" size={12} /> Edad
+                      </Text>
+                      <TextInput 
+                        style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.border, color: colors.text }]} 
+                        value={formData.edad?.toString() || ''} 
+                        onChangeText={(t) => handleChange('edad', parseInt(t) || 0)} 
+                        keyboardType="numeric" 
+                        placeholder="0" 
+                        placeholderTextColor={colors.placeholder} 
+                      />
                     </View>
                     <View style={[styles.fieldRow, styles.inlineItem]}>
-                      <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Ciudad</Text>
-                      <TextInput style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.border, color: colors.text }]} value={formData.ciudad || ''} onChangeText={(t) => handleChange('ciudad', t)} placeholder="Ej. Guzmán" placeholderTextColor={colors.placeholder} />
+                      <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>
+                        <Ionicons name="briefcase-outline" size={12} /> Ocupación
+                      </Text>
+                      <TextInput 
+                        style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.border, color: colors.text }]} 
+                        value={formData.ocupacion || ''} 
+                        onChangeText={(t) => handleChange('ocupacion', t)} 
+                        placeholder="Tu ocupación" 
+                        placeholderTextColor={colors.placeholder} 
+                      />
                     </View>
                   </View>
 
-                  <View style={styles.fieldRow}>
-                    <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Biografía</Text>
-                    <TextInput
-                      style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.border, color: colors.text, minHeight: 80, textAlignVertical: 'top' }]}
-                      value={formData.bio || ''}
-                      onChangeText={(t) => handleChange('bio', t)}
-                      multiline
-                      placeholder="Cuéntanos sobre ti…"
-                      placeholderTextColor={colors.placeholder}
-                    />
+                  <View style={[styles.fieldRow, styles.currencyReadOnly]}>
+                    <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>
+                      <Ionicons name="cash-outline" size={12} /> Moneda preferida
+                    </Text>
+                    <View style={[styles.chipOutline, styles.chipOutlineReadOnly, { backgroundColor: colors.inputBackground, borderColor: colors.border }]}>
+                      <Ionicons name="lock-closed" size={12} color={colors.placeholder} />
+                      <Text style={[styles.chipText, { color: colors.textSecondary }]}>{usuario.monedaPreferencia || 'No establecida'}</Text>
+                    </View>
+                    <Text style={[styles.helperText, { color: colors.placeholder }]}>
+                      <Ionicons name="information-circle-outline" size={11} /> La moneda se establece en el registro
+                    </Text>
                   </View>
-                </View>
 
-                <View style={styles.rowEnd}>
-                  <TouchableOpacity onPress={handleCancel} style={[styles.btn, styles.btnGhost]}>
-                    <Text style={[styles.btnGhostText, { color: colors.textSecondary }]}>Descartar</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={handleUpdateProfile} style={[styles.btn, styles.btnPrimary, { backgroundColor: colors.button, shadowColor: colors.shadow }]}>
-                    {saving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.btnPrimaryText}>Guardar</Text>}
-                  </TouchableOpacity>
-                </View>
-              </>
-            ) : (
-              <>
-                <View style={styles.items}>
-                  <ItemRow icon="person-outline" label="Nombre" value={usuario.nombreCompleto} colors={colors} />
-                  <ItemRow icon="mail-outline" label="Email" value={usuario.email} mono truncate colors={colors} />
-                  <ItemRow icon="calendar-outline" label="Edad" value={`${usuario.edad}`} colors={colors} />
-                  <ItemRow icon="briefcase-outline" label="Ocupación" value={usuario.ocupacion} colors={colors} />
-                  <ItemRow icon="cash-outline" label="Moneda preferida" value={usuario.monedaPreferencia} colors={colors} />
+                  <View style={[styles.neuInset, styles.personalDataSection, { backgroundColor: colors.inputBackground, borderColor: colors.border, shadowColor: colors.shadow }]}>
+                    <Text style={[styles.sectionMinor, { color: colors.textSecondary }]}>
+                      <Ionicons name="shield-checkmark-outline" size={13} /> Datos personales
+                    </Text>
 
-                  <View style={[styles.neuInset, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow, marginTop: 8 }]}>
-                    <Text style={[styles.sectionMinor, { color: colors.textSecondary }]}>Datos personales</Text>
-                    <ItemRow icon="call-outline" label="Teléfono" value={usuario.telefono || '—'} colors={colors} />
-                    <ItemRow icon="earth-outline" label="País" value={usuario.pais || '—'} colors={colors} />
+                    <View style={styles.fieldRow}>
+                      <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>
+                        <Ionicons name="call-outline" size={12} /> Teléfono
+                      </Text>
+                      <TextInput style={[styles.input, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]} value={formData.telefono || ''} onChangeText={(t) => handleChange('telefono', t)} keyboardType="phone-pad" placeholder="Ej. 55 1234 5678" placeholderTextColor={colors.placeholder} />
+                    </View>
+
+                    <View style={styles.fieldRow}>
+                      <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>
+                        <Ionicons name="earth-outline" size={12} /> País
+                      </Text>
+                      <TextInput style={[styles.input, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]} value={formData.pais || ''} onChangeText={(t) => handleChange('pais', t)} placeholder="Ej. México" placeholderTextColor={colors.placeholder} />
+                    </View>
+
                     <View style={styles.inline}>
-                      <View style={[styles.inlineItem, { paddingRight: 6 }]}>
-                        <ItemRow icon="map-outline" label="Estado" value={usuario.estado || '—'} colors={colors} />
+                      <View style={[styles.fieldRow, styles.inlineItem]}>
+                        <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>
+                          <Ionicons name="map-outline" size={12} /> Estado
+                        </Text>
+                        <TextInput style={[styles.input, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]} value={formData.estado || ''} onChangeText={(t) => handleChange('estado', t)} placeholder="Ej. Jalisco" placeholderTextColor={colors.placeholder} />
                       </View>
-                      <View style={[styles.inlineItem, { paddingLeft: 6 }]}>
-                        <ItemRow icon="location-outline" label="Ciudad" value={usuario.ciudad || '—'} colors={colors} />
+                      <View style={[styles.fieldRow, styles.inlineItem]}>
+                        <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>
+                          <Ionicons name="location-outline" size={12} /> Ciudad
+                        </Text>
+                        <TextInput style={[styles.input, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]} value={formData.ciudad || ''} onChangeText={(t) => handleChange('ciudad', t)} placeholder="Ej. Guzmán" placeholderTextColor={colors.placeholder} />
                       </View>
                     </View>
-                    {!!usuario.bio && <ItemRow icon="document-text-outline" label="Bio" value={usuario.bio} multiline colors={colors} />}
-                  </View>
-                </View>
-              </>
-            )}
-          </View>
-        )}
 
-        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow }]}>
-          <View style={styles.rowBetween}>
-            <Text style={[styles.titleSm, { color: colors.text }]}>Estado de la cuenta</Text>
+                    <View style={styles.fieldRow}>
+                      <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>
+                        <Ionicons name="document-text-outline" size={12} /> Biografía
+                      </Text>
+                      <TextInput
+                        style={[styles.input, styles.textArea, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]}
+                        value={formData.bio || ''}
+                        onChangeText={(t) => handleChange('bio', t)}
+                        multiline
+                        placeholder="Cuéntanos sobre ti…"
+                        placeholderTextColor={colors.placeholder}
+                      />
+                    </View>
+                  </View>
+
+                  <View style={styles.rowEnd}>
+                    <TouchableOpacity onPress={handleCancel} style={[styles.btn, styles.btnGhost, { borderWidth: 1, borderColor: colors.border }]} activeOpacity={0.7}>
+                      <Ionicons name="close-circle-outline" size={16} color={colors.textSecondary} />
+                      <Text style={[styles.btnGhostText, { color: colors.textSecondary }]}>Descartar</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity 
+                      onPress={handleUpdateProfile} 
+                      style={[styles.btn, styles.btnPrimary, { backgroundColor: colors.button, shadowColor: colors.button }]}
+                      activeOpacity={0.8}
+                      disabled={saving}
+                    >
+                      {saving ? (
+                        <ActivityIndicator size="small" color="#fff" />
+                      ) : (
+                        <>
+                          <Ionicons name="checkmark-circle" size={16} color="#fff" />
+                          <Text style={styles.btnPrimaryText}>Guardar cambios</Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                </>
+              ) : (
+                <>
+                  <View style={[styles.divider, { backgroundColor: colors.border, marginVertical: 14 }]} />
+                  <View style={styles.items}>
+                    <ItemRow icon="person-outline" label="Nombre" value={usuario.nombreCompleto} colors={colors} />
+                    <ItemRow icon="mail-outline" label="Email" value={usuario.email} mono truncate colors={colors} />
+                    <ItemRow icon="calendar-outline" label="Edad" value={`${usuario.edad}`} colors={colors} />
+                    <ItemRow icon="briefcase-outline" label="Ocupación" value={usuario.ocupacion} colors={colors} />
+                    <ItemRow icon="cash-outline" label="Moneda preferida" value={usuario.monedaPreferencia} colors={colors} />
+
+                    <View style={[styles.neuInset, styles.personalDataSection, { backgroundColor: colors.inputBackground, borderColor: colors.border, shadowColor: colors.shadow, marginTop: 12 }]}>
+                      <Text style={[styles.sectionMinor, { color: colors.textSecondary }]}>
+                        <Ionicons name="shield-checkmark-outline" size={13} /> Datos personales
+                      </Text>
+                      <ItemRow icon="call-outline" label="Teléfono" value={usuario.telefono || '—'} colors={colors} />
+                      <ItemRow icon="earth-outline" label="País" value={usuario.pais || '—'} colors={colors} />
+                      <View style={styles.inline}>
+                        <View style={[styles.inlineItem, { paddingRight: 6 }]}>
+                          <ItemRow icon="map-outline" label="Estado" value={usuario.estado || '—'} colors={colors} />
+                        </View>
+                        <View style={[styles.inlineItem, { paddingLeft: 6 }]}>
+                          <ItemRow icon="location-outline" label="Ciudad" value={usuario.ciudad || '—'} colors={colors} />
+                        </View>
+                      </View>
+                      {!!usuario.bio && <ItemRow icon="document-text-outline" label="Bio" value={usuario.bio} multiline colors={colors} />}
+                    </View>
+                  </View>
+                </>
+              )}
+            </Animated.View>
+          )}
+
+          <View style={[styles.card, styles.statusCard, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow }]}>
+            <View style={styles.rowBetween}>
+              <View style={styles.rowCenter}>
+                <View style={[styles.iconChip, styles.iconChipLarge, { backgroundColor: '#ecfdf5' }]}>
+                  <Ionicons name="shield-checkmark" size={18} color="#059669" />
+                </View>
+                <Text style={[styles.titleSm, { color: colors.text }]}>Estado de la cuenta</Text>
+              </View>
+            </View>
+            <View style={[styles.divider, { backgroundColor: colors.border, marginVertical: 12 }]} />
+            <View style={styles.stateRow}>
+              <Dot color={cuenta.isPrincipal ? '#10b981' : '#ef4444'} />
+              <Text style={[styles.value, { color: colors.text, fontSize: 15 }]}>
+                {cuenta.isPrincipal ? 'Principal activa' : 'No principal'}
+              </Text>
+            </View>
           </View>
-          <View style={styles.stateRow}>
-            <Dot color={cuenta.isPrincipal ? '#10b981' : '#ef4444'} />
-            <Text style={[styles.value, { color: colors.text }]}>{cuenta.isPrincipal ? 'Principal activa' : 'No principal'}</Text>
-          </View>
-        </View>
 
         </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* ---------- Modales ---------- */}
       <DataPrivacyModal visible={infoModalVisible} onClose={() => setInfoModalVisible(false)} />
     </>
   );
@@ -432,15 +593,13 @@ const Dot = ({ color }: { color: string }) => (
 
 /** -------------------- Styles -------------------- */
 const styles = StyleSheet.create({
-  // Fondo y spacing general
   container: {
     flex: 1,
-    paddingHorizontal: 14,
-    paddingTop: HEADER_H + 12, // deja espacio al header fijo
+    paddingHorizontal: 16,
+    paddingTop: HEADER_H + 16,
   },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 6 },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8 },
 
-  // ---------- Header (como la captura) ----------
   headerWrap: {
     position: 'absolute',
     top: 0, left: 0, right: 0,
@@ -451,150 +610,284 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginHorizontal: 14,
-    borderRadius: 16,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
+    marginHorizontal: 16,
+    borderRadius: 18,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     borderWidth: 1,
-    shadowOffset: { width: 3, height: 6 },
-    shadowOpacity: 0.05,
-    shadowRadius: 12,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 4,
   },
   headerTitle: {
     flex: 1,
     textAlign: 'center',
-    fontSize: 17,
+    fontSize: 18,
     fontWeight: '800',
+    letterSpacing: 0.3,
   },
   headerChip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
     borderRadius: 999,
     borderWidth: 1,
   },
-  headerChipText: { fontSize: 12, fontWeight: '800' },
-  headerHandle: {
-    alignSelf: 'center',
-    marginTop: 8,
-    width: 80,
-    height: 6,
-    borderRadius: 999,
-    backgroundColor: '#e5e7eb',
-  },
+  headerChipText: { fontSize: 12, fontWeight: '800', letterSpacing: 0.5 },
 
-  // ---------- Tarjetas ----------
   card: {
-    borderRadius: 16,
-    padding: 14,
+    borderRadius: 20,
+    padding: 18,
     borderWidth: 1,
-    shadowOffset: { width: 4, height: 8 },
-    shadowOpacity: 0.05,
-    shadowRadius: 12,
-    elevation: 2,
-    marginTop: 2,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.06,
+    shadowRadius: 16,
+    elevation: 3,
+    marginBottom: 16,
+  },
+  mainCard: {
+    borderRadius: 24,
+    padding: 20,
+  },
+  statusCard: {
+    marginBottom: 8,
   },
 
   neuInset: {
-    borderRadius: 14,
-    padding: 12,
+    borderRadius: 16,
+    padding: 14,
     borderWidth: 1,
-    shadowOffset: { width: 2, height: 3 },
-    shadowOpacity: 0.03,
-    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+  },
+  personalDataSection: {
+    marginTop: 12,
   },
 
-  cardSm: { minHeight: 66, justifyContent: 'center', flexBasis: (width - 14 * 2 - 10) / 2 - 0.5, flexGrow: 1 },
+  cardSm: { 
+    minHeight: 110, 
+    justifyContent: 'flex-start', 
+    flexBasis: (width - 16 * 2 - 12) / 2, 
+    flexGrow: 1,
+  },
+  gridCard: {
+    borderRadius: 18,
+    padding: 14,
+    borderWidth: 1,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
+    elevation: 2,
+  },
 
-  // Filas
   rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  rowCenter: { flexDirection: 'row', alignItems: 'center' },
-  rowEnd: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 8 },
+  rowCenter: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  rowEnd: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 10, marginTop: 16 },
 
-  // Tipografías
-  title: { fontSize: 16, fontWeight: '800', marginLeft: 8 },
-  titleSm: { fontSize: 15, fontWeight: '800' },
-  muted: { fontSize: 13 },
-  mutedXs: { fontSize: 12 },
+  title: { fontSize: 18, fontWeight: '800', letterSpacing: 0.2 },
+  subtitle: { fontSize: 12, marginTop: 2, fontWeight: '600' },
+  titleSm: { fontSize: 16, fontWeight: '800', letterSpacing: 0.2 },
+  muted: { fontSize: 13, fontWeight: '500' },
+  mutedXs: { fontSize: 12, fontWeight: '600' },
 
-  // Chips / pills
-  iconChip: { width: 28, height: 28, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
-  chipOutline: {
-    flexDirection: 'row', alignItems: 'center',
-    borderWidth: 1, borderRadius: 999,
-    paddingVertical: 6, paddingHorizontal: 10, gap: 6,
+  iconChip: { 
+    width: 32, 
+    height: 32, 
+    borderRadius: 10, 
+    alignItems: 'center', 
+    justifyContent: 'center',
   },
-  chipText: { fontSize: 12, fontWeight: '800' },
-  chipSoft: { flexDirection: 'row', alignItems: 'center', borderRadius: 999, paddingVertical: 4, paddingHorizontal: 8, gap: 6 },
-  chipSoftText: { fontSize: 12, color: '#166534', fontWeight: '800' },
+  iconChipLarge: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+  },
+  gridIconChip: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  chipOutline: {
+    flexDirection: 'row', 
+    alignItems: 'center',
+    borderWidth: 1, 
+    borderRadius: 999,
+    paddingVertical: 7, 
+    paddingHorizontal: 12, 
+    gap: 6,
+  },
+  chipOutlinePrimary: {
+    borderWidth: 1.5,
+  },
+  chipOutlineReadOnly: {
+    paddingVertical: 8,
+    marginTop: 4,
+  },
+  chipText: { fontSize: 12, fontWeight: '800', letterSpacing: 0.3 },
+  chipSoft: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    borderRadius: 999, 
+    paddingVertical: 6, 
+    paddingHorizontal: 12, 
+    gap: 6,
+  },
+  chipSoftText: { fontSize: 12, color: '#059669', fontWeight: '800', letterSpacing: 0.3 },
 
-  // Balance
-  balanceRow: { flexDirection: 'row', alignItems: 'flex-end', marginTop: 8, marginBottom: 8 },
-  currency: { fontSize: 18, fontWeight: '800', marginRight: 4 },
-  amount: { fontSize: 30, fontWeight: '900', flexShrink: 1 },
+  balanceContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 16,
+    marginBottom: 16,
+  },
+  balanceRow: { 
+    flexDirection: 'row', 
+    alignItems: 'flex-end',
+  },
+  currency: { fontSize: 20, fontWeight: '700', marginRight: 6, marginBottom: 4 },
+  amount: { fontSize: 36, fontWeight: '900', letterSpacing: -0.5 },
 
-  // Grid
-  grid: { marginTop: 10, flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  grid: { 
+    flexDirection: 'row', 
+    flexWrap: 'wrap', 
+    gap: 12,
+    marginBottom: 16,
+  },
 
-  // Valores
-  label: { fontSize: 11, marginBottom: 2, textTransform: 'uppercase', letterSpacing: 0.4 },
-  value: { fontSize: 14, fontWeight: '700' },
+  label: { 
+    fontSize: 11, 
+    marginBottom: 6, 
+    marginTop: 4,
+    textTransform: 'uppercase', 
+    letterSpacing: 0.6,
+    fontWeight: '700',
+  },
+  value: { fontSize: 14, fontWeight: '700', letterSpacing: 0.2 },
   valueMono: {
     fontSize: 13,
     fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace', default: 'monospace' }),
+    fontWeight: '600',
+    letterSpacing: -0.3,
+  },
+
+  items: { marginTop: 0 },
+  itemRow: { 
+    flexDirection: 'row', 
+    alignItems: 'flex-start', 
+    gap: 12, 
+    paddingVertical: 8,
+    paddingHorizontal: 2,
+  },
+  itemLabel: { fontSize: 11, marginBottom: 3, fontWeight: '700', letterSpacing: 0.3 },
+
+  fieldRow: { marginTop: 12 },
+  inputLabel: { 
+    fontSize: 12, 
+    marginBottom: 8, 
     fontWeight: '700',
+    letterSpacing: 0.3,
   },
-
-  // Lista de items perfil
-  items: { marginTop: 6 },
-  itemRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 6 },
-  itemLabel: { fontSize: 11, marginBottom: 2 },
-
-  // Inputs
-  fieldRow: { marginTop: 8 },
-  inputLabel: { fontSize: 12, marginBottom: 6, fontWeight: '700' },
-  helperText: { fontSize: 11, marginTop: 4, fontStyle: 'italic' },
+  helperText: { 
+    fontSize: 11, 
+    marginTop: 6, 
+    fontStyle: 'italic',
+    lineHeight: 16,
+  },
   input: {
-    borderWidth: 1, borderRadius: 12,
-    paddingHorizontal: 12, paddingVertical: 10, fontSize: 14,
-    shadowOffset: { width: 2, height: 3 }, shadowOpacity: 0.02, shadowRadius: 4,
+    borderWidth: 1.5, 
+    borderRadius: 14,
+    paddingHorizontal: 14, 
+    paddingVertical: 12, 
+    fontSize: 14,
+    fontWeight: '500',
+    shadowOffset: { width: 0, height: 2 }, 
+    shadowOpacity: 0.03, 
+    shadowRadius: 6,
   },
-  inline: { flexDirection: 'row', gap: 8 },
+  textArea: {
+    minHeight: 100,
+    textAlignVertical: 'top',
+    paddingTop: 12,
+  },
+  currencyReadOnly: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0,0,0,0.05)',
+  },
+  inline: { flexDirection: 'row', gap: 10 },
   inlineItem: { flex: 1 },
 
-  // Botones
-  btn: { height: 38, paddingHorizontal: 14, borderRadius: 12, flexDirection: 'row', alignItems: 'center', gap: 8 },
-  btnLight: { borderWidth: 1 },
-  btnLightText: { fontWeight: '800', fontSize: 13 },
-  btnGhost: { backgroundColor: 'transparent' },
-  btnGhostText: { fontWeight: '800', fontSize: 13 },
-  btnPrimary: {
-    shadowOffset: { width: 2, height: 4 }, shadowOpacity: 0.12, shadowRadius: 8,
+  btn: { 
+    height: 42, 
+    paddingHorizontal: 18, 
+    borderRadius: 14, 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'center',
+    gap: 8,
   },
-  btnPrimaryText: { color: '#fff', fontWeight: '900', fontSize: 13 },
+  btnLight: { 
+    borderWidth: 1.5,
+  },
+  btnLightText: { fontWeight: '800', fontSize: 14, letterSpacing: 0.2 },
+  btnGhost: { backgroundColor: 'transparent' },
+  btnGhostText: { fontWeight: '700', fontSize: 14, letterSpacing: 0.2 },
+  btnPrimary: {
+    shadowOffset: { width: 0, height: 6 }, 
+    shadowOpacity: 0.2, 
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  btnPrimaryText: { color: '#fff', fontWeight: '900', fontSize: 14, letterSpacing: 0.3 },
 
-  iconBtn: { width: 28, height: 28, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  iconBtn: { 
+    width: 32, 
+    height: 32, 
+    borderRadius: 10, 
+    alignItems: 'center', 
+    justifyContent: 'center',
+  },
 
-  sectionMinor: { fontSize: 12, fontWeight: '800', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.4 },
+  sectionMinor: { 
+    fontSize: 12, 
+    fontWeight: '800', 
+    marginBottom: 12, 
+    textTransform: 'uppercase', 
+    letterSpacing: 0.6,
+  },
 
-  // Estado
-  stateRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
-  dot: { width: 8, height: 8, borderRadius: 4 },
+  stateRow: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    gap: 10,
+  },
+  dot: { 
+    width: 10, 
+    height: 10, 
+    borderRadius: 5,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+  },
 
-  // Overlay
-  convertingOverlay: {
-    position: 'absolute', left: 0, right: 0, bottom: 0,
-    padding: 10, alignItems: 'center',
-    backgroundColor: 'rgba(246,247,251,0.9)',
+  divider: {
+    height: 1,
+    marginVertical: 8,
   },
 
   backButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
+    width: 36,
+    height: 36,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
