@@ -222,7 +222,7 @@ const MainAccountScreen = () => {
       >
         <ScrollView
           style={[styles.container, { backgroundColor: colors.background }]}
-          contentContainerStyle={{ paddingBottom: 24 }}
+          contentContainerStyle={{ paddingBottom: 24, paddingTop: 24 }}
           showsVerticalScrollIndicator={false}
         >
           <Animated.View style={[
