@@ -234,7 +234,6 @@ const styles = StyleSheet.create({
     padding: 16,
     shadowOpacity: 0.06,
     shadowRadius: 5,
-    elevation: 3,
   },
   loadingContainer: {
     height: 200,
@@ -261,7 +260,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     shadowOpacity: 0.04,
     shadowRadius: 3,
-    elevation: 1,
   },
   filterChipActive: {
     backgroundColor: '#EF7725',
