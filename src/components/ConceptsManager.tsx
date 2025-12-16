@@ -214,7 +214,6 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     borderRadius: 12,
     padding: 6,
-    elevation: 2,
     borderWidth: 1,
   },
   subLabel: {
@@ -278,7 +277,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     flex: 1,
     marginRight: 8,
-    elevation: 1,
     borderWidth: 2,
   },
   icon: {
