@@ -9,6 +9,7 @@ import { useThemeColors } from "../theme/useThemeColors";
 import { unregisterPushNotifications } from "../services/notificationService";
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
+const isTablet = screenWidth >= 700;
 
 const getResponsiveSpacing = () => {
   const baseWidth = 375;
@@ -144,6 +145,15 @@ const Header = () => {
               paddingTop: Math.max(topPad, 12),
               backgroundColor: colors.backgroundTertiary,
               shadowColor: colors.shadow,
+              // Responsive width and margin for all devices
+              width: isTablet ? Math.min(500, screenWidth * 0.7) : screenWidth - 32,
+              alignSelf: "center",
+              marginHorizontal: isTablet ? 0 : 16,
+              // More oval and centered on tablets
+              borderTopLeftRadius: isTablet ? 40 : 0,
+              borderTopRightRadius: isTablet ? 40 : 0,
+              borderBottomLeftRadius: isTablet ? 40 : Math.min(28, screenWidth * 0.075),
+              borderBottomRightRadius: isTablet ? 40 : Math.min(28, screenWidth * 0.075),
             },
           ]}
         >
@@ -241,9 +251,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   notchBar: {
-    width: "100%",
-    borderBottomLeftRadius: Math.min(28, screenWidth * 0.075),
-    borderBottomRightRadius: Math.min(28, screenWidth * 0.075),
+    // width, border radius, and margin are set inline for responsiveness
     paddingHorizontal: Math.max(screenWidth * 0.05, 16),
     paddingBottom: Math.max(screenWidth * 0.04, 12),
     shadowOffset: {
@@ -252,14 +260,13 @@ const styles = StyleSheet.create({
     },
     shadowOpacity: 0.15,
     shadowRadius: 10,
-    elevation: 5,
   },
   headerTop: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: Math.max(screenWidth * 0.03, 8),
-  },
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      marginBottom: Math.max(screenWidth * 0.01, 4),
+    },
   logoContainer: {
     width: Math.min(50, screenWidth * 0.13),
     height: Math.min(50, screenWidth * 0.13),
@@ -273,7 +280,6 @@ const styles = StyleSheet.create({
     },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: 2,
   },
   welcomeText: {
     fontSize: Math.min(20, screenWidth * 0.05),
@@ -317,7 +323,6 @@ const styles = StyleSheet.create({
     },
     shadowOpacity: 0.08,
     shadowRadius: 4,
-    elevation: 2,
   },
   logoutButton: {
     borderWidth: 1.5,
@@ -348,7 +353,6 @@ const styles = StyleSheet.create({
     },
     shadowOpacity: 0.3,
     shadowRadius: 20,
-    elevation: 10,
   },
   modalTitle: {
     fontSize: Math.min(18, screenWidth * 0.045),
@@ -374,7 +378,6 @@ const styles = StyleSheet.create({
     },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: 2,
   },
   confirmButton: {
     backgroundColor: "#d32f2f",
