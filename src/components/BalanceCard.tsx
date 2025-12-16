@@ -529,7 +529,6 @@ const styles = StyleSheet.create({
     },
     shadowOpacity: 0.05,
     shadowRadius: 6,
-    elevation: 2,
     borderWidth: 1,
   },
   headerRow: {
@@ -557,7 +556,6 @@ const styles = StyleSheet.create({
     },
     shadowOpacity: 0.03,
     shadowRadius: 3,
-    elevation: 1,
     borderWidth: 1,
     borderColor: "rgba(255, 255, 255, 0.9)",
   },
@@ -597,7 +595,6 @@ const styles = StyleSheet.create({
     },
     shadowOpacity: 0.03,
     shadowRadius: 3,
-    elevation: 1,
     borderWidth: 1,
     borderColor: "rgba(255, 255, 255, 0.9)",
   },
@@ -626,7 +623,6 @@ const styles = StyleSheet.create({
     },
     shadowOpacity: 0.04,
     shadowRadius: 4,
-    elevation: 1,
     borderWidth: 1,
   },
   filterContent: {
@@ -660,7 +656,6 @@ const styles = StyleSheet.create({
     },
     shadowOpacity: 0.02,
     shadowRadius: 3,
-    elevation: 1,
     borderWidth: 1,
   },
   filterOption: {
@@ -678,7 +673,6 @@ const styles = StyleSheet.create({
     },
     shadowOpacity: 0.15,
     shadowRadius: 3,
-    elevation: 1,
   },
   filterOptionText: {
     fontSize: 12,
