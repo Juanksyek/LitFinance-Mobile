@@ -73,7 +73,6 @@ const styles = StyleSheet.create({
     shadowColor: '#000',
     shadowOpacity: 0.15,
     shadowRadius: 24,
-    elevation: 12,
     alignItems: 'center',
   },
   icon: {

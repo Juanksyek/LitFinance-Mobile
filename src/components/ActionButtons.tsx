@@ -206,7 +206,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 6, height: 6 },
     shadowOpacity: 0.12,
     shadowRadius: 10,
-    elevation: 6,
     borderWidth: 1,
   },
   label: {

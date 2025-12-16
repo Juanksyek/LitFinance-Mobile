@@ -54,7 +54,6 @@ const styles = StyleSheet.create({
     minHeight: 50,
     shadowOpacity: 0.12,
     shadowRadius: 6,
-    elevation: 6,
   },
   input: {
     flex: 1,
