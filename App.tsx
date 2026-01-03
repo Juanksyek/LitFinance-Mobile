@@ -6,11 +6,17 @@ import Toast from 'react-native-toast-message';
 import { ThemeProvider } from './src/theme/ThemeContext';
 import { setupNotificationListeners } from './src/services/notificationService';
 import type { RootStackParamList } from './src/navigation/AppNavigator';
+import { StripeProvider } from '@stripe/stripe-react-native';
+import { STRIPE_PUBLISHABLE_KEY } from './src/constants/stripe';
+import { applyStoredAppIconVariant } from './src/services/appIconService';
 
 export default function App() {
   const navigationRef = useRef<NavigationContainerRef<RootStackParamList>>(null);
 
   useEffect(() => {
+    // Apply stored launcher icon (Android)
+    applyStoredAppIconVariant().catch(() => {});
+
     // Setup listeners para notificaciones
     const cleanup = setupNotificationListeners(
       // Cuando llega notificación (app abierta)
@@ -103,11 +109,13 @@ export default function App() {
   };
 
   return (
-    <ThemeProvider>
-      <NavigationContainer ref={navigationRef}>
-        <AppNavigator />
-      </NavigationContainer>
-      <Toast />
-    </ThemeProvider>
+    <StripeProvider publishableKey={STRIPE_PUBLISHABLE_KEY}>
+      <ThemeProvider>
+        <NavigationContainer ref={navigationRef}>
+          <AppNavigator />
+        </NavigationContainer>
+        <Toast />
+      </ThemeProvider>
+    </StripeProvider>
   );
 }
