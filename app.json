@@ -1,12 +1,12 @@
 {
   "expo": {
-    "name": "LitFinance-Mobile",
+    "name": "LitFinance",
     "slug": "LitFinance-Mobile",
     "version": "1.0.0",
     "sdkVersion": "54.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "icon": "./assets/litfinance-app-icon-white-1024.png",
+    "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
       "image": "./assets/splash-icon.png",
@@ -26,21 +26,22 @@
       "package": "com.litfinance.app"
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon-512.png"
     },
     "plugins": [
       [
         "expo-notifications",
         {
-          "icon": "./assets/icon.png",
+          "icon": "./assets/litfinance-app-icon-white-1024.png",
           "color": "#ffffff"
         }
       ]
     ],
     "extra": {
       "eas": {
-        "projectId": "litfinance-app"
-      }
+        "projectId": "0fb5f630-9735-4a95-8227-f88e26be48a4"
+      },
+      "API_BASE_URL": "https://litfinance-api-production.up.railway.app"
     }
   }
 }
