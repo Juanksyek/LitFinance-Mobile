@@ -40,3 +40,6 @@ yarn-error.*
 # firebase
 credentials.json
 litfinance-firebase-adminsdk-fbsvc-ae440d6193.json
+# Google/Firebase config (NO subir nunca estos archivos)
+android/app/google-services.json
+android/app/src/debug/google-services.json
