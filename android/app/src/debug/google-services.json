@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "385566861748",
+    "project_id": "litfinance",
+    "storage_bucket": "litfinance.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:385566861748:android:9ac70ecfc28483ee53eae1",
+        "android_client_info": {
+          "package_name": "com.litfinance.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDx-WOhpVsxrP6Z9lhLqzR9fHY4BX3ESR4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
