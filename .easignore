@@ -1,0 +1,26 @@
+# EAS Build ignore rules (reduces upload size + avoids stale native build artifacts)
+
+# Dependencies are installed on the build server
+node_modules/
+
+# Expo / tooling
+.expo/
+dist/
+web-build/
+
+# Native build outputs / caches
+**/.gradle/
+**/build/
+**/.cxx/
+android/app/.cxx/
+
+# Android Studio / IntelliJ
+**/.idea/
+**/*.iml
+
+# Logs
+**/*.log
+
+# Optional: keep env files out of the archive (use EAS env vars instead)
+.env
+.env.*
