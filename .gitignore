@@ -36,3 +36,7 @@ yarn-error.*
 
 # typescript
 *.tsbuildinfo
+
+# firebase
+credentials.json
+litfinance-firebase-adminsdk-fbsvc-ae440d6193.json
