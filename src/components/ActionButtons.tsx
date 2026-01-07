@@ -8,6 +8,7 @@ import { API_BASE_URL } from "../constants/api";
 import Toast from "react-native-toast-message";
 import { useNavigation } from '@react-navigation/native';
 import { useThemeColors } from "../theme/useThemeColors";
+import { canPerform } from '../services/planConfigService';
 
 const { width } = Dimensions.get("window");
 
@@ -28,6 +29,7 @@ interface ActionButtonsProps {
   fetchSubcuenta?: () => void;
   plataformas?: any[];
   userId: string;
+  onAnalyticsPress?: () => void;
 }
 
 const ActionButtons = ({
@@ -39,6 +41,7 @@ const ActionButtons = ({
   fetchSubcuenta,
   plataformas = [],
   userId,
+  onAnalyticsPress,
 }: ActionButtonsProps) => {
   const colors = useThemeColors();
 
@@ -92,16 +95,54 @@ const ActionButtons = ({
     };
   }, [refreshKey]);
 
-  const handlePress = (label: string) => {
+  const handlePress = async (label: string) => {
     if (label === 'Ingreso' || label === 'Egreso') {
       setTipo(label.toLowerCase() as 'ingreso' | 'egreso');
       setModalVisible(true);
-    } else if (label === 'Subcuenta') {
+      return;
+    }
+
+    if (label === 'Subcuenta') {
+      const gate = await canPerform('subcuenta', { userId });
+      // debug logs removidos
+      if (gate.allowed === false) {
+        const isConfigError = gate.message?.includes('Configuración de plan no disponible');
+        // Toast removido
+        return;
+      }
       setSubcuentaModalVisible(true);
-    } else if (label === 'Recurrente') {
+      return;
+    }
+
+    if (label === 'Recurrente') {
+      const gate = await canPerform('recurrente', { userId });
+      // debug logs removidos
+      if (gate.allowed === false) {
+        const isConfigError = gate.message?.includes('Configuración de plan no disponible');
+        // Toast removido
+        return;
+      }
       setRecurrentModalVisible(true);
-    } else if (label === 'Analiticas') {
-      navigation.navigate('Analytics' as never);
+      return;
+    }
+
+    if (label === 'Analiticas') {
+      const gate = await canPerform('grafica');
+      if (gate.allowed === false) {
+        Toast.show({
+          type: 'info',
+          text1: 'Función Premium',
+          text2:
+            gate.message ||
+            'Las gráficas avanzadas están disponibles solo para usuarios premium',
+        });
+        return;
+      }
+      if (onAnalyticsPress) {
+        onAnalyticsPress();
+      } else {
+        navigation.navigate('Analytics' as never);
+      }
     }
   };
 

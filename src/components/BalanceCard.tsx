@@ -42,10 +42,31 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
   const [isChangingCurrency, setIsChangingCurrency] = useState(false);
   const [mostrarFiltros, setMostrarFiltros] = useState(false);
   const [refreshPreferences, setRefreshPreferences] = useState(0);
+  const [showFullNumbers, setShowFullNumbers] = useState(false);
   const animatedHeight = useRef(new Animated.Value(0)).current;
   const animatedOpacity = useRef(new Animated.Value(0)).current;
 
   const FILTER_MAX_HEIGHT = 180; // Ajusta según el contenido
+
+  useEffect(() => {
+    const loadNumberPreference = async () => {
+      try {
+        const preference = await AsyncStorage.getItem('showFullNumbers');
+        setShowFullNumbers(preference === 'true');
+      } catch (error) {
+        console.error('Error cargando preferencia de números:', error);
+      }
+    };
+    
+    loadNumberPreference();
+    
+    // Listener para cambios en la preferencia
+    const checkInterval = setInterval(() => {
+      loadNumberPreference();
+    }, 500);
+    
+    return () => clearInterval(checkInterval);
+  }, []);
 
   useEffect(() => {
     if (mostrarFiltros) {
@@ -368,20 +389,6 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
       <View style={styles.balanceWrapper}>
         <SmartNumber
           value={saldo}
-          currentCurrency={monedaActual}
-          allowCurrencyChange={!isChangingCurrency}
-          refreshPreferences={refreshPreferences}
-          onCurrencyChange={(moneda: string) => {
-            console.log('🎯 [BalanceCard] SmartNumber (Saldo) - Cambio de moneda solicitado:', {
-              from: monedaActual,
-              to: moneda,
-              value: saldo,
-              component: 'Saldo Principal',
-              timestamp: new Date().toISOString()
-            });
-            console.log('🚀 [BalanceCard] Ejecutando handleCurrencyChange desde SmartNumber (Saldo)...');
-            handleCurrencyChange(moneda);
-          }}
           textStyle={[styles.balanceAmount, { color: colors.text }]}
           options={{
             context: 'card',
@@ -401,20 +408,6 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
             <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Ingreso</Text>
             <SmartNumber
               value={ingresos}
-              currentCurrency={monedaActual}
-              allowCurrencyChange={!isChangingCurrency}
-              refreshPreferences={refreshPreferences}
-              onCurrencyChange={(moneda: string) => {
-                console.log('🎯 [BalanceCard] SmartNumber (Ingresos) - Cambio de moneda solicitado:', {
-                  from: monedaActual,
-                  to: moneda,
-                  value: ingresos,
-                  component: 'Ingresos',
-                  timestamp: new Date().toISOString()
-                });
-                console.log('🚀 [BalanceCard] Ejecutando handleCurrencyChange desde SmartNumber (Ingresos)...');
-                handleCurrencyChange(moneda);
-              }}
               textStyle={[styles.statValue, { color: colors.text }]}
               options={{
                 context: 'list',
@@ -433,20 +426,6 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
             <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Egreso</Text>
             <SmartNumber
               value={egresos}
-              currentCurrency={monedaActual}
-              allowCurrencyChange={!isChangingCurrency}
-              refreshPreferences={refreshPreferences}
-              onCurrencyChange={(moneda: string) => {
-                console.log('🎯 [BalanceCard] SmartNumber (Egresos) - Cambio de moneda solicitado:', {
-                  from: monedaActual,
-                  to: moneda,
-                  value: egresos,
-                  component: 'Egresos',
-                  timestamp: new Date().toISOString()
-                });
-                console.log('🚀 [BalanceCard] Ejecutando handleCurrencyChange desde SmartNumber (Egresos)...');
-                handleCurrencyChange(moneda);
-              }}
               textStyle={[styles.statValue, { color: colors.text }]}
               options={{
                 context: 'list',
