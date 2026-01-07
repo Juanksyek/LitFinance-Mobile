@@ -1,21 +1,26 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, Switch } from "react-native";
-import { CurrencyField, Moneda } from "../components/CurrencyPicker";
+// import { CurrencyField, Moneda } from "../components/CurrencyPicker";
 import Modal from "react-native-modal";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Toast from "react-native-toast-message";
 import { useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
-import CurrencyPreviewModal from "./CurrencyPreviewModal";
+// import CurrencyPreviewModal from "./CurrencyPreviewModal";
 import { useTheme } from "../theme/ThemeContext";
 import { useThemeColors } from "../theme/useThemeColors";
+import PremiumModal from "./PremiumModal";
+import TipJarModal from "./TipJarModal";
+import PremiumStatusCard from "./PremiumStatusCard";
+import { useCuentaPrincipal } from "../hooks/useCuentaPrincipal";
+import PlanConfigAdminModal from "./PlanConfigAdminModal";
+import { ScrollView } from "react-native";
 
 interface Props {
   visible: boolean;
   onClose: () => void;
 }
 
-const PREFERRED_CURRENCY_KEY = "preferredCurrency";
 const SHOW_FULL_NUMBERS_KEY = "showFullNumbers";
 
 const AccountSettingsModal: React.FC<Props> = ({ visible, onClose }) => {
@@ -23,20 +28,56 @@ const AccountSettingsModal: React.FC<Props> = ({ visible, onClose }) => {
   const { themeMode, setThemeMode } = useTheme();
   const colors = useThemeColors();
   const [showFullNumbers, setShowFullNumbers] = useState(false);
-  const [selectedMoneda, setSelectedMoneda] = useState<Moneda | null>({
-    id: "init",
-    codigo: "USD",
-    nombre: "US Dollar",
-    simbolo: "$",
-  });
-  const [previewModalVisible, setPreviewModalVisible] = useState(false);
+  const [premiumModalVisible, setPremiumModalVisible] = useState(false);
+  const [tipJarModalVisible, setTipJarModalVisible] = useState(false);
+  const [planConfigModalVisible, setPlanConfigModalVisible] = useState(false);
+  const [token, setToken] = useState<string | null>(null);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
+  
+  const { cuenta, isPremium } = useCuentaPrincipal(token, reloadKey);
+  // const [selectedMoneda, setSelectedMoneda] = useState<Moneda | null>(null);
+  // const [previewModalVisible, setPreviewModalVisible] = useState(false);
 
+  // Cargar preferencias y asegurar que siempre haya una moneda seleccionada
   useEffect(() => {
     if (visible) {
       loadNumberPreference();
-      loadPreferredCurrency();
+      loadToken();
+      loadUserData();
     }
   }, [visible]);
+
+  const loadToken = async () => {
+    try {
+      const authToken = await AsyncStorage.getItem("authToken");
+      setToken(authToken);
+    } catch (error) {
+      console.error("Error cargando token:", error);
+    }
+  };
+
+  const loadUserData = async () => {
+    try {
+      const raw = await AsyncStorage.getItem("userData");
+      if (!raw) {
+        setUserEmail(null);
+        setIsAdmin(false);
+        return;
+      }
+
+      const user = JSON.parse(raw);
+      const email = typeof user?.email === "string" ? user.email : null;
+      const rol = typeof user?.rol === "string" ? user.rol : typeof user?.role === "string" ? user.role : null;
+
+      setUserEmail(email);
+      setIsAdmin(String(rol || "").toLowerCase() === "admin");
+    } catch (error) {
+      setUserEmail(null);
+      setIsAdmin(false);
+    }
+  };
 
   const loadNumberPreference = useCallback(async () => {
     try {
@@ -47,17 +88,7 @@ const AccountSettingsModal: React.FC<Props> = ({ visible, onClose }) => {
     }
   }, []);
 
-  const loadPreferredCurrency = useCallback(async () => {
-    try {
-      const raw = await AsyncStorage.getItem(PREFERRED_CURRENCY_KEY);
-      if (raw) {
-        const parsed: Moneda = JSON.parse(raw);
-        if (parsed?.codigo) setSelectedMoneda(parsed);
-      }
-    } catch (error) {
-      console.error("Error cargando moneda preferida:", error);
-    }
-  }, []);
+
 
   const toggleNumberFormat = async (value: boolean) => {
     try {
@@ -79,24 +110,7 @@ const AccountSettingsModal: React.FC<Props> = ({ visible, onClose }) => {
     }
   };
 
-  const handleChangeCurrency = async (m: Moneda) => {
-    try {
-      setSelectedMoneda(m);
-      await AsyncStorage.setItem(PREFERRED_CURRENCY_KEY, JSON.stringify(m));
-      Toast.show({
-        type: "success",
-        text1: "Moneda actualizada",
-        text2: `${m.nombre} (${m.codigo}) ${m.simbolo}`,
-      });
-      // Solo guardamos la preferencia local, nunca enviamos al backend
-    } catch (err) {
-      console.error(err);
-      Toast.show({
-        type: "error",
-        text1: "No se pudo guardar la moneda",
-      });
-    }
-  };
+
 
   const getThemeModeLabel = () => {
     switch (themeMode) {
@@ -125,15 +139,28 @@ const AccountSettingsModal: React.FC<Props> = ({ visible, onClose }) => {
       isVisible={visible}
       onSwipeComplete={onClose}
       swipeDirection="down"
-      backdropOpacity={0.3}
+      backdropOpacity={0.35}
       style={styles.modalWrapper}
       onBackdropPress={onClose}
       propagateSwipe
     >
-      <View style={[styles.modal, { backgroundColor: colors.modalBackground }]}>
-        <View style={[styles.grabber, { backgroundColor: colors.border }]} />
+      <View style={[styles.modal, { backgroundColor: colors.modalBackground }]}> 
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24 }} keyboardShouldPersistTaps="handled">
+          <View style={[styles.grabber, { backgroundColor: colors.border }]} />
 
-        <Text style={[styles.title, { color: colors.button }]}>Ajustes de cuenta</Text>
+          <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+            <Ionicons name="close" size={20} color={colors.textSecondary} />
+          </TouchableOpacity>
+
+          <Text style={[styles.title, { color: colors.button }]}>Ajustes de cuenta</Text>
+
+        {/* Distintivo visual si premium es por donación */}
+        {cuenta?.premiumUntil && (!cuenta?.premiumSubscriptionStatus || cuenta?.premiumSubscriptionStatus === 'none') && (
+          <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#fef3c7', borderColor: '#f59e0b', borderWidth: 1, borderRadius: 10, padding: 8, marginBottom: 10 }}>
+            <Ionicons name="gift" size={18} color="#f59e0b" style={{ marginRight: 6 }} />
+            <Text style={{ color: '#b45309', fontWeight: 'bold' }}>Premium temporal por donación</Text>
+          </View>
+        )}
 
         {/* Tema */}
         <View style={[styles.section, { borderBottomColor: colors.border }]}>
@@ -211,6 +238,73 @@ const AccountSettingsModal: React.FC<Props> = ({ visible, onClose }) => {
           </View>
         </View>
 
+        {/* Premium Status Card */}
+        {cuenta && (
+          <PremiumStatusCard
+            premiumSubscriptionStatus={cuenta.premiumSubscriptionStatus}
+            premiumUntil={cuenta.premiumUntil}
+            stripeSubscriptionId={cuenta.stripeSubscriptionId}
+          />
+        )}
+
+        {/* Premium y Tip Jar */}
+        <View style={[styles.section, { borderBottomColor: colors.border }]}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Premium</Text>
+          
+          {/* CTA Premium: si ya es premium, muestra beneficios; si no, muestra compra */}
+          <TouchableOpacity
+            style={[styles.premiumOption, { backgroundColor: colors.cardSecondary, borderColor: colors.border }]}
+            onPress={() => setPremiumModalVisible(true)}
+          >
+            <View style={styles.premiumIconContainer}>
+              <Ionicons name="sparkles" size={24} color="#f59e0b" />
+            </View>
+            <View style={styles.premiumTextContainer}>
+              <Text style={[styles.premiumTitle, { color: colors.text }]}>
+                {isPremium ? 'Tus beneficios premium' : 'Hazte Premium'}
+              </Text>
+              <Text style={[styles.premiumSubtext, { color: colors.textSecondary }]}>
+                {isPremium ? 'Revisa tu estado y días restantes' : 'Desbloquea funciones avanzadas'}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={colors.textTertiary} />
+          </TouchableOpacity>
+
+          {/* Admin-only: plan config */}
+          {isAdmin && token && (
+            <TouchableOpacity
+              style={[styles.premiumOption, { backgroundColor: colors.cardSecondary, borderColor: colors.border }]}
+              onPress={() => setPlanConfigModalVisible(true)}
+            >
+              <View style={styles.premiumIconContainer}>
+                <Ionicons name="options" size={24} color={colors.button} />
+              </View>
+              <View style={styles.premiumTextContainer}>
+                <Text style={[styles.premiumTitle, { color: colors.text }]}>Límites del plan (admin)</Text>
+                <Text style={[styles.premiumSubtext, { color: colors.textSecondary }]}>Configura límites del plan gratuito</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={colors.textTertiary} />
+            </TouchableOpacity>
+          )}
+
+          {/* Siempre mostrar opción de donación */}
+          <TouchableOpacity
+            style={[styles.tipJarOption, { backgroundColor: colors.cardSecondary, borderColor: colors.border }]}
+            onPress={() => setTipJarModalVisible(true)}
+          >
+            <View style={styles.tipJarIconContainer}>
+              <Ionicons name="heart" size={24} color="#ef4444" />
+            </View>
+            <View style={styles.tipJarTextContainer}>
+              <Text style={[styles.tipJarTitle, { color: colors.text }]}>Apoya el desarrollo</Text>
+              <Text style={[styles.tipJarSubtext, { color: colors.textSecondary }]}>
+                Una donación ayuda mucho ❤️
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={colors.textTertiary} />
+          </TouchableOpacity>
+        </View>
+
         <View style={styles.switchOption}>
           <View style={styles.switchTextContainer}>
             <Text style={[styles.optionText, { color: colors.text }]}>Números completos</Text>
@@ -228,34 +322,9 @@ const AccountSettingsModal: React.FC<Props> = ({ visible, onClose }) => {
           />
         </View>
 
-        <View style={{ marginTop: 12 }}>
-          <CurrencyField
-            label="Moneda preferida (solo visualización)"
-            value={selectedMoneda}
-            onChange={handleChangeCurrency}
-            showSearch
-          />
-          <Text style={[styles.helperText, { color: colors.textTertiary }]}>
-            Esta es tu moneda de visualización. La moneda principal de tu cuenta se establece en el registro y no puede cambiar.
-          </Text>
-        </View>
 
-        {/* Botón de Preview de Moneda */}
-        <TouchableOpacity
-          style={[styles.previewOption, { borderTopColor: colors.border }]}
-          onPress={() => setPreviewModalVisible(true)}
-        >
-          <View style={styles.previewIconContainer}>
-            <Ionicons name="cash-outline" size={24} color="#4CAF50" />
-          </View>
-          <View style={styles.previewTextContainer}>
-            <Text style={[styles.previewTitle, { color: colors.text }]}>Vista previa de moneda</Text>
-            <Text style={[styles.previewSubtext, { color: colors.textSecondary }]}>
-              Ve tus balances en cualquier moneda sin cambiar configuración
-            </Text>
-          </View>
-          <Ionicons name="chevron-forward" size={20} color={colors.textTertiary} />
-        </TouchableOpacity>
+
+
 
         <TouchableOpacity
           style={[styles.supportOption, { borderTopColor: colors.border }]}
@@ -277,16 +346,36 @@ const AccountSettingsModal: React.FC<Props> = ({ visible, onClose }) => {
           <Ionicons name="chevron-forward" size={20} color={colors.textTertiary} />
         </TouchableOpacity>
 
-        <TouchableOpacity onPress={onClose}>
-          <Text style={[styles.cancelText, { color: colors.textSecondary }]}>Cerrar</Text>
-        </TouchableOpacity>
+          <TouchableOpacity onPress={onClose}>
+            <Text style={[styles.cancelText, { color: colors.textSecondary }]}>Cerrar</Text>
+          </TouchableOpacity>
+        </ScrollView>
       </View>
 
-      {/* Currency Preview Modal */}
-      <CurrencyPreviewModal
-        visible={previewModalVisible}
-        onClose={() => setPreviewModalVisible(false)}
-      />
+      {/* Modales de Premium y Tip Jar */}
+      {token && (
+        <>
+          <PremiumModal
+            visible={premiumModalVisible}
+            onClose={() => setPremiumModalVisible(false)}
+            token={token}
+            onRefresh={() => setReloadKey(prev => prev + 1)}
+          />
+          {isAdmin && (
+            <PlanConfigAdminModal
+              visible={planConfigModalVisible}
+              onClose={() => setPlanConfigModalVisible(false)}
+              token={token}
+            />
+          )}
+          <TipJarModal
+            visible={tipJarModalVisible}
+            onClose={() => setTipJarModalVisible(false)}
+            token={token}
+            onRefresh={() => setReloadKey(prev => prev + 1)}
+          />
+        </>
+      )}
     </Modal>
   );
 };
@@ -295,21 +384,28 @@ const styles = StyleSheet.create({
   modalWrapper: {
     justifyContent: "flex-end",
     margin: 0,
-    width: '100%',
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
+    alignItems: 'center',
+    paddingHorizontal: 12,
   },
   modal: {
-    paddingHorizontal: 24,
-    paddingTop: 20,
-    paddingBottom: 30,
+    paddingHorizontal: 20,
+    paddingTop: 18,
+    paddingBottom: 22,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
+    borderColor: "rgba(255,255,255,0.08)",
     width: '100%',
+    maxHeight: '85%',
+    marginHorizontal: 6,
+    // elevation / shadow for Android / iOS
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -6 },
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
   },
   grabber: {
     width: 40,
@@ -317,6 +413,14 @@ const styles = StyleSheet.create({
     borderRadius: 3,
     alignSelf: "center",
     marginBottom: 12,
+  },
+  closeButton: {
+    position: 'absolute',
+    top: 12,
+    right: 16,
+    padding: 6,
+    borderRadius: 20,
+    zIndex: 20,
   },
   title: {
     fontSize: 18,
@@ -441,6 +545,61 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   previewSubtext: {
+    fontSize: 12,
+  },
+  premiumOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 10,
+  },
+  premiumIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#f59e0b15",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
+  premiumTextContainer: {
+    flex: 1,
+  },
+  premiumTitle: {
+    fontSize: 15,
+    fontWeight: "600",
+    marginBottom: 2,
+  },
+  premiumSubtext: {
+    fontSize: 12,
+  },
+  tipJarOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  tipJarIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#ef444415",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
+  tipJarTextContainer: {
+    flex: 1,
+  },
+  tipJarTitle: {
+    fontSize: 15,
+    fontWeight: "600",
+    marginBottom: 2,
+  },
+  tipJarSubtext: {
     fontSize: 12,
   },
 });
