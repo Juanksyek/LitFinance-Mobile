@@ -1,5 +1,5 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { API_BASE_URL } from "../constants/api";
+import { apiRateLimiter } from "./apiRateLimiter";
 import {
   Ticket,
   CreateTicketRequest,
@@ -10,17 +10,7 @@ import {
 } from "../types/support";
 
 class SupportService {
-  private async getAuthToken(): Promise<string | null> {
-    return await AsyncStorage.getItem("authToken");
-  }
-
-  private async getHeaders(): Promise<HeadersInit> {
-    const token = await this.getAuthToken();
-    return {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    };
-  }
+  // headers and auth are handled by `apiRateLimiter` which attaches Authorization automatically
 
   /**
    * Crear un nuevo ticket de soporte
@@ -28,16 +18,12 @@ class SupportService {
   async createTicket(data: CreateTicketRequest): Promise<Ticket> {
     try {
       console.log("📤 [SupportService] createTicket - Iniciando...", { titulo: data.titulo });
-      const headers = await this.getHeaders();
-      console.log("🔑 [SupportService] createTicket - Headers obtenidos");
-      
       const url = `${API_BASE_URL}/support-tickets`;
       console.log("🌐 [SupportService] createTicket - URL:", url);
       console.log("📦 [SupportService] createTicket - Body:", data);
-      
-      const response = await fetch(url, {
+      const response = await apiRateLimiter.fetch(url, {
         method: "POST",
-        headers,
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
 
@@ -64,11 +50,9 @@ class SupportService {
   async getMyTickets(): Promise<Ticket[]> {
     try {
       console.log("📤 [SupportService] getMyTickets - Iniciando...");
-      const headers = await this.getHeaders();
       const url = `${API_BASE_URL}/support-tickets`;
       console.log("🌐 [SupportService] getMyTickets - URL:", url);
-      
-      const response = await fetch(url, { headers });
+      const response = await apiRateLimiter.fetch(url);
       console.log("📥 [SupportService] getMyTickets - Respuesta:", { status: response.status, ok: response.ok });
 
       if (!response.ok) {
@@ -92,11 +76,9 @@ class SupportService {
   async getTicketDetail(ticketId: string): Promise<Ticket> {
     try {
       console.log("📤 [SupportService] getTicketDetail - Iniciando...", { ticketId });
-      const headers = await this.getHeaders();
       const url = `${API_BASE_URL}/support-tickets/${ticketId}`;
       console.log("🌐 [SupportService] getTicketDetail - URL:", url);
-      
-      const response = await fetch(url, { headers });
+      const response = await apiRateLimiter.fetch(url);
       console.log("📥 [SupportService] getTicketDetail - Respuesta:", { status: response.status, ok: response.ok });
 
       if (!response.ok) {
@@ -126,16 +108,12 @@ class SupportService {
       console.log("📤 [SupportService] addMessage - Iniciando...", { ticketId, mensajeLength: data.mensaje.length });
       console.log("💬 [SupportService] addMessage - Mensaje:", data.mensaje);
       
-      const headers = await this.getHeaders();
-      console.log("🔑 [SupportService] addMessage - Headers obtenidos");
-      
       const url = `${API_BASE_URL}/support-tickets/${ticketId}/messages`;
       console.log("🌐 [SupportService] addMessage - URL:", url);
       console.log("📦 [SupportService] addMessage - Body:", data);
-      
-      const response = await fetch(url, {
+      const response = await apiRateLimiter.fetch(url, {
         method: "POST",
-        headers,
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
 
@@ -182,9 +160,9 @@ class SupportService {
     ticketId: string,
     data: UpdateTicketRequest
   ): Promise<Ticket> {
-    const response = await fetch(`${API_BASE_URL}/support-tickets/${ticketId}`, {
+    const response = await apiRateLimiter.fetch(`${API_BASE_URL}/support-tickets/${ticketId}`, {
       method: "PUT",
-      headers: await this.getHeaders(),
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
     });
 
@@ -200,9 +178,8 @@ class SupportService {
    * Eliminar un ticket
    */
   async deleteTicket(ticketId: string): Promise<{ message: string }> {
-    const response = await fetch(`${API_BASE_URL}/support-tickets/${ticketId}`, {
+    const response = await apiRateLimiter.fetch(`${API_BASE_URL}/support-tickets/${ticketId}`, {
       method: "DELETE",
-      headers: await this.getHeaders(),
     });
 
     if (!response.ok) {
@@ -220,11 +197,11 @@ class SupportService {
     ticketId: string,
     data: UpdateStatusRequest
   ): Promise<Ticket> {
-    const response = await fetch(
+    const response = await apiRateLimiter.fetch(
       `${API_BASE_URL}/support-tickets/${ticketId}/status`,
       {
         method: "PUT",
-        headers: await this.getHeaders(),
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       }
     );
@@ -241,9 +218,7 @@ class SupportService {
    * Obtener estadísticas (solo staff)
    */
   async getStatistics(): Promise<TicketStatistics> {
-    const response = await fetch(`${API_BASE_URL}/support-tickets/statistics`, {
-      headers: await this.getHeaders(),
-    });
+    const response = await apiRateLimiter.fetch(`${API_BASE_URL}/support-tickets/statistics`);
 
     if (!response.ok) {
       const error = await response.json();
