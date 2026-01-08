@@ -21,6 +21,7 @@ export default ({ config }) => ({
   plugins: [
     ...(config.plugins ?? []),
     'expo-asset',
+    'expo-secure-store',
     [
       'expo-notifications',
       {

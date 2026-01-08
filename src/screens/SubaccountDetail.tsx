@@ -1,17 +1,20 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, StatusBar, TextInput, Dimensions } from 'react-native';
 import { RouteProp, useRoute, useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import EditSubaccountModal from '../components/EditSubaccountModal';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { apiRateLimiter } from '../services/apiRateLimiter';
 import { API_BASE_URL } from '../constants/api';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../navigation/AppNavigator';
 import Toast from "react-native-toast-message";
+import { emitSubcuentasChanged } from '../utils/dashboardRefreshBus';
 import ActionButtons from '../components/ActionButtons';
 import DeleteModal from '../components/DeleteModal';
 import SubaccountRecurrentesList from '../components/SubaccountRecurrentesList';
 import { useThemeColors } from '../theme/useThemeColors';
+import MovimientoDetalleModal from '../components/MovimientoDetalleModal';
 const { width } = Dimensions.get('window');
 
 type Subcuenta = {
@@ -26,6 +29,7 @@ type Subcuenta = {
   cuentaId: string | null;
   userId: string;
   activa: boolean;
+  origenSaldo?: 'cuenta_principal' | 'nuevo';
   createdAt: string;
   updatedAt: string;
   __v: number;
@@ -51,11 +55,77 @@ const SubaccountDetail = () => {
   const [limite] = useState(5);
   const [busqueda, setBusqueda] = useState('');
   const [totalPaginas, setTotalPaginas] = useState(1);
-  const [desde, setDesde] = useState('2024-01-01');
-  const [hasta, setHasta] = useState('2026-01-01');
+  const [desde, setDesde] = useState('');
+  const [hasta, setHasta] = useState('');
+  const [fechaAuto, setFechaAuto] = useState({ desde: '', hasta: '' });
   const [participacion, setParticipacion] = useState<number | null>(null);
   const handleGlobalRefresh = route.params?.onGlobalRefresh || (() => { });
   const [userId, setUserId] = useState<string | null>(null);
+  const [detalleVisible, setDetalleVisible] = useState(false);
+  const [movimientoSeleccionado, setMovimientoSeleccionado] = useState<any>(null);
+
+  // Refs para prevención de memory leaks
+  const isMountedRef = useRef(true);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const lastFetchRef = useRef<number>(0);
+
+  // Cleanup al desmontar
+  useEffect(() => {
+    isMountedRef.current = true;
+    
+    return () => {
+      console.log('🧹 [SubaccountDetail] Limpiando componente...');
+      isMountedRef.current = false;
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
+  const pickDate = (item: any): string | null => {
+    const candidates = [
+      item?.createdAt,
+      item?.fecha,
+      item?.executedAt,
+      item?.updatedAt,
+      item?.timestamp,
+      item?.date,
+    ];
+    const found = candidates.find((d) => typeof d === 'string' && d.trim().length > 0);
+    return found ?? null;
+  };
+
+  const pickDescripcion = (item: any): string => {
+    const candidates = [
+      item?.descripcion,
+      item?.concepto,
+      item?.motivo,
+      item?.title,
+      item?.nombre,
+      item?.tipo,
+    ];
+    const found = candidates.find((s) => typeof s === 'string' && s.trim().length > 0);
+    return found ?? 'Movimiento';
+  };
+
+  const pickTipo = (item: any): 'ingreso' | 'egreso' | null => {
+    const raw = item?.tipo;
+    if (raw === 'ingreso' || raw === 'egreso') return raw;
+    const raw2 = item?.movimientoTipo;
+    if (raw2 === 'ingreso' || raw2 === 'egreso') return raw2;
+    return null;
+  };
+
+  const pickMonto = (item: any): number | null => {
+    const candidates = [item?.monto, item?.cantidad, item?.importe, item?.amount, item?.total];
+    const found = candidates.find((n) => typeof n === 'number' && Number.isFinite(n));
+    return found ?? null;
+  };
+
+  const pickFuente = (item: any): string | null => {
+    const candidates = [item?.fuente, item?.origen, item?.source, item?.tipoMovimiento];
+    const found = candidates.find((s) => typeof s === 'string' && s.trim().length > 0);
+    return found ?? null;
+  };
 
   useEffect(() => {
     const obtenerUserId = async () => {
@@ -147,82 +217,135 @@ const SubaccountDetail = () => {
   };
 
   const fetchSubcuenta = async () => {
+    if (!isMountedRef.current) return;
+
+    // Crear nuevo AbortController para esta petición
+    const controller = new AbortController();
+    const signal = controller.signal;
+
     try {
-      const token = await AsyncStorage.getItem("authToken");
       const subCuentaId = subcuenta.subCuentaId;
 
-      const res = await fetch(`${API_BASE_URL}/subcuenta/buscar/${subcuenta?.subCuentaId}`, {
-        headers: { Authorization: `Bearer ${token}` },
+      const res = await apiRateLimiter.fetch(`${API_BASE_URL}/subcuenta/buscar/${subcuenta?.subCuentaId}`, {
+        signal,
       });
 
+      // Verificar si fue abortado
+      if (signal.aborted) {
+        console.log('💳 [SubaccountDetail] Fetch subcuenta cancelado');
+        return;
+      }
+
       const data = await res.json();
-      if (res.ok && data && data.subCuentaId) {
+      if (res.ok && data && data.subCuentaId && isMountedRef.current && !signal.aborted) {
         setSubcuenta({ ...data });
-      } else {
+      } else if (isMountedRef.current) {
         Toast.show({
           type: 'error',
           text1: 'Error al recuperar las subcuentas',
           text2: 'Inicia sesión de nuevo o intentalo mas tarde',
         });
       }
-    } catch (err) {
-      Toast.show({
-        type: 'error',
-        text1: 'Error al recuperar las subcuentas',
-        text2: 'Inicia sesión de nuevo o intentalo mas tarde',
-      });
+    } catch (err: any) {
+      // Ignorar errores de abort
+      if (err.name === 'AbortError' || signal.aborted) {
+        console.log('💳 [SubaccountDetail] Fetch subcuenta cancelado');
+        return;
+      }
+      if (isMountedRef.current) {
+        Toast.show({
+          type: 'error',
+          text1: 'Error al recuperar las subcuentas',
+          text2: 'Inicia sesión de nuevo o intentalo mas tarde',
+        });
+      }
     }
   };
 
   const fetchParticipacion = async () => {
-    try {
-      const token = await AsyncStorage.getItem("authToken");
+    if (!isMountedRef.current) return;
 
-      const res = await fetch(`${API_BASE_URL}/subcuenta/participacion/${subcuenta.cuentaId}`, {
-        headers: { Authorization: `Bearer ${token}` },
+    // Crear nuevo AbortController para esta petición
+    const controller = new AbortController();
+    const signal = controller.signal;
+
+    try {
+      const res = await apiRateLimiter.fetch(`${API_BASE_URL}/subcuenta/participacion/${subcuenta.cuentaId}`, {
+        signal,
       });
+
+      // Verificar si fue abortado
+      if (signal.aborted) {
+        console.log('📊 [SubaccountDetail] Fetch participación cancelado');
+        return;
+      }
 
       const data = await res.json();
 
-      if (Array.isArray(data)) {
+      if (Array.isArray(data) && isMountedRef.current && !signal.aborted) {
         const actual = data.find((item) => item.subsubCuentaId === subcuenta._id);
         if (actual) {
           setParticipacion(actual.porcentaje);
         }
       }
-    } catch (err) {
-      Toast.show({
-        type: "error",
-        text1: "Error al obtener participación",
-        text2: "No se pudo calcular la participación de esta subcuenta",
-      });
+    } catch (err: any) {
+      // Ignorar errores de abort
+      if (err.name === 'AbortError' || signal.aborted) {
+        console.log('📊 [SubaccountDetail] Fetch participación cancelado');
+        return;
+      }
+      if (isMountedRef.current) {
+        Toast.show({
+          type: "error",
+          text1: "Error al obtener participación",
+          text2: "No se pudo calcular la participación de esta subcuenta",
+        });
+      }
     }
   };
 
   const handleDelete = () => setDeleteVisible(true);
 
   const confirmDelete = async () => {
+    if (!isMountedRef.current) return;
+
+    // Crear nuevo AbortController para esta operación
+    const controller = new AbortController();
+    const signal = controller.signal;
+
     try {
-      const token = await AsyncStorage.getItem("authToken");
-      const res = await fetch(`${API_BASE_URL}/subcuenta/${subcuenta.subCuentaId}`, {
+      const res = await apiRateLimiter.fetch(`${API_BASE_URL}/subcuenta/${subcuenta.subCuentaId}`, {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
+        signal,
       });
+
+      // Verificar si fue abortado
+      if (signal.aborted) {
+        console.log('🗑️ [SubaccountDetail] Delete cancelado');
+        return;
+      }
 
       if (!res.ok) {
         const error = await res.json().catch(() => ({}));
         throw new Error(error.message || 'Error al eliminar la subcuenta');
       }
 
-      Toast.show({
-        type: 'success',
-        text1: 'Subcuenta eliminada',
-        text2: 'La subcuenta fue eliminada correctamente',
-      });
+      if (isMountedRef.current && !signal.aborted) {
+        Toast.show({
+          type: 'success',
+          text1: 'Subcuenta eliminada',
+          text2: 'La subcuenta fue eliminada correctamente',
+        });
+      }
 
       setDeleteVisible(false);
-      navigation.navigate('Dashboard', { updated: true });
-    } catch (err: any) {
+      emitSubcuentasChanged();
+      if (navigation.canGoBack()) {
+        navigation.goBack();
+      } else {
+        navigation.navigate('Dashboard', { updated: false } as any);
+      }
+    } catch (err) {
       Toast.show({
         type: 'error',
         text1: 'Error al eliminar la subcuenta',
@@ -234,8 +357,6 @@ const SubaccountDetail = () => {
 
   const fetchHistorial = async () => {
     try {
-      const token = await AsyncStorage.getItem("authToken");
-
       const queryParams = new URLSearchParams({
         desde,
         hasta,
@@ -247,29 +368,62 @@ const SubaccountDetail = () => {
         queryParams.append('descripcion', busqueda.trim());
       }
 
-      const res = await fetch(`${API_BASE_URL}/subcuenta/${subcuenta.subCuentaId}/historial?${queryParams.toString()}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-
+      const url = `${API_BASE_URL}/subcuenta/${subcuenta.subCuentaId}/movimientos?${queryParams.toString()}`;
+      console.log('[SubaccountDetail] fetchHistorial: URL', url);
+      const res = await apiRateLimiter.fetch(url);
+      console.log('[SubaccountDetail] fetchHistorial: status', res.status);
       const data = await res.json();
+      console.log('[SubaccountDetail] fetchHistorial: data', data);
+
+
+      // Nuevo: Si la respuesta tiene propiedad 'data' como array
+      if (Array.isArray(data?.data)) {
+        // Ordenar por fecha descendente (más nuevo primero)
+        const movimientos = [...data.data].sort((a, b) => new Date(b.fecha || b.createdAt).getTime() - new Date(a.fecha || a.createdAt).getTime());
+        setHistorial(movimientos.slice((pagina - 1) * limite, pagina * limite));
+        setTotalPaginas(Math.ceil(movimientos.length / limite));
+        // Si no hay filtro manual, setear fechas automáticas (primer movimiento más antiguo)
+        if (!desde && !hasta && movimientos.length > 0) {
+          const ultimo = movimientos[movimientos.length - 1];
+          const fechaInicio = (ultimo.fecha || ultimo.createdAt || '').slice(0, 10);
+          const fechaFin = new Date().toISOString().slice(0, 10);
+          setDesde(fechaInicio);
+          setHasta(fechaFin);
+          setFechaAuto({ desde: fechaInicio, hasta: fechaFin });
+        }
+        return;
+      }
 
       if (Array.isArray(data)) {
         const inicio = (pagina - 1) * limite;
         const fin = inicio + limite;
         setHistorial(data.slice(inicio, fin));
         setTotalPaginas(Math.ceil(data.length / limite));
-      } else if (Array.isArray(data.resultados)) {
-        setHistorial(data.resultados);
-        setTotalPaginas(data.totalPaginas || 1);
-      } else {
-        throw new Error('Respuesta inválida');
+        return;
       }
 
+      if (Array.isArray(data?.resultados)) {
+        setHistorial(data.resultados);
+        setTotalPaginas(data.totalPaginas || 1);
+        return;
+      }
+
+      if (Array.isArray(data?.movimientos)) {
+        const inicio = (pagina - 1) * limite;
+        const fin = inicio + limite;
+        setHistorial(data.movimientos.slice(inicio, fin));
+        setTotalPaginas(Math.ceil(data.movimientos.length / limite));
+        return;
+      }
+
+      throw new Error('Respuesta inválida');
+
     } catch (err) {
+      console.error('[SubaccountDetail] fetchHistorial: error', err);
       Toast.show({
         type: 'error',
-        text1: 'Error al cargar historial',
-        text2: 'No se pudo cargar el historial de movimientos',
+        text1: 'Error al cargar movimientos',
+        text2: 'No se pudieron cargar los movimientos de la subcuenta',
       });
     }
   };
@@ -301,14 +455,10 @@ const SubaccountDetail = () => {
 
   const toggleEstadoSubcuenta = async () => {
     try {
-      const token = await AsyncStorage.getItem("authToken");
       const endpoint = `${API_BASE_URL}/subcuenta/${subcuenta.subCuentaId}/${subcuenta.activa ? 'desactivar' : 'activar'}`;
 
-      const res = await fetch(endpoint, {
+      const res = await apiRateLimiter.fetch(endpoint, {
         method: 'PATCH',
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
       });
 
       if (!res.ok) {
@@ -424,6 +574,20 @@ const SubaccountDetail = () => {
             description={subcuenta.afectaCuenta ? 'Modifica el saldo principal' : 'Independiente'}
           />
 
+          {subcuenta.origenSaldo && (
+            <InfoCard
+              icon={<Ionicons name="swap-horizontal-outline" />}
+              label="Origen del saldo"
+              value={subcuenta.origenSaldo === 'cuenta_principal' ? 'Apartado' : 'Saldo nuevo'}
+              accentColor="#F59E0B"
+              description={
+                subcuenta.origenSaldo === 'cuenta_principal'
+                  ? 'Reservado desde la cuenta principal'
+                  : 'Depósito adicional'
+              }
+            />
+          )}
+
           <InfoCard
             icon={<Ionicons name="finger-print-outline" />}
             label="ID Subcuenta"
@@ -467,7 +631,7 @@ const SubaccountDetail = () => {
         </View>
 
         <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow }]}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Historial de movimientos</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Movimientos</Text>
           <View style={styles.sectionContent}>
             <View style={styles.searchContainer}>
               <Ionicons name="search-outline" size={20} color={colors.textSecondary} style={styles.searchIcon} />
@@ -488,7 +652,7 @@ const SubaccountDetail = () => {
                 <Text style={[styles.dateLabel, { color: colors.textSecondary }]}>Desde</Text>
                 <TextInput
                   style={[styles.dateInput, { backgroundColor: colors.inputBackground, borderColor: colors.border, color: colors.text }]}
-                  value={desde}
+                  value={desde || fechaAuto.desde}
                   onChangeText={setDesde}
                   placeholder="YYYY-MM-DD"
                   placeholderTextColor={colors.placeholder}
@@ -498,7 +662,7 @@ const SubaccountDetail = () => {
                 <Text style={[styles.dateLabel, { color: colors.textSecondary }]}>Hasta</Text>
                 <TextInput
                   style={[styles.dateInput, { backgroundColor: colors.inputBackground, borderColor: colors.border, color: colors.text }]}
-                  value={hasta}
+                  value={hasta || fechaAuto.hasta}
                   onChangeText={setHasta}
                   placeholder="YYYY-MM-DD"
                   placeholderTextColor={colors.placeholder}
@@ -507,6 +671,7 @@ const SubaccountDetail = () => {
             </View>
 
             {/* History List */}
+            {/* Movimientos List */}
             <View style={styles.historyContainer}>
               {historial.length === 0 ? (
                 <View style={styles.emptyHistoryContainer}>
@@ -516,55 +681,89 @@ const SubaccountDetail = () => {
                 </View>
               ) : (
                 historial.map((item, index) => (
-                  <View key={item._id || index} style={[styles.historyItem, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                    <View style={styles.historyHeader}>
-                      <Text style={[styles.historyDescription, { color: colors.text }]}>{item.descripcion}</Text>
-                      <Text style={[styles.historyDate, { color: colors.textSecondary }]}>{formatDate(item.createdAt)}</Text>
-                    </View>
-
-                    {item.datos && Object.keys(item.datos).length > 0 && (
-                      <View style={styles.historyDetails}>
-                        {Object.entries(item.datos).map(([clave, valor]: [string, any]) => {
-                          const claveLabel = clave.charAt(0).toUpperCase() + clave.slice(1);
-
-                          const iconName = (() => {
-                            switch (clave) {
-                              case 'nombre': return 'text-outline';
-                              case 'color': return 'color-palette-outline';
-                              case 'cantidad': return 'cash-outline';
-                              case 'afectaCuenta': return 'swap-horizontal-outline';
-                              default: return 'information-circle-outline';
-                            }
-                          })();
-
-                          if (typeof valor === 'object' && valor.antes !== undefined && valor.despues !== undefined) {
-                            return (
-                              <View key={clave} style={styles.historyDetailRow}>
-                                <Ionicons name={iconName} size={16} color="#F59E0B" />
-                                <Text style={[styles.historyDetailText, { color: colors.textSecondary }]}>
-                                  {claveLabel}: <Text style={[styles.historyDetailValue, { color: colors.text }]}>{String(valor.antes)}</Text>
-                                  <Ionicons name="arrow-forward-outline" size={13} color={colors.textSecondary} />
-                                  <Text style={[styles.historyDetailValue, { color: colors.text }]}>{String(valor.despues)}</Text>
-                                </Text>
-                              </View>
-                            );
-                          } else {
-                            return (
-                              <View key={clave} style={styles.historyDetailRow}>
-                                <Ionicons name={iconName} size={16} color="#F59E0B" />
-                                <Text style={[styles.historyDetailText, { color: colors.textSecondary }]}>
-                                  {claveLabel}: <Text style={[styles.historyDetailValue, { color: colors.text }]}>{JSON.stringify(valor)}</Text>
-                                </Text>
-                              </View>
-                            );
-                          }
-                        })}
+                  <TouchableOpacity
+                    key={item._id || index}
+                    style={[
+                      styles.historyItem,
+                      {
+                        backgroundColor: colors.card,
+                        borderColor: colors.border,
+                        marginBottom: 4,
+                        shadowColor: colors.shadow,
+                        shadowOpacity: 0.08,
+                        shadowRadius: 6,
+                        elevation: 2,
+                        paddingVertical: 18,
+                        paddingHorizontal: 16,
+                        borderLeftWidth: 6,
+                        borderLeftColor: pickTipo(item) === 'egreso' ? '#EF4444' : '#10B981',
+                      },
+                    ]}
+                    activeOpacity={0.85}
+                    onPress={() => {
+                      setMovimientoSeleccionado(item);
+                      setDetalleVisible(true);
+                    }}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <Ionicons
+                        name={pickTipo(item) === 'egreso' ? 'arrow-up-circle' : 'arrow-down-circle'}
+                        size={28}
+                        color={pickTipo(item) === 'egreso' ? '#EF4444' : '#10B981'}
+                        style={{ marginRight: 12 }}
+                      />
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.historyDescription, { color: colors.text }]} numberOfLines={1}>
+                          {pickDescripcion(item)}
+                        </Text>
+                        {item.motivo && (
+                          <Text style={{ color: colors.textSecondary, fontSize: 13, marginTop: 2 }} numberOfLines={1}>
+                            {item.motivo}
+                          </Text>
+                        )}
+                        <Text style={[styles.historyDate, { color: colors.textSecondary, marginTop: item.motivo ? 0 : 2 }]} numberOfLines={1}>
+                          {pickDate(item) ? formatDate(pickDate(item) as string) : '—'}
+                        </Text>
                       </View>
-                    )}
-                  </View>
+                      <View style={{ alignItems: 'flex-end', minWidth: 90 }}>
+                        {/* Multi-currency display */}
+                        {item.montoOriginal != null && item.moneda && (item.montoConvertido != null || item.montoConvertidoCuenta != null || item.montoConvertidoSubcuenta != null) && (item.monedaConvertida || item.monedaConvertidaCuenta || item.monedaConvertidaSubcuenta) ? (
+                          <Text
+                            style={{
+                              fontSize: 16,
+                              fontWeight: '700',
+                              color: pickTipo(item) === 'egreso' ? '#EF4444' : '#10B981',
+                            }}
+                          >
+                            {(pickTipo(item) === 'egreso' ? '-' : '+') +
+                              formatCurrency(item.montoOriginal) + ' ' + item.moneda +
+                              ' → ' +
+                              formatCurrency(item.montoConvertido ?? item.montoConvertidoCuenta ?? item.montoConvertidoSubcuenta) + ' ' + (item.monedaConvertida ?? item.monedaConvertidaCuenta ?? item.monedaConvertidaSubcuenta)}
+                          </Text>
+                        ) : pickMonto(item) != null ? (
+                          <Text
+                            style={{
+                              fontSize: 16,
+                              fontWeight: '700',
+                              color: pickTipo(item) === 'egreso' ? '#EF4444' : '#10B981',
+                            }}
+                          >
+                            {(pickTipo(item) === 'egreso' ? '-' : '+') + (subcuenta.simbolo || '') + formatCurrency(pickMonto(item) as number)}
+                          </Text>
+                        ) : null}
+                      </View>
+                    </View>
+                  </TouchableOpacity>
                 ))
               )}
             </View>
+      {/* Modal de detalle de movimiento */}
+      <MovimientoDetalleModal
+        visible={detalleVisible}
+        onClose={() => setDetalleVisible(false)}
+        movimiento={movimientoSeleccionado}
+        simbolo={subcuenta.simbolo}
+      />
 
             {/* Pagination */}
             {historial.length > 0 && (
@@ -649,8 +848,12 @@ const SubaccountDetail = () => {
         onSuccess={() => {
           setEditVisible(false);
           fetchSubcuenta();
-          navigation.navigate('Dashboard', { updated: true });
-          handleGlobalRefresh();
+          emitSubcuentasChanged();
+          if (navigation.canGoBack()) {
+            navigation.goBack();
+          } else {
+            navigation.navigate('Dashboard', { updated: false } as any);
+          }
         }}
       />
 

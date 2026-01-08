@@ -5,6 +5,7 @@ import AppNavigator from './src/navigation/AppNavigator';
 import Toast from 'react-native-toast-message';
 import { ThemeProvider } from './src/theme/ThemeContext';
 import { setupNotificationListeners } from './src/services/notificationService';
+import { authService } from './src/services/authService';
 import type { RootStackParamList } from './src/navigation/AppNavigator';
 import { StripeProvider } from '@stripe/stripe-react-native';
 import { STRIPE_PUBLISHABLE_KEY } from './src/constants/stripe';
@@ -16,6 +17,20 @@ export default function App() {
   useEffect(() => {
     // Apply stored launcher icon (Android)
     applyStoredAppIconVariant().catch(() => {});
+
+    // Register logout handler: navigate to Login when session expires
+    const unregisterLogout = authService.onLogout(() => {
+      console.log('🔐 Sesión expirada, redirigiendo a Login...');
+      Toast.show({
+        type: 'error',
+        text1: 'Sesión expirada',
+        text2: 'Por favor inicia sesión nuevamente.',
+        visibilityTime: 3000,
+      });
+      if (navigationRef.current?.isReady()) {
+        navigationRef.current.navigate('Login');
+      }
+    });
 
     // Setup listeners para notificaciones
     const cleanup = setupNotificationListeners(
@@ -44,7 +59,10 @@ export default function App() {
       }
     );
 
-    return cleanup;
+    return () => {
+      cleanup();
+      unregisterLogout();
+    };
   }, []);
 
   // Manejar navegación según tipo de notificación

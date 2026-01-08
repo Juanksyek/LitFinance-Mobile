@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { authService } from './authService';
 import { API_BASE_URL } from '../constants/api';
 
 export interface EstadisticasRecurrentes {
@@ -25,7 +26,7 @@ class RecurrentesService {
    */
   async obtenerEstadisticas(filtro: FiltroEstadisticas = 'mes'): Promise<EstadisticasRecurrentes> {
     try {
-      const token = await AsyncStorage.getItem('authToken');
+      const token = await authService.getAccessToken();
       if (!token) {
         throw new Error('No auth token found');
       }
@@ -43,7 +44,7 @@ class RecurrentesService {
 
       if (!response.ok) {
         if (response.status === 401) {
-          await AsyncStorage.removeItem('authToken');
+          await authService.clearAll();
           throw new Error('Session expired');
         }
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -62,7 +63,7 @@ class RecurrentesService {
    */
   async obtenerHistorialRecurrente(recurrenteId: string, page: number = 1, limit: number = 10) {
     try {
-      const token = await AsyncStorage.getItem('authToken');
+      const token = await authService.getAccessToken();
       if (!token) {
         throw new Error('No auth token found');
       }
@@ -80,7 +81,7 @@ class RecurrentesService {
 
       if (!response.ok) {
         if (response.status === 401) {
-          await AsyncStorage.removeItem('authToken');
+          await authService.clearAll();
           throw new Error('Session expired');
         }
         throw new Error(`HTTP error! status: ${response.status}`);

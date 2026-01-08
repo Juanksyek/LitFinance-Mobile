@@ -1,6 +1,7 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_BASE_URL } from '../constants/api';
+import { apiRateLimiter } from './apiRateLimiter';
 
 export interface ResumenFinanciero {
   ingresos: number;
@@ -145,9 +146,9 @@ export interface AnalyticsFilters {
 }
 
 class AnalyticsService {
-  private async makeRequest<T>(endpoint: string, filters?: AnalyticsFilters): Promise<T> {
+  private async makeRequest<T>(endpoint: string, filters?: AnalyticsFilters, signal?: AbortSignal): Promise<T> {
     const params = new URLSearchParams();
-    
+
     if (filters) {
       Object.entries(filters).forEach(([key, value]) => {
         if (value !== undefined && value !== null) {
@@ -161,28 +162,21 @@ class AnalyticsService {
     }
 
     const url = `${API_BASE_URL}/analytics${endpoint}${params.toString() ? `?${params}` : ''}`;
-    
-    const response = await fetch(url, {
-      headers: {
-        'Authorization': `Bearer ${await this.getToken()}`,
-        'Content-Type': 'application/json',
-      },
+
+    // Use global rate limiter which will attach Authorization automatically
+    const res = await apiRateLimiter.fetch(url, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+      signal,
     });
 
-    if (!response.ok) {
-      throw new Error(`Error ${response.status}: ${response.statusText}`);
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      throw new Error(`Error ${res.status}: ${body || res.statusText}`);
     }
 
-    return response.json();
+    return res.json();
   }
-
-    private async getToken(): Promise<string> {
-      const token = await AsyncStorage.getItem("authToken");
-      if (!token) {
-        throw new Error("No se encontró un token válido en AsyncStorage");
-      }
-      return token;
-    }
 
   async getResumenFinanciero(filters?: AnalyticsFilters): Promise<ResumenFinanciero> {
     return this.makeRequest<ResumenFinanciero>('/resumen-financiero', filters);
@@ -200,8 +194,8 @@ class AnalyticsService {
     return this.makeRequest<EstadisticaRecurrente[]>('/por-recurrente', filters);
   }
 
-  async getAnalisisTemporal(filters?: AnalyticsFilters): Promise<AnalisisTemporal> {
-    return this.makeRequest<AnalisisTemporal>('/analisis-temporal', filters);
+  async getAnalisisTemporal(filters?: AnalyticsFilters, signal?: AbortSignal): Promise<AnalisisTemporal> {
+    return this.makeRequest<AnalisisTemporal>('/analisis-temporal', filters, signal);
   }
 
   /**
@@ -211,19 +205,17 @@ class AnalyticsService {
    */
   async getPreview(codigoMoneda: string): Promise<PreviewBalance> {
     const url = `${API_BASE_URL}/cuenta/preview/${codigoMoneda}`;
-    
-    const response = await fetch(url, {
-      headers: {
-        'Authorization': `Bearer ${await this.getToken()}`,
-        'Content-Type': 'application/json',
-      },
+    const res = await apiRateLimiter.fetch(url, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
     });
 
-    if (!response.ok) {
-      throw new Error(`Error ${response.status}: ${response.statusText}`);
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      throw new Error(`Error ${res.status}: ${body || res.statusText}`);
     }
 
-    return response.json();
+    return res.json();
   }
 }
 

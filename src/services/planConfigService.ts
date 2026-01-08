@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { authService } from './authService';
 import { API_BASE_URL } from '../constants/api';
 
 export type PlanType = 'free_plan' | 'premium_plan';
@@ -97,7 +98,7 @@ export async function getPlanTypeFromStorage(): Promise<PlanType> {
 }
 
 async function getAuthToken(): Promise<string | null> {
-  return await AsyncStorage.getItem('authToken');
+  return await authService.getAccessToken();
 }
 
 async function getApproxSubcuentasCount(userId: string): Promise<number> {
