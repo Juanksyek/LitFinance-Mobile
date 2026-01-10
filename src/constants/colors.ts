@@ -1,10 +1,10 @@
 export const lightColors = {
   // Fondos
   background: "#FFFFFF",
-  backgroundSecondary: "#F5F5F5",
-  backgroundTertiary: "#f0f0f3",
+  backgroundSecondary: "#FFFFFF",
+  backgroundTertiary: "#FFFFFF",
   card: "#FFFFFF",
-  cardSecondary: "#f3f3f3",
+  cardSecondary: "#FFFFFF",
   
   // Textos
   text: "#1A1A1A",
@@ -16,7 +16,7 @@ export const lightColors = {
   borderSecondary: "#ddd",
   
   // Inputs
-  inputBackground: "#F5F5F5",
+  inputBackground: "#FFFFFF",
   inputBorder: "#ddd",
   inputText: "#333",
   placeholder: "#A0A0A0",
@@ -36,7 +36,7 @@ export const lightColors = {
   
   // Específicos
   modalBackground: "#FFFFFF",
-  chartBackground: "#f3f3f3",
+  chartBackground: "#FFFFFF",
   chartLine: "#ddd",
 };
 
