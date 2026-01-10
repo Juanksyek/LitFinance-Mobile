@@ -1,13 +1,14 @@
 import React, { useEffect, useRef, useState } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, Animated, LayoutAnimation, Platform, UIManager } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { authService } from "../services/authService";
 import { API_BASE_URL } from "../constants/api";
 import AccountSettingsModal from "./AccountSettingsModal";
 import SmartNumber from "./SmartNumber";
 import Toast from "react-native-toast-message";
-import { useThemeColors } from "../theme/useThemeColors"; 
+import { useThemeColors } from "../theme/useThemeColors";
+import apiRateLimiter from "../services/apiRateLimiter"; 
 
 interface Transaccion {
   tipo: 'ingreso' | 'egreso';
@@ -36,6 +37,7 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
   const [monedaActual, setMonedaActual] = useState('MXN');
   const [ingresos, setIngresos] = useState(0);
   const [egresos, setEgresos] = useState(0);
+  const [isLoadingFresh, setIsLoadingFresh] = useState(false);
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [periodo, setPeriodo] = useState('mes');
   const [isFetching, setIsFetching] = useState(false);
@@ -45,6 +47,51 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
   const [showFullNumbers, setShowFullNumbers] = useState(false);
   const animatedHeight = useRef(new Animated.Value(0)).current;
   const animatedOpacity = useRef(new Animated.Value(0)).current;
+  
+  // Refs para prevención de memory leaks
+  const isMountedRef = useRef(true);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const abortTxControllerRef = useRef<AbortController | null>(null);
+  const lastFetchRef = useRef<number>(0);
+  const lastTxFetchRef = useRef<number>(0);
+  const cuentaRequestIdRef = useRef(0);
+  const txRequestIdRef = useRef(0);
+
+  // Cleanup al desmontar
+  useEffect(() => {
+    isMountedRef.current = true;
+    
+    // 🚀 Cargar datos cacheados inmediatamente para mostrar algo al usuario
+    const loadCachedData = async () => {
+      try {
+        const cached = await AsyncStorage.getItem('balance_cache');
+        if (cached) {
+          const data = JSON.parse(cached);
+          if (isMountedRef.current && data.saldo !== undefined) {
+            console.log('⚡ [BalanceCard] Mostrando datos cacheados inmediatamente');
+            setSaldo(data.saldo || 0);
+            setMonedaActual(data.moneda || 'MXN');
+            setIngresos(data.ingresos || 0);
+            setEgresos(data.egresos || 0);
+          }
+        }
+      } catch (err) {
+        console.log('⚠️ [BalanceCard] No hay cache disponible, esperando fetch');
+      }
+    };
+    loadCachedData();
+    
+    return () => {
+      console.log('🧹 [BalanceCard] Limpiando componente...');
+      isMountedRef.current = false;
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      if (abortTxControllerRef.current) {
+        abortTxControllerRef.current.abort();
+      }
+    };
+  }, []);
 
   const FILTER_MAX_HEIGHT = 180; // Ajusta según el contenido
 
@@ -57,16 +104,9 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
         console.error('Error cargando preferencia de números:', error);
       }
     };
-    
+
     loadNumberPreference();
-    
-    // Listener para cambios en la preferencia
-    const checkInterval = setInterval(() => {
-      loadNumberPreference();
-    }, 500);
-    
-    return () => clearInterval(checkInterval);
-  }, []);
+  }, [refreshPreferences]);
 
   useEffect(() => {
     if (mostrarFiltros) {
@@ -109,10 +149,35 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
   };
 
   const fetchDatosCuenta = async () => {
+    const now = Date.now();
+    const minInterval = 1000; // Mínimo 1 segundo entre fetches
+    
+    if (now - lastFetchRef.current < minInterval) {
+      console.log('💳 [BalanceCard] Fetch bloqueado: muy pronto desde el último');
+      Toast.show({
+        type: 'info',
+        text1: 'Espera un momento',
+        text2: 'Por favor espera antes de actualizar de nuevo',
+        position: 'bottom',
+        visibilityTime: 2000,
+      });
+      return;
+    }
+
     console.log('📊 [BalanceCard] Iniciando fetch de datos de cuenta...');
     
+    // Cancelar fetch anterior
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    
+    abortControllerRef.current = new AbortController();
+    const signal = abortControllerRef.current.signal;
+    const requestId = ++cuentaRequestIdRef.current;
+    
     try {
-      const token = await AsyncStorage.getItem("authToken");
+      lastFetchRef.current = now;
+      const token = await authService.getAccessToken();
       console.log('🔑 [BalanceCard] Token obtenido:', token ? 'Existe' : 'No encontrado');
       
       const url = `${API_BASE_URL}/cuenta/principal`;
@@ -122,19 +187,45 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
         console.log('⚠️ [BalanceCard] No hay token de autenticación, saltando fetch de cuenta');
         return;
       }
-      
-      const resCuenta = await axios.get(url, {
-        headers: { Authorization: `Bearer ${token}` },
+
+      const resCuenta = await apiRateLimiter.fetch(url, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Cache-Control': 'no-store',
+          'X-Skip-Cache': '1',
+        },
+        signal,
       });
+
+      // Verificar si fue abortado
+      if (signal.aborted) {
+        console.log('💳 [BalanceCard] Fetch cancelado');
+        return;
+      }
       
-      console.log('📥 [BalanceCard] Respuesta de cuenta recibida:', {
+      const cuentaData = await resCuenta.json();
+
+      if (!resCuenta.ok) {
+        const statusCode = cuentaData?.statusCode ?? resCuenta.status;
+        const message = cuentaData?.message || `Error ${resCuenta.status}`;
+        const error: any = new Error(message);
+        error.statusCode = statusCode;
+        throw error;
+      }
+
+      // Normalizar payload: algunos endpoints devuelven { data: {...} }
+      const payload = cuentaData?.data ?? cuentaData ?? {};
+
+      console.log('📥 [BalanceCard] Respuesta de cuenta recibida (normalizada):', {
         status: resCuenta.status,
-        data: resCuenta.data
+        raw: cuentaData,
+        payload
       });
-      
-      const cuentaData: CuentaData = resCuenta.data;
-      const nuevoSaldo = cuentaData.cantidad || 0;
-      const nuevaMoneda = cuentaData.moneda || 'MXN';
+
+      // Aceptar varias claves posibles para saldo/moneda para ser tolerantes a cambios de backend
+      const nuevoSaldo = payload.cantidad ?? payload.saldo ?? payload.balance ?? payload.amount ?? 0;
+      const nuevaMoneda = payload.moneda ?? payload.currency ?? payload.monedaCuenta ?? 'MXN';
       
       console.log('💰 [BalanceCard] Actualizando estado con datos de cuenta:', {
         saldoAnterior: saldo,
@@ -144,21 +235,46 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
         sincronizacionBackend: nuevaMoneda !== monedaActual ? 'Detectado cambio de moneda en backend' : 'Moneda consistente'
       });
       
-      setSaldo(nuevoSaldo);
-      setMonedaActual(nuevaMoneda);
-      
-      console.log('✅ [BalanceCard] Datos de cuenta actualizados exitosamente');
-    } catch (err) {
+      // Solo actualizar estado si el componente está montado
+      if (isMountedRef.current && !signal.aborted && requestId === cuentaRequestIdRef.current) {
+        setSaldo(nuevoSaldo);
+        setMonedaActual(nuevaMoneda);
+        console.log('✅ [BalanceCard] Datos de cuenta actualizados exitosamente');
+        
+        // 💾 Guardar en cache para próxima carga instantánea
+        try {
+          await AsyncStorage.setItem('balance_cache', JSON.stringify({
+            saldo: nuevoSaldo,
+            moneda: nuevaMoneda,
+            timestamp: Date.now()
+          }));
+        } catch {}
+      }
+    } catch (err: any) {
+      // Ignorar errores de abort
+      if (err.name === 'AbortError' || signal.aborted) {
+        console.log('💳 [BalanceCard] Fetch cancelado');
+        return;
+      }
       console.error('❌ [BalanceCard] Error al obtener datos de cuenta:', {
         error: err instanceof Error ? err.message : err,
+        statusCode: err?.statusCode,
         stack: err instanceof Error ? err.stack : undefined,
         timestamp: new Date().toISOString()
       });
+
+      if (!isMountedRef.current) return;
+
+      if (err?.statusCode === 429 || String(err?.message || '').includes('429') || String(err?.message || '').includes('Too Many')) {
+        Toast.show({
+          type: 'warning',
+          text1: '⚠️ Demasiadas peticiones',
+          text2: 'Espera 10 segundos e intenta de nuevo',
+          position: 'bottom',
+          visibilityTime: 4000,
+        });
+      }
       
-      Toast.show({
-        type: 'info',
-        text1: 'Los datos se cargaron errorneamente, intenta de nuevo',
-      });
     }
   };
 
@@ -167,28 +283,78 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
       console.log('⏳ [BalanceCard] Fetch de transacciones ya en progreso, saltando...');
       return;
     }
+
+    const now = Date.now();
+    const minInterval = 1000; // 1 segundo para permitir refrescos más rápidos
+    if (now - lastTxFetchRef.current < minInterval) {
+      console.log('💳 [BalanceCard] Fetch de transacciones bloqueado: muy pronto desde el último');
+      Toast.show({
+        type: 'info',
+        text1: 'Espera un momento',
+        text2: 'Por favor espera antes de actualizar de nuevo',
+        position: 'bottom',
+        visibilityTime: 2000,
+      });
+      return;
+    }
+    lastTxFetchRef.current = now;
     
     console.log('📋 [BalanceCard] Iniciando fetch de transacciones:', { periodo });
+    
+    if (!isMountedRef.current) {
+      console.log('⚠️ [BalanceCard] Componente desmontado, cancelando fetch de transacciones');
+      return;
+    }
+    
     setIsFetching(true);
     
+    // Crear nuevo AbortController para esta petición
+    if (abortTxControllerRef.current) {
+      abortTxControllerRef.current.abort();
+    }
+    abortTxControllerRef.current = new AbortController();
+    const signal = abortTxControllerRef.current.signal;
+    const requestId = ++txRequestIdRef.current;
+    
     try {
-      const token = await AsyncStorage.getItem("authToken");
+      const token = await authService.getAccessToken();
       console.log('🔑 [BalanceCard] Token obtenido para transacciones:', token ? 'Existe' : 'No encontrado');
       
       const url = `${API_BASE_URL}/transacciones?rango=${periodo}`;
       console.log('🌐 [BalanceCard] Realizando petición de transacciones a:', url);
-      
-      const res = await axios.get(url, {
-        headers: { Authorization: `Bearer ${token}` },
+
+      const res = await apiRateLimiter.fetch(url, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Cache-Control': 'no-store',
+          'X-Skip-Cache': '1',
+        },
+        signal,
       });
+
+      // Verificar si fue abortado
+      if (signal.aborted) {
+        console.log('💳 [BalanceCard] Fetch de transacciones cancelado');
+        return;
+      }
+
+      const data = await res.json();
+      if (!res.ok) {
+        const statusCode = data?.statusCode ?? res.status;
+        const message = data?.message || `Error ${res.status}`;
+        const error: any = new Error(message);
+        error.statusCode = statusCode;
+        throw error;
+      }
+
+      const transacciones = Array.isArray(data) ? data : (data?.data || []);
 
       console.log('📥 [BalanceCard] Respuesta de transacciones recibida:', {
         status: res.status,
-        dataLength: res.data?.length || 0,
+        dataLength: transacciones?.length || 0,
         periodo
       });
-
-      const transacciones = res.data || [];
       console.log('🔍 [BalanceCard] Procesando transacciones:', {
         totalTransacciones: transacciones.length,
         tipos: transacciones.reduce((acc: any, t: Transaccion) => {
@@ -215,24 +381,49 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
         }
       });
 
-      setIngresos(ingresoTotal);
-      setEgresos(egresoTotal);
-      
-      console.log('✅ [BalanceCard] Transacciones actualizadas exitosamente');
-    } catch (err) {
+      // Solo actualizar estado si el componente está montado
+      if (isMountedRef.current && !signal.aborted && requestId === txRequestIdRef.current) {
+        setIngresos(ingresoTotal);
+        setEgresos(egresoTotal);
+        console.log('✅ [BalanceCard] Transacciones actualizadas exitosamente');
+        
+        // 💾 Actualizar cache con totales de transacciones
+        try {
+          const current = await AsyncStorage.getItem('balance_cache');
+          const data = current ? JSON.parse(current) : {};
+          await AsyncStorage.setItem('balance_cache', JSON.stringify({
+            ...data,
+            ingresos: ingresoTotal,
+            egresos: egresoTotal,
+            timestamp: Date.now()
+          }));
+        } catch {}
+      }
+    } catch (err: any) {
+      // Ignorar errores de abort
+      if (err.name === 'AbortError' || signal.aborted) {
+        console.log('💳 [BalanceCard] Fetch de transacciones cancelado');
+        return;
+      }
       console.error('❌ [BalanceCard] Error al obtener transacciones:', {
         error: err instanceof Error ? err.message : err,
+        statusCode: err?.statusCode,
         stack: err instanceof Error ? err.stack : undefined,
         periodo,
         timestamp: new Date().toISOString()
       });
       
-      Toast.show({
-        type: 'error',
-        text1: 'Error al obtener transacciones',
-      });
+      if (isMountedRef.current) {
+        Toast.show({
+          type: err?.statusCode === 429 ? 'warning' : 'error',
+          text1: err?.statusCode === 429 ? '⚠️ Demasiadas peticiones' : 'Error al obtener transacciones',
+          text2: err?.statusCode === 429 ? 'Espera 10 segundos e intenta de nuevo' : undefined,
+        });
+      }
     } finally {
-      setIsFetching(false);
+      if (isMountedRef.current) {
+        setIsFetching(false);
+      }
       console.log('🏁 [BalanceCard] Finalizando fetch de transacciones');
     }
   };
@@ -286,12 +477,18 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
         console.log(`🔍 [BalanceCard] Verificación ${retries + 1}/${maxRetries} de sincronización`);
         
         try {
-          const token = await AsyncStorage.getItem("authToken");
-          const response = await axios.get(`${API_BASE_URL}/cuenta/principal`, {
-            headers: { Authorization: `Bearer ${token}` },
+          const token = await authService.getAccessToken();
+          const response = await apiRateLimiter.fetch(`${API_BASE_URL}/cuenta/principal`, {
+            method: 'GET',
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Cache-Control': 'no-store',
+              'X-Skip-Cache': '1',
+            },
           });
-          
-          const currentBackendCurrency = response.data.moneda;
+
+          const responseData = await response.json();
+          const currentBackendCurrency = responseData.moneda;
           console.log('🔍 [BalanceCard] Moneda en backend:', currentBackendCurrency);
           
           if (currentBackendCurrency === nuevaMoneda) {
