@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Animated, Dimensions, FlatList, Modal, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import axios from "axios";
+import { apiRateLimiter } from "../services/apiRateLimiter";
 import Toast from "react-native-toast-message";
 
 import { API_BASE_URL } from "../constants/api";
@@ -69,11 +69,11 @@ const ConceptsManager: React.FC<Props> = ({ onClose }) => {
 
   const fetchConceptos = useCallback(async () => {
     try {
-      const token = await AsyncStorage.getItem("authToken");
-      const res = await axios.get(`${API_BASE_URL}/conceptos?search=${encodeURIComponent(busqueda)}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      setConceptos(res.data.resultados ?? []);
+      const res = await apiRateLimiter.fetch(`${API_BASE_URL}/conceptos?search=${encodeURIComponent(busqueda)}`);
+      if (res.ok) {
+        const data = await res.json();
+        setConceptos(data.resultados ?? []);
+      }
     } catch {
       Toast.show({ type: "error", text1: "Error al cargar conceptos", text2: "Intenta más tarde." });
     }
@@ -88,12 +88,13 @@ const ConceptsManager: React.FC<Props> = ({ onClose }) => {
     if (!nombre) return;
 
     try {
-      const token = await AsyncStorage.getItem("authToken");
-      await axios.post(
-        `${API_BASE_URL}/conceptos`,
-        { nombre, color: colorSeleccionado, icono: emojiSeleccionado },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      const res = await apiRateLimiter.fetch(`${API_BASE_URL}/conceptos`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nombre, color: colorSeleccionado, icono: emojiSeleccionado }),
+      });
+
+      if (!res.ok) throw new Error('Error al crear');
 
       setNuevoConcepto("");
       setEmojiSeleccionado(EMOJIS[Math.floor(Math.random() * EMOJIS.length)]);
@@ -127,10 +128,12 @@ const ConceptsManager: React.FC<Props> = ({ onClose }) => {
     }
 
     try {
-      const token = await AsyncStorage.getItem("authToken");
-      await axios.patch(`${API_BASE_URL}/conceptos/${editState.conceptoId}`, payload, {
-        headers: { Authorization: `Bearer ${token}` },
+      const res = await apiRateLimiter.fetch(`${API_BASE_URL}/conceptos/${editState.conceptoId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
       });
+      if (!res.ok) throw new Error('Error al editar');
       Toast.show({ type: "success", text1: "Concepto actualizado" });
       setEditState(null);
       fetchConceptos();
@@ -153,10 +156,10 @@ const ConceptsManager: React.FC<Props> = ({ onClose }) => {
     async (conceptoId: string) => {
       setDeletingId(conceptoId);
       try {
-        const token = await AsyncStorage.getItem("authToken");
-        await axios.delete(`${API_BASE_URL}/conceptos/${conceptoId}`, {
-          headers: { Authorization: `Bearer ${token}` },
+        const res = await apiRateLimiter.fetch(`${API_BASE_URL}/conceptos/${conceptoId}`, {
+          method: 'DELETE',
         });
+        if (!res.ok) throw new Error('Error al eliminar');
         Toast.show({ type: "success", text1: "Concepto eliminado" });
         fetchConceptos();
       } catch {

@@ -78,7 +78,7 @@ export const CurrencyPicker: React.FC<CurrencyPickerProps> = ({
 
   const getHeaders = useCallback(async () => {
     const token =
-      (await (getAuthToken ? getAuthToken() : AsyncStorage.getItem("authToken"))) ||
+      (await (getAuthToken ? getAuthToken() : (await import('../services/authService')).authService.getAccessToken())) ||
       null;
     return {
       "Content-Type": "application/json",
@@ -93,9 +93,26 @@ export const CurrencyPicker: React.FC<CurrencyPickerProps> = ({
       const res = await fetch(`${API_BASE_URL}/monedas`, { headers });
       if (!res.ok) throw new Error(await res.text());
       const json: MonedasResponse = await res.json();
-      json.favoritas = [...(json.favoritas || [])].sort(sortByNombre);
-      json.otras = [...(json.otras || [])].sort(sortByNombre);
-      setData(json);
+      // Normalize: some backends may return favorites mixed into 'otras' with esFavorita flag.
+      const combined: Moneda[] = [...(json.favoritas || []), ...(json.otras || [])];
+      // Remove possible duplicates by codigo (keep first occurrence)
+      const seen = new Set<string>();
+      const unique = combined.filter((m) => {
+        const key = m.codigo?.toUpperCase() || m.id;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+
+      const favoritas = unique.filter((m) => !!m.esFavorita).sort(sortByNombre);
+      const otras = unique.filter((m) => !m.esFavorita).sort(sortByNombre);
+
+      setData({
+        favoritas,
+        otras,
+        total: (favoritas.length + otras.length) || (json.total ?? 0),
+        totalFavoritas: favoritas.length || (json.totalFavoritas ?? 0),
+      });
     } catch (err) {
       console.error(err);
       Toast.show({ type: "error", text1: "No se pudieron cargar las monedas" });
@@ -343,7 +360,7 @@ export type CurrencyFieldProps = {
 export const CurrencyField: React.FC<CurrencyFieldProps> = ({
   value,
   onChange,
-  placeholder = "Selecciona…",
+  placeholder = "Moneda...",
   disabled = false,
   getAuthToken,
   showSearch,

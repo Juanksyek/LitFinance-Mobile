@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { validateNumericInput, parseNumber } from '../utils/numberFormatter';
 
 interface UseNumericInputOptions {
@@ -31,6 +31,25 @@ export const useNumericInput = (options: UseNumericInputOptions = {}) => {
   );
   const [isFocused, setIsFocused] = useState(false);
   const [hasBeenTouched, setHasBeenTouched] = useState(false);
+
+  // Mantener referencia del último initialValue para detectar cambios
+  const lastInitialValueRef = useRef(initialValue);
+  const lastContextRef = useRef(context);
+
+  // Solo actualizar cuando context o initialValue cambian de manera explícita
+  if (lastContextRef.current !== context) {
+    lastContextRef.current = context;
+    lastInitialValueRef.current = initialValue;
+    // Reset solo si el contexto cambió (nuevo modal/edición)
+    if (displayValue !== initialValue.toString()) {
+      setDisplayValue(initialValue.toString());
+      setHasBeenTouched(false);
+      setIsFocused(false);
+    }
+  } else if (!hasBeenTouched && !isFocused && lastInitialValueRef.current !== initialValue) {
+    lastInitialValueRef.current = initialValue;
+    setDisplayValue(initialValue.toString());
+  }
 
   const validation = useMemo(() => {
     if (!hasBeenTouched && displayValue === initialValue.toString()) {
@@ -79,10 +98,16 @@ export const useNumericInput = (options: UseNumericInputOptions = {}) => {
   }, [displayValue, context, maxValue, minValue, allowNegative, allowDecimals, maxDecimals, hasBeenTouched, initialValue]);
 
   // Notificar cambios
+  // Memorizar callbacks para evitar loops infinitos
+  const onValidationChangeRef = useRef(onValidationChange);
+  const onValueChangeRef = useRef(onValueChange);
+  useEffect(() => { onValidationChangeRef.current = onValidationChange; }, [onValidationChange]);
+  useEffect(() => { onValueChangeRef.current = onValueChange; }, [onValueChange]);
+
   useEffect(() => {
-    onValidationChange?.(validation.isValid, validation.errors);
-    onValueChange?.(validation.numericValue ?? null);
-  }, [validation, onValidationChange, onValueChange]);
+    onValidationChangeRef.current?.(validation.isValid, validation.errors);
+    onValueChangeRef.current?.(validation.numericValue ?? null);
+  }, [validation]);
 
   const handleChangeText = useCallback((text: string) => {
     setHasBeenTouched(true);
@@ -219,7 +244,7 @@ export const useCurrencyInput = (options: Omit<UseNumericInputOptions, 'allowDec
     ...options,
     allowDecimals: true,
     maxDecimals: 2,
-    context: 'transaction'
+    context: options.context ?? 'transaction'
   });
 };
 

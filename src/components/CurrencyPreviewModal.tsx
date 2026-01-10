@@ -11,18 +11,36 @@ import { useThemeColors } from "../theme/useThemeColors";
 interface Props {
   visible: boolean;
   onClose: () => void;
+  initialMoneda?: Moneda | null;
 }
 
-const CurrencyPreviewModal: React.FC<Props> = ({ visible, onClose }) => {
+const CurrencyPreviewModal: React.FC<Props> = ({ visible, onClose, initialMoneda }) => {
   const colors = useThemeColors();
   const [loading, setLoading] = useState(false);
   const [previewData, setPreviewData] = useState<PreviewBalance | null>(null);
-  const [selectedMoneda, setSelectedMoneda] = useState<Moneda | null>({
+  const [selectedMoneda, setSelectedMoneda] = useState<Moneda | null>(initialMoneda || {
     id: "preview-usd",
     codigo: "USD",
     nombre: "US Dollar",
     simbolo: "$",
   });
+
+  // Sincronizar con initialMoneda si cambia desde afuera o al abrir
+  useEffect(() => {
+    if (visible) {
+      if (initialMoneda && initialMoneda.codigo !== selectedMoneda?.codigo) {
+        setSelectedMoneda(initialMoneda);
+      } else if (!initialMoneda && !selectedMoneda) {
+        setSelectedMoneda({
+          id: "preview-usd",
+          codigo: "USD",
+          nombre: "US Dollar",
+          simbolo: "$",
+        });
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, initialMoneda]);
 
   useEffect(() => {
     if (visible && selectedMoneda) {
@@ -105,8 +123,6 @@ const CurrencyPreviewModal: React.FC<Props> = ({ visible, onClose }) => {
                   <Text style={[styles.balanceLabel, { color: colors.textSecondary }]}>Balance convertido:</Text>
                   <SmartNumber
                     value={previewData.cuentaPrincipal.cantidad}
-                    currentCurrency={previewData.monedaPreview}
-                    allowCurrencyChange={false}
                     textStyle={styles.balanceAmount}
                     options={{
                       context: 'card',
@@ -149,8 +165,6 @@ const CurrencyPreviewModal: React.FC<Props> = ({ visible, onClose }) => {
                     <View style={styles.subcuentaContent}>
                       <SmartNumber
                         value={subcuenta.cantidad}
-                        currentCurrency={previewData.monedaPreview}
-                        allowCurrencyChange={false}
                         textStyle={styles.subcuentaAmount}
                         options={{
                           context: 'list',
@@ -172,8 +186,6 @@ const CurrencyPreviewModal: React.FC<Props> = ({ visible, onClose }) => {
               <Text style={styles.totalLabel}>Total General</Text>
               <SmartNumber
                 value={previewData.totalGeneral}
-                currentCurrency={previewData.monedaPreview}
-                allowCurrencyChange={false}
                 textStyle={styles.totalAmount}
                 options={{
                   context: 'card',

@@ -1,5 +1,5 @@
-import React, { useState, useRef, useEffect } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, Dimensions, Animated } from "react-native";
+import React, { useState } from "react";
+import { View, Text, TouchableOpacity, StyleSheet, Dimensions } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import MovementModal from './MovementModal';
 import SubaccountModal from './SubaccountModal';
@@ -9,6 +9,7 @@ import Toast from "react-native-toast-message";
 import { useNavigation } from '@react-navigation/native';
 import { useThemeColors } from "../theme/useThemeColors";
 import { canPerform } from '../services/planConfigService';
+import { emitRecurrentesChanged, emitSubcuentasChanged } from "../utils/dashboardRefreshBus";
 
 const { width } = Dimensions.get("window");
 
@@ -21,14 +22,14 @@ const actions: { icon: "arrow-up-outline" | "arrow-down-outline" | "add-outline"
 ];
 
 interface ActionButtonsProps {
-  cuentaId: string;
+  cuentaId?: string;
   onRefresh: () => void;
   showSubcuentaButton?: boolean;
   isSubcuenta?: boolean;
   subcuenta?: { cuentaPrincipalId: string; subCuentaId: string };
   fetchSubcuenta?: () => void;
   plataformas?: any[];
-  userId: string;
+  userId?: string;
   onAnalyticsPress?: () => void;
 }
 
@@ -52,50 +53,18 @@ const ActionButtons = ({
   const [refreshKey, setRefreshKey] = useState(Date.now());
   const navigation = useNavigation();
 
-  // Animación de entrada/salida para los botones
-  const animatedScales = useRef(actions.map(() => new Animated.Value(0))).current;
-  const animatedOpacities = useRef(actions.map(() => new Animated.Value(0))).current;
-
-  useEffect(() => {
-    // Resetear valores antes de animar
-    animatedScales.forEach(scale => scale.setValue(0));
-    animatedOpacities.forEach(opacity => opacity.setValue(0));
-
-    // Animar entrada de los botones
-    Animated.stagger(60,
-      animatedScales.map((scale, i) =>
-        Animated.parallel([
-          Animated.timing(scale, {
-            toValue: 1,
-            duration: 320,
-            useNativeDriver: true,
-          }),
-          Animated.timing(animatedOpacities[i], {
-            toValue: 1,
-            duration: 320,
-            useNativeDriver: true,
-          })
-        ])
-      )
-    ).start();
-    // Al desmontar, animar salida
-    return () => {
-      animatedScales.forEach((scale, i) => {
-        Animated.timing(scale, {
-          toValue: 0,
-          duration: 200,
-          useNativeDriver: true,
-        }).start();
-        Animated.timing(animatedOpacities[i], {
-          toValue: 0,
-          duration: 200,
-          useNativeDriver: true,
-        }).start();
-      });
-    };
-  }, [refreshKey]);
+  const visibleActions = actions.filter(action => {
+    if (isSubcuenta && action.label === 'Subcuenta') return false;
+    if (!showSubcuentaButton && action.label === 'Subcuenta') return false;
+    return true;
+  });
 
   const handlePress = async (label: string) => {
+    // If no cuentaId yet, inform the user and avoid opening modals
+    if (!cuentaId) {
+      Toast.show({ type: 'info', text1: 'Cargando datos', text2: 'Espera un momento mientras iniciamos sesión' });
+      return;
+    }
     if (label === 'Ingreso' || label === 'Egreso') {
       setTipo(label.toLowerCase() as 'ingreso' | 'egreso');
       setModalVisible(true);
@@ -146,11 +115,7 @@ const ActionButtons = ({
     }
   };
 
-  const visibleActions = actions.filter(action => {
-    if (isSubcuenta && action.label === 'Subcuenta') return false;
-    if (!showSubcuentaButton && action.label === 'Subcuenta') return false;
-    return true;
-  });
+  // visibleActions declared above
 
   const handleRecurrenteSubmit = async (data: any) => {
     try {
@@ -159,8 +124,9 @@ const ActionButtons = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       });
-    
-      onRefresh();
+
+      // Refrescar solo la lista de recurrentes (evitar refresh global)
+      emitRecurrentesChanged();
     } catch (err) {
       Toast.show({
         type: 'error',
@@ -174,22 +140,23 @@ const ActionButtons = ({
     <>
       <View style={styles.container}>
         {visibleActions.map((action, index) => (
-          <Animated.View
+          <View
             key={index}
-            style={{
-              ...styles.buttonWrapper,
-              transform: [{ scale: animatedScales[index] }],
-              opacity: animatedOpacities[index],
-            }}
+            style={styles.buttonWrapper}
           >
             <TouchableOpacity
-              style={[styles.button, { backgroundColor: colors.card, shadowColor: colors.shadow, borderColor: colors.border }]}
+              style={[
+                styles.button,
+                { backgroundColor: colors.card, shadowColor: colors.shadow, borderColor: colors.border },
+                !cuentaId && { opacity: 0.5 },
+              ]}
               onPress={() => handlePress(action.label)}
+              disabled={!cuentaId}
             >
               <Ionicons name={action.icon} size={20} color={colors.button} />
             </TouchableOpacity>
             <Text style={[styles.label, { color: colors.textSecondary }]}>{action.label}</Text>
-          </Animated.View>
+          </View>
         ))}
       </View>
 
@@ -197,9 +164,9 @@ const ActionButtons = ({
         visible={modalVisible}
         onClose={() => setModalVisible(false)}
         tipo={tipo}
-        cuentaId={isSubcuenta && subcuenta ? subcuenta.cuentaPrincipalId : cuentaId}
+        cuentaId={isSubcuenta && subcuenta ? subcuenta.cuentaPrincipalId : (cuentaId ?? '')}
         isSubcuenta={isSubcuenta}
-        subcuentaId={isSubcuenta && subcuenta ? subcuenta.subCuentaId : undefined}
+        subcuentaId={isSubcuenta && subcuenta ? subcuenta.subCuentaId : ''}
         onSuccess={isSubcuenta ? fetchSubcuenta ?? (() => {}) : onRefresh}
         onRefresh={() => setRefreshKey(Date.now())}
       />
@@ -208,8 +175,10 @@ const ActionButtons = ({
         <SubaccountModal
           visible={subcuentaModalVisible}
           onClose={() => setSubcuentaModalVisible(false)}
-          cuentaPrincipalId={cuentaId}
-          onSuccess={onRefresh}
+          cuentaPrincipalId={cuentaId ?? ''}
+          onSuccess={() => {
+            emitSubcuentasChanged();
+          }}
         />
       )}
 
@@ -218,9 +187,9 @@ const ActionButtons = ({
         onClose={() => setRecurrentModalVisible(false)}
         onSubmit={handleRecurrenteSubmit}
         plataformas={plataformas}
-        cuentaId={cuentaId}
-        subcuentaId={isSubcuenta && subcuenta ? subcuenta.subCuentaId : undefined}
-        userId={userId}
+        cuentaId={cuentaId ?? ''}
+        subcuentaId={isSubcuenta && subcuenta ? subcuenta.subCuentaId : ''}
+        userId={userId ?? ''}
       />
     </>
   );
@@ -231,6 +200,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     marginBottom: 24,
+    marginTop: 14,
     paddingHorizontal: 10,
   },
   buttonWrapper: {

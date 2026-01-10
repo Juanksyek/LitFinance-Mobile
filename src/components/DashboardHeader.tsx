@@ -7,6 +7,7 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import { useTheme } from "../theme/ThemeContext";
 import { useThemeColors } from "../theme/useThemeColors";
 import { unregisterPushNotifications } from "../services/notificationService";
+import { authService } from '../services/authService';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 const isTablet = screenWidth >= 700;
@@ -41,6 +42,18 @@ const Header = () => {
   const insets = useSafeAreaInsets();
   const { isDark } = useTheme();
   const colors = useThemeColors();
+
+  // Mostrar sólo la primera línea del nombre y evitar que nombres muy largos hagan wrap
+  const displayName = React.useMemo(() => {
+    const firstLine = (nombre || '').split('\n')[0].trim();
+    if (!firstLine) return 'Usuario';
+    // Si es muy largo, mostrar sólo el primer nombre para evitar tabulaciones raras
+    if (firstLine.length > 24) {
+      const parts = firstLine.split(' ');
+      return parts[0];
+    }
+    return firstLine;
+  }, [nombre]);
 
   useEffect(() => {
     const fetchNombre = async () => {
@@ -101,7 +114,7 @@ const Header = () => {
         // Continuar con el logout aunque falle la eliminación del token
       }
 
-      await AsyncStorage.removeItem("authToken");
+      await authService.clearAll();
       await AsyncStorage.removeItem("userData");
       Toast.show({
         type: "success",
@@ -154,6 +167,18 @@ const Header = () => {
               borderTopRightRadius: isTablet ? 40 : 0,
               borderBottomLeftRadius: isTablet ? 40 : Math.min(28, screenWidth * 0.075),
               borderBottomRightRadius: isTablet ? 40 : Math.min(28, screenWidth * 0.075),
+              // Neumorphism shadow for Android
+              ...(Platform.OS === 'android' ? {
+                elevation: 12,
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 6 },
+                shadowOpacity: 0.18,
+                shadowRadius: 16,
+                // Extra light shadow for soft effect
+                borderWidth: 0.5,
+                borderColor: 'rgba(255,255,255,0.18)',
+                backgroundColor: colors.backgroundTertiary,
+              } : {}),
             },
           ]}
         >
@@ -161,7 +186,13 @@ const Header = () => {
             <View style={styles.logoContainer}> 
               <Image source={require("../images/LitFinance.png")} style={styles.logo} />
             </View>
-            <Text style={[styles.welcomeText, { color: colors.text }]}>Bienvenido, {nombre}</Text>
+            <Text
+              style={[styles.welcomeText, { color: colors.text }]}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+            >
+              Bienvenido, {displayName}
+            </Text>
           </View>
 
           <Animated.View
@@ -254,12 +285,26 @@ const styles = StyleSheet.create({
     // width, border radius, and margin are set inline for responsiveness
     paddingHorizontal: Math.max(screenWidth * 0.05, 16),
     paddingBottom: Math.max(screenWidth * 0.04, 12),
-    shadowOffset: {
-      width: 4,
-      height: 4,
-    },
-    shadowOpacity: 0.15,
-    shadowRadius: 10,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 4, height: 4 },
+        shadowOpacity: 0.15,
+        shadowRadius: 10,
+        backgroundColor: undefined,
+      },
+      android: {
+        elevation: 12,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.18,
+        shadowRadius: 16,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.13)',
+        backgroundColor: undefined,
+      },
+      default: {},
+    }),
   },
   headerTop: {
       flexDirection: "row",
