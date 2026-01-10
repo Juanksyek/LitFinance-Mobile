@@ -51,7 +51,8 @@ const AccountSettingsModal: React.FC<Props> = ({ visible, onClose }) => {
 
   const loadToken = async () => {
     try {
-      const authToken = await AsyncStorage.getItem("authToken");
+      const { authService } = await import('../services/authService');
+      const authToken = await authService.getAccessToken();
       setToken(authToken);
     } catch (error) {
       console.error("Error cargando token:", error);
