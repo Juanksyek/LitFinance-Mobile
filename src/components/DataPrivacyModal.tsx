@@ -15,7 +15,7 @@ const DataPrivacyModal: React.FC<DataPrivacyModalProps> = ({ visible, onClose })
     <Modal
       visible={visible}
       animationType="slide"
-      presentationStyle="pageSheet"
+      transparent
     >
       <View style={[styles.modalContainer, { backgroundColor: colors.background }]}>
         <View style={[styles.modalHeader, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
