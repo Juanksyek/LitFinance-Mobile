@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, Modal, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, ScrollView } from 'react-native';
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { authService } from '../services/authService';
 import { API_BASE_URL } from '../constants/api';
 import Toast from 'react-native-toast-message';
 import { useThemeColors } from '../theme/useThemeColors';
@@ -76,7 +77,7 @@ const CurrencyChangeModal: React.FC<CurrencyChangeModalProps> = ({
   const loadPreview = async () => {
     try {
       setLoading(true);
-      const token = await AsyncStorage.getItem('authToken');
+      const token = await authService.getAccessToken();
       
       const response = await fetch(
         `${API_BASE_URL}/cuenta/preview-currency-change?nuevaMoneda=${newCurrency}`,
@@ -146,7 +147,7 @@ const CurrencyChangeModal: React.FC<CurrencyChangeModalProps> = ({
     
     try {
       setConverting(true);
-      const token = await AsyncStorage.getItem('authToken');
+      const token = await authService.getAccessToken();
       
       console.log('🔑 [CurrencyChangeModal] Token obtenido:', token ? 'Existe' : 'No encontrado');
       
