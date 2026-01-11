@@ -1,6 +1,8 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, ScrollView, Dimensions, Animated, TouchableOpacity, TextInput, Alert, Platform, KeyboardAvoidingView } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, ScrollView, Dimensions, Animated, TouchableOpacity, TextInput, Alert, Platform, KeyboardAvoidingView, SafeAreaView, StatusBar, Keyboard } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import apiRateLimiter from '../services/apiRateLimiter';
+import { authService } from '../services/authService';
 import { API_BASE_URL } from '../constants/api';
 import { Ionicons } from '@expo/vector-icons';
 import Toast from 'react-native-toast-message';
@@ -39,6 +41,7 @@ interface Usuario {
 
 const { width } = Dimensions.get('window');
 const HEADER_H = Platform.OS === 'ios' ? 88 : 76;
+const ANDROID_STATUSBAR = Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0;
 
 const MainAccountScreen = () => {
   const colors = useThemeColors();
@@ -60,19 +63,28 @@ const MainAccountScreen = () => {
 
   const fetchCuentaPrincipal = async () => {
     try {
-      const token = await AsyncStorage.getItem('authToken');
-      if (!token) { setCuenta(null); setLoading(false); return; }
-      const res = await fetch(`${API_BASE_URL}/cuenta/principal`, {
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      const token = await authService.getAccessToken();
+      const headers: Record<string, string> = {
+        'Cache-Control': 'no-store',
+        'X-Skip-Cache': '1',
+      };
+      if (token) headers.Authorization = `Bearer ${token}`;
+
+      const res = await apiRateLimiter.fetch(`${API_BASE_URL}/cuenta/principal`, {
+        method: 'GET',
+        headers,
       });
-      const data = await res.json();
+      const raw = await res.json().catch(() => ({}));
       if (res.ok) {
-        setCuenta(data);
+        // Normalizar distintas formas de payload (data, cuenta, etc.)
+        const payload = raw?.data ?? raw?.cuenta ?? raw ?? {};
+        setCuenta(payload);
         Animated.parallel([
           Animated.timing(fadeAnim, { toValue: 1, duration: 400, useNativeDriver: true }),
           Animated.timing(slideAnim, { toValue: 0, duration: 300, useNativeDriver: true }),
         ]).start();
       } else {
+        console.warn('[MainAccount] /cuenta/principal returned non-ok', { status: res.status, body: raw });
         setCuenta(null);
       }
     } catch {
@@ -82,15 +94,21 @@ const MainAccountScreen = () => {
 
   const fetchUsuario = async () => {
     try {
-      const token = await AsyncStorage.getItem('authToken');
-      if (!token) return;
-      const res = await fetch(`${API_BASE_URL}/user/profile`, {
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      const token = await authService.getAccessToken();
+      const headers2: Record<string, string> = { 'X-Skip-Cache': '1' };
+      if (token) headers2.Authorization = `Bearer ${token}`;
+
+      const res = await apiRateLimiter.fetch(`${API_BASE_URL}/user/profile`, {
+        method: 'GET',
+        headers: headers2,
       });
+      const raw = await res.json().catch(() => ({}));
       if (res.ok) {
-        const userData = await res.json();
-        setUsuario(userData);
-        setFormData(userData);
+        const payload = raw?.data ?? raw ?? {};
+        setUsuario(payload);
+        setFormData(payload);
+      } else {
+        console.warn('[MainAccount] /user/profile returned non-ok', { status: res.status, body: raw });
       }
     } catch {}
   };
@@ -109,27 +127,45 @@ const MainAccountScreen = () => {
     Animated.timing(gridItemsAnim, { toValue: 1, duration: 400, delay: 200, useNativeDriver: true }).start();
   };
 
+  // Scroll helpers to keep inputs visible when keyboard opens
+  const scrollRef = React.useRef<ScrollView | null>(null);
+  const inputPositionsRef = React.useRef<Record<string, number>>({});
+  const onInputLayout = (key: string) => (e: any) => {
+    inputPositionsRef.current[key] = e.nativeEvent.layout.y;
+  };
+  const focusField = (key: string) => {
+    const y = inputPositionsRef.current[key];
+    if (typeof y === 'number' && scrollRef.current) {
+      const offset = Math.max(0, y - HEADER_H - 20);
+      scrollRef.current.scrollTo({ y: offset, animated: true });
+    }
+  };
+
   const handleUpdateProfile = async () => {
     try {
       setSaving(true);
-      const token = await AsyncStorage.getItem('authToken');
-      if (!token) return;
       // Nunca mandamos ningún campo de moneda en el payload, solo datos personales
       const { monedaPreferencia, ...rest } = formData;
       const cleanPayload = Object.fromEntries(
         Object.entries(rest).filter(([key]) => !key.toLowerCase().includes('moneda'))
       );
-      const response = await fetch(`${API_BASE_URL}/user/update`, {
+      const response = await apiRateLimiter.fetch(`${API_BASE_URL}/user/update`, {
         method: 'PATCH',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(cleanPayload),
       });
       if (response.ok) {
         const updatedProfile = await response.json();
         setUsuario(updatedProfile);
         setFormData(updatedProfile);
+        // ensure keyboard is dismissed before leaving edit mode
+        Keyboard.dismiss();
         setEditMode(false);
         Toast.show({ type: 'success', text1: 'Perfil actualizado' });
+        // give system a moment to resize after keyboard dismissal, then scroll to top
+        await new Promise((res) => setTimeout(res, 80));
+        if (scrollRef.current) scrollRef.current.scrollTo({ y: 0, animated: true });
+        // refresh data in background
         fetchData(); // Recargar datos para mostrar actualizados
       } else {
         const errorData = await response.json();
@@ -154,13 +190,16 @@ const MainAccountScreen = () => {
         text: 'Sí, descartar', 
         style: 'destructive', 
         onPress: () => { 
-          setFormData(usuario || {}); 
+          Keyboard.dismiss();
+          setFormData(usuario || {});
           setEditMode(false);
           // Animate exit
           Animated.sequence([
             Animated.timing(scaleAnim, { toValue: 0.98, duration: 100, useNativeDriver: true }),
             Animated.timing(scaleAnim, { toValue: 1, duration: 200, useNativeDriver: true }),
           ]).start();
+          // after dismissing, ensure scroll position resets so content isn't left scrolled
+          setTimeout(() => { if (scrollRef.current) scrollRef.current.scrollTo({ y: 0, animated: true }); }, 80);
         } 
       },
     ]);
@@ -179,27 +218,38 @@ const MainAccountScreen = () => {
 
   if (loading) {
     return (
-      <View style={[styles.center, { backgroundColor: colors.background }]}>
-        <ActivityIndicator size="small" color={colors.button} />
-        <Text style={[styles.muted, { color: colors.textSecondary }]}>Cargando…</Text>
-      </View>
+      <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+        <View style={[styles.center, { backgroundColor: colors.background }]}> 
+          <ActivityIndicator size="small" color={colors.button} />
+          <Text style={[styles.muted, { color: colors.textSecondary }]}>Cargando…</Text>
+        </View>
+      </SafeAreaView>
     );
   }
 
   if (!cuenta) {
     return (
-      <View style={[styles.center, { backgroundColor: colors.background }]}>
-        <Ionicons name="warning-outline" size={24} color="#ef4444" />
-        <Text style={[styles.titleSm, { color: colors.text }]}>No se pudo cargar la cuenta</Text>
-        <Text style={[styles.muted, { color: colors.textSecondary }]}>Revisa tu conexión e inténtalo de nuevo</Text>
-      </View>
+      <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+        <View style={[styles.center, { backgroundColor: colors.background }]}> 
+          <Ionicons name="warning-outline" size={24} color="#ef4444" />
+          <Text style={[styles.titleSm, { color: colors.text }]}>No se pudo cargar la cuenta</Text>
+          <Text style={[styles.muted, { color: colors.textSecondary }]}>Revisa tu conexión e inténtalo de nuevo</Text>
+        </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <>
-      <View style={[styles.headerWrap, { backgroundColor: colors.background }]}>
-        <View style={[styles.headerBar, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow }]}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+      {/* Header con margen dinámico para Android */}
+      <View style={[
+        styles.headerWrap,
+        { backgroundColor: colors.background, paddingTop: Platform.OS === 'android' ? ANDROID_STATUSBAR + 10 : styles.headerWrap.paddingTop }
+      ]}>
+        <View style={[
+          styles.headerBar,
+          { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow, marginTop: Platform.OS === 'android' ? 4 : 0 }
+        ]}>
           <TouchableOpacity 
             onPress={() => navigation.goBack()}
             style={[styles.backButton, { backgroundColor: colors.inputBackground, borderColor: colors.border }]}
@@ -208,7 +258,7 @@ const MainAccountScreen = () => {
             <Ionicons name="chevron-back" size={20} color={colors.text} />
           </TouchableOpacity>
           <Text style={[styles.headerTitle, { color: colors.text }]} numberOfLines={1}>Cuenta Principal</Text>
-          <View style={[styles.headerChip, { backgroundColor: colors.inputBackground, borderColor: colors.border }]}>
+          <View style={[styles.headerChip, { backgroundColor: colors.inputBackground, borderColor: colors.border }]}> 
             <Ionicons name="cash-outline" size={14} color={colors.text} />
             <Text style={[styles.headerChipText, { color: colors.text }]}>{cuenta.moneda}</Text>
           </View>
@@ -218,11 +268,17 @@ const MainAccountScreen = () => {
       <KeyboardAvoidingView
         style={{ flex: 1, backgroundColor: 'transparent' }}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={HEADER_H}
+        keyboardVerticalOffset={HEADER_H + (Platform.OS === 'android' ? ANDROID_STATUSBAR : 0)}
       >
         <ScrollView
           style={[styles.container, { backgroundColor: colors.background }]}
-          contentContainerStyle={{ paddingBottom: 24, paddingTop: 24 }}
+          contentContainerStyle={{
+              paddingBottom: 24,
+              paddingTop: HEADER_H + (Platform.OS === 'android' ? ANDROID_STATUSBAR : 0) + 16,
+            }}
+          ref={scrollRef}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
           showsVerticalScrollIndicator={false}
         >
           <Animated.View style={[
@@ -356,7 +412,7 @@ const MainAccountScreen = () => {
                 <>
                   <View style={[styles.divider, { backgroundColor: colors.border, marginVertical: 14 }]} />
 
-                  <View style={styles.fieldRow}>
+                  <View style={styles.fieldRow} onLayout={onInputLayout('nombreCompleto')}>
                     <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>
                       <Ionicons name="person-outline" size={12} /> Nombre completo
                     </Text>
@@ -366,10 +422,11 @@ const MainAccountScreen = () => {
                       onChangeText={(t) => handleChange('nombreCompleto', t)} 
                       placeholder="Tu nombre" 
                       placeholderTextColor={colors.placeholder} 
+                      onFocus={() => focusField('nombreCompleto')}
                     />
                   </View>
 
-                  <View style={styles.fieldRow}>
+                  <View style={styles.fieldRow} onLayout={onInputLayout('email')}>
                     <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>
                       <Ionicons name="mail-outline" size={12} /> Email
                     </Text>
@@ -381,11 +438,12 @@ const MainAccountScreen = () => {
                       placeholderTextColor={colors.placeholder} 
                       keyboardType="email-address" 
                       autoCapitalize="none" 
+                      onFocus={() => focusField('email')}
                     />
                   </View>
 
                   <View style={styles.inline}>
-                    <View style={[styles.fieldRow, styles.inlineItem]}>
+                    <View style={[styles.fieldRow, styles.inlineItem]} onLayout={onInputLayout('edad')}>
                       <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>
                         <Ionicons name="calendar-outline" size={12} /> Edad
                       </Text>
@@ -396,9 +454,10 @@ const MainAccountScreen = () => {
                         keyboardType="numeric" 
                         placeholder="0" 
                         placeholderTextColor={colors.placeholder} 
+                        onFocus={() => focusField('edad')}
                       />
                     </View>
-                    <View style={[styles.fieldRow, styles.inlineItem]}>
+                    <View style={[styles.fieldRow, styles.inlineItem]} onLayout={onInputLayout('ocupacion')}>
                       <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>
                         <Ionicons name="briefcase-outline" size={12} /> Ocupación
                       </Text>
@@ -408,6 +467,7 @@ const MainAccountScreen = () => {
                         onChangeText={(t) => handleChange('ocupacion', t)} 
                         placeholder="Tu ocupación" 
                         placeholderTextColor={colors.placeholder} 
+                        onFocus={() => focusField('ocupacion')}
                       />
                     </View>
                   </View>
@@ -430,36 +490,36 @@ const MainAccountScreen = () => {
                       <Ionicons name="shield-checkmark-outline" size={13} /> Datos personales
                     </Text>
 
-                    <View style={styles.fieldRow}>
+                    <View style={styles.fieldRow} onLayout={onInputLayout('telefono')}>
                       <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>
                         <Ionicons name="call-outline" size={12} /> Teléfono
                       </Text>
-                      <TextInput style={[styles.input, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]} value={formData.telefono || ''} onChangeText={(t) => handleChange('telefono', t)} keyboardType="phone-pad" placeholder="Ej. 55 1234 5678" placeholderTextColor={colors.placeholder} />
+                        <TextInput style={[styles.input, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]} value={formData.telefono || ''} onChangeText={(t) => handleChange('telefono', t)} keyboardType="phone-pad" placeholder="Ej. 55 1234 5678" placeholderTextColor={colors.placeholder} onFocus={() => focusField('telefono')} />
                     </View>
 
-                    <View style={styles.fieldRow}>
+                    <View style={styles.fieldRow} onLayout={onInputLayout('pais')}>
                       <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>
                         <Ionicons name="earth-outline" size={12} /> País
                       </Text>
-                      <TextInput style={[styles.input, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]} value={formData.pais || ''} onChangeText={(t) => handleChange('pais', t)} placeholder="Ej. México" placeholderTextColor={colors.placeholder} />
+                        <TextInput style={[styles.input, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]} value={formData.pais || ''} onChangeText={(t) => handleChange('pais', t)} placeholder="Ej. México" placeholderTextColor={colors.placeholder} onFocus={() => focusField('pais')} />
                     </View>
 
                     <View style={styles.inline}>
-                      <View style={[styles.fieldRow, styles.inlineItem]}>
+                      <View style={[styles.fieldRow, styles.inlineItem]} onLayout={onInputLayout('estado')}>
                         <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>
                           <Ionicons name="map-outline" size={12} /> Estado
                         </Text>
-                        <TextInput style={[styles.input, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]} value={formData.estado || ''} onChangeText={(t) => handleChange('estado', t)} placeholder="Ej. Jalisco" placeholderTextColor={colors.placeholder} />
+                        <TextInput style={[styles.input, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]} value={formData.estado || ''} onChangeText={(t) => handleChange('estado', t)} placeholder="Ej. Jalisco" placeholderTextColor={colors.placeholder} onFocus={() => focusField('estado')} />
                       </View>
-                      <View style={[styles.fieldRow, styles.inlineItem]}>
+                      <View style={[styles.fieldRow, styles.inlineItem]} onLayout={onInputLayout('ciudad')}>
                         <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>
                           <Ionicons name="location-outline" size={12} /> Ciudad
                         </Text>
-                        <TextInput style={[styles.input, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]} value={formData.ciudad || ''} onChangeText={(t) => handleChange('ciudad', t)} placeholder="Ej. Guzmán" placeholderTextColor={colors.placeholder} />
+                        <TextInput style={[styles.input, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]} value={formData.ciudad || ''} onChangeText={(t) => handleChange('ciudad', t)} placeholder="Ej. Guzmán" placeholderTextColor={colors.placeholder} onFocus={() => focusField('ciudad')} />
                       </View>
                     </View>
 
-                    <View style={styles.fieldRow}>
+                    <View style={styles.fieldRow} onLayout={onInputLayout('bio')}>
                       <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>
                         <Ionicons name="document-text-outline" size={12} /> Biografía
                       </Text>
@@ -470,6 +530,7 @@ const MainAccountScreen = () => {
                         multiline
                         placeholder="Cuéntanos sobre ti…"
                         placeholderTextColor={colors.placeholder}
+                        onFocus={() => focusField('bio')}
                       />
                     </View>
                   </View>
@@ -550,7 +611,7 @@ const MainAccountScreen = () => {
       </KeyboardAvoidingView>
 
       <DataPrivacyModal visible={infoModalVisible} onClose={() => setInfoModalVisible(false)} />
-    </>
+    </SafeAreaView>
   );
 };
 
@@ -596,7 +657,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     paddingHorizontal: 16,
-    paddingTop: HEADER_H + 16,
   },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8 },
 
