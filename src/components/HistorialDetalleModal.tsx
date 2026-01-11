@@ -9,6 +9,12 @@ type Detalles = {
   etiqueta?: string;
   resumen?: string;
   conceptoNombre?: string;
+  plataforma?: string;
+  monedaOriginal?: string;
+  montoOriginal?: number;
+  monedaConvertida?: string;
+  montoConvertido?: number;
+  tasaConversion?: number;
   [key: string]: any;
 };
 
@@ -45,9 +51,46 @@ const HistorialDetalleModal = ({ visible, onClose, historialItem }: Props) => {
     cuentaId,
     subcuentaId,
     detalles = {},
+    metadata = {},
     motivo,
     conceptoId, // <-- agregar aquí
   } = historialItem;
+
+  const formatAmountPlain = (amount: number) =>
+    Math.abs(amount).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  const meta: any = metadata ?? {};
+  const conversion = (() => {
+    const montoOriginal = meta.montoOriginal ?? detalles.montoOriginal;
+    const monedaOrigen = meta.monedaOrigen ?? meta.monedaOriginal ?? detalles.monedaOriginal;
+    if (montoOriginal == null || !monedaOrigen) return null;
+
+    const montoConvertido =
+      meta.montoConvertido ??
+      meta.montoConvertidoCuenta ??
+      meta.montoConvertidoSubcuenta ??
+      detalles.montoConvertido ??
+      monto;
+    const monedaConvertida =
+      meta.monedaConvertida ??
+      meta.monedaDestino ??
+      meta.monedaCuenta ??
+      meta.monedaConvertidaCuenta ??
+      meta.monedaConvertidaSubcuenta ??
+      detalles.monedaConvertida;
+
+    if (montoConvertido == null || !monedaConvertida) return null;
+    if (String(monedaOrigen) === String(monedaConvertida)) return null;
+
+    const tasaConversion = meta.tasaConversion ?? meta.tasaConversionCuenta ?? meta.tasaConversionSubcuenta ?? detalles.tasaConversion;
+    return {
+      montoOriginal,
+      monedaOrigen,
+      montoConvertido,
+      monedaConvertida,
+      tasaConversion,
+    };
+  })();
 
   const iconoTipo = tipo === 'ingreso'
     ? 'arrow-down-circle'
@@ -55,7 +98,7 @@ const HistorialDetalleModal = ({ visible, onClose, historialItem }: Props) => {
     ? 'arrow-up-circle'
     : tipo === 'recurrente'
     ? 'repeat'
-    : 'info';
+    : 'information-circle';
 
   const colorTipo = tipo === 'ingreso' ? '#16a34a' : tipo === 'egreso' ? '#dc2626' : '#0ea5e9';
 
@@ -90,6 +133,58 @@ const HistorialDetalleModal = ({ visible, onClose, historialItem }: Props) => {
               <View style={styles.section}>
                 <Text style={[styles.label, { color: colors.textSecondary }]}>Concepto</Text>
                 <Text style={[styles.value, { color: colors.text }]}>{detalles.conceptoNombre}</Text>
+              </View>
+            )}
+
+            {tipo === 'recurrente' && detalles.plataforma && (
+              <View style={[styles.section, styles.recurrenteSection]}>
+                <View style={[styles.recurrenteHeader, { backgroundColor: colors.button + '10' }]}>
+                  <Ionicons name="sync-circle" size={18} color={colors.button} />
+                  <Text style={[styles.recurrenteHeaderText, { color: colors.button }]}>Pago Recurrente</Text>
+                </View>
+                <View style={styles.recurrenteDetails}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+                    <Ionicons name="business" size={16} color={colors.textSecondary} style={{ marginRight: 6 }} />
+                    <Text style={[styles.label, { color: colors.textSecondary }]}>Plataforma: </Text>
+                    <Text style={[styles.value, { color: colors.text, fontSize: 15 }]}>{detalles.plataforma}</Text>
+                  </View>
+                  {detalles.monedaOriginal && detalles.monedaOriginal !== 'MXN' && (
+                    <View style={{ marginTop: 8, padding: 10, backgroundColor: colors.inputBackground, borderRadius: 8 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+                        <Ionicons name="cash-outline" size={14} color={colors.textSecondary} style={{ marginRight: 4 }} />
+                        <Text style={[styles.label, { color: colors.textSecondary, fontSize: 12 }]}>Monto Original: </Text>
+                        <Text style={[styles.value, { color: colors.text, fontSize: 13 }]}>
+                          {detalles.montoOriginal} {detalles.monedaOriginal}
+                        </Text>
+                      </View>
+                      {detalles.tasaConversion && detalles.tasaConversion !== 1 && (
+                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                          <Ionicons name="swap-horizontal" size={14} color={colors.textSecondary} style={{ marginRight: 4 }} />
+                          <Text style={[styles.label, { color: colors.textSecondary, fontSize: 12 }]}>Tasa de Conversión: </Text>
+                          <Text style={[styles.value, { color: colors.text, fontSize: 13 }]}>
+                            {detalles.tasaConversion.toFixed(4)}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                  )}
+                </View>
+              </View>
+            )}
+
+            {conversion && (
+              <View style={styles.section}>
+                <Text style={[styles.label, { color: colors.textSecondary }]}>Conversión</Text>
+                <View style={{ padding: 10, backgroundColor: colors.inputBackground, borderRadius: 8 }}>
+                  <Text style={[styles.value, { color: colors.text, fontSize: 14 }]}> 
+                    {formatAmountPlain(conversion.montoOriginal)} {conversion.monedaOrigen} → {formatAmountPlain(conversion.montoConvertido)} {conversion.monedaConvertida}
+                  </Text>
+                  {conversion.tasaConversion && conversion.tasaConversion !== 1 && (
+                    <Text style={[styles.label, { color: colors.textSecondary, fontSize: 12, marginTop: 6 }]}> 
+                      Tasa: 1 {conversion.monedaOrigen} = {conversion.tasaConversion} {conversion.monedaConvertida}
+                    </Text>
+                  )}
+                </View>
               </View>
             )}
 
@@ -213,5 +308,24 @@ const styles = StyleSheet.create({
   },
   value: {
     fontSize: 16,
+  },
+  recurrenteSection: {
+    backgroundColor: 'transparent',
+    padding: 0,
+  },
+  recurrenteHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: 10,
+    borderRadius: 10,
+    marginBottom: 10,
+  },
+  recurrenteHeaderText: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  recurrenteDetails: {
+    paddingHorizontal: 4,
   },
 });
