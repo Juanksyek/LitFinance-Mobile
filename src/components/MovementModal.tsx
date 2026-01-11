@@ -18,12 +18,14 @@ import Modal from 'react-native-modal';
 import { Ionicons } from "@expo/vector-icons";
 import { API_BASE_URL } from '../constants/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { authService } from '../services/authService';
 import Toast from 'react-native-toast-message';
 import ConceptsManager from './ConceptsManager';
 import SmartInput from './SmartInput';
 import SmartNumber from './SmartNumber';
 import { CurrencyField, Moneda } from '../components/CurrencyPicker';
 import { useThemeColors } from '../theme/useThemeColors';
+import { emitSubcuentasChanged } from '../utils/dashboardRefreshBus';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 
@@ -106,7 +108,7 @@ const MovementModal: React.FC<Props> = ({
 
   const fetchCuentaYConceptos = async () => {
     try {
-      const token = await AsyncStorage.getItem('authToken');
+      const token = await authService.getAccessToken();
       if (!token) throw new Error('Token no encontrado');
 
       const [resCuentaRaw, resConceptosRaw] = await Promise.all([
@@ -159,7 +161,7 @@ const MovementModal: React.FC<Props> = ({
 
     try {
       setLoading(true);
-      const token = await AsyncStorage.getItem('authToken');
+      const token = await authService.getAccessToken();
       const payload = {
         tipo,
         monto: montoNumerico,
@@ -189,7 +191,14 @@ const MovementModal: React.FC<Props> = ({
       onSuccess();
       onClose();
 
-      if (isSubcuenta) navigation.navigate('Dashboard', { updated: true });
+      if (isSubcuenta) {
+        emitSubcuentasChanged();
+        if (navigation.canGoBack()) {
+          navigation.goBack();
+        } else {
+          navigation.navigate('Dashboard', { updated: false } as any);
+        }
+      }
     } catch (err: any) {
       Toast.show({ type: 'error', text1: 'Error', text2: err?.message || 'No se pudo guardar' });
     } finally {

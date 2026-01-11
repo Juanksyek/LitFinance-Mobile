@@ -1,5 +1,6 @@
 import { API_BASE_URL } from "../constants/api";
 import { apiRateLimiter } from "./apiRateLimiter";
+import { sanitizeObjectStrings, fixMojibake } from "../utils/fixMojibake";
 import {
   Ticket,
   CreateTicketRequest,
@@ -30,12 +31,14 @@ class SupportService {
       console.log("📥 [SupportService] createTicket - Respuesta:", { status: response.status, ok: response.ok });
 
       if (!response.ok) {
-        const error = await response.json().catch(() => ({}));
+        const rawErr = await response.json().catch(() => ({}));
+        const error = sanitizeObjectStrings(rawErr);
         console.error("❌ [SupportService] createTicket - Error del servidor:", error);
         throw new Error(error.message || `Error ${response.status}: ${response.statusText}`);
       }
 
-      const result = await response.json();
+      const resultRaw = await response.json();
+      const result = sanitizeObjectStrings(resultRaw);
       console.log("✅ [SupportService] createTicket - Ticket creado:", { ticketId: result.ticketId });
       return result;
     } catch (error: any) {
@@ -56,12 +59,14 @@ class SupportService {
       console.log("📥 [SupportService] getMyTickets - Respuesta:", { status: response.status, ok: response.ok });
 
       if (!response.ok) {
-        const error = await response.json();
+        const rawErr = await response.json().catch(() => ({}));
+        const error = sanitizeObjectStrings(rawErr);
         console.error("❌ [SupportService] getMyTickets - Error del servidor:", error);
         throw new Error(error.message || "Error al obtener tickets");
       }
 
-      const tickets = await response.json();
+      const ticketsRaw = await response.json();
+      const tickets = sanitizeObjectStrings(ticketsRaw) as any[];
       console.log("✅ [SupportService] getMyTickets - Tickets obtenidos:", { count: tickets.length });
       return tickets;
     } catch (error: any) {
@@ -82,12 +87,14 @@ class SupportService {
       console.log("📥 [SupportService] getTicketDetail - Respuesta:", { status: response.status, ok: response.ok });
 
       if (!response.ok) {
-        const error = await response.json();
+        const rawErr = await response.json().catch(() => ({}));
+        const error = sanitizeObjectStrings(rawErr);
         console.error("❌ [SupportService] getTicketDetail - Error del servidor:", error);
         throw new Error(error.message || "Error al obtener el ticket");
       }
 
-      const ticket = await response.json();
+      const ticketRaw = await response.json();
+      const ticket = sanitizeObjectStrings(ticketRaw);
       console.log("✅ [SupportService] getTicketDetail - Ticket obtenido:", { 
         ticketId: ticket.ticketId, 
         estado: ticket.estado,
@@ -125,18 +132,21 @@ class SupportService {
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error("❌ [SupportService] addMessage - Error response (text):", errorText);
-        let error;
+        const sanitizedText = fixMojibake(errorText || '');
+        console.error("❌ [SupportService] addMessage - Error response (text):", sanitizedText);
+        let errorParsed: any;
         try {
-          error = JSON.parse(errorText);
+          errorParsed = JSON.parse(sanitizedText);
         } catch {
-          error = { message: errorText };
+          errorParsed = { message: sanitizedText };
         }
+        const error = sanitizeObjectStrings(errorParsed);
         console.error("❌ [SupportService] addMessage - Error parseado:", error);
         throw new Error(error.message || `Error ${response.status}: ${response.statusText}`);
       }
 
-      const result = await response.json();
+      const resultRaw = await response.json();
+      const result = sanitizeObjectStrings(resultRaw);
       console.log("✅ [SupportService] addMessage - Mensaje agregado exitosamente");
       console.log("📊 [SupportService] addMessage - Ticket actualizado:", { 
         ticketId: result.ticketId,
@@ -167,11 +177,13 @@ class SupportService {
     });
 
     if (!response.ok) {
-      const error = await response.json();
+      const rawErr = await response.json().catch(() => ({}));
+      const error = sanitizeObjectStrings(rawErr);
       throw new Error(error.message || "Error al actualizar el ticket");
     }
 
-    return await response.json();
+    const updated = await response.json();
+    return sanitizeObjectStrings(updated);
   }
 
   /**
@@ -183,11 +195,13 @@ class SupportService {
     });
 
     if (!response.ok) {
-      const error = await response.json();
+      const rawErr = await response.json().catch(() => ({}));
+      const error = sanitizeObjectStrings(rawErr);
       throw new Error(error.message || "Error al eliminar el ticket");
     }
 
-    return await response.json();
+    const deleted = await response.json();
+    return sanitizeObjectStrings(deleted) as { message: string };
   }
 
   /**
@@ -207,11 +221,13 @@ class SupportService {
     );
 
     if (!response.ok) {
-      const error = await response.json();
+      const rawErr = await response.json().catch(() => ({}));
+      const error = sanitizeObjectStrings(rawErr);
       throw new Error(error.message || "Error al actualizar el estado");
     }
 
-    return await response.json();
+    const updated = await response.json();
+    return sanitizeObjectStrings(updated);
   }
 
   /**
@@ -221,11 +237,13 @@ class SupportService {
     const response = await apiRateLimiter.fetch(`${API_BASE_URL}/support-tickets/statistics`);
 
     if (!response.ok) {
-      const error = await response.json();
+      const rawErr = await response.json().catch(() => ({}));
+      const error = sanitizeObjectStrings(rawErr);
       throw new Error(error.message || "Error al obtener estadísticas");
     }
 
-    return await response.json();
+    const stats = await response.json();
+    return sanitizeObjectStrings(stats) as TicketStatistics;
   }
 }
 

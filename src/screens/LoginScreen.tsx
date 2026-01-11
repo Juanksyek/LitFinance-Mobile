@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, Image, KeyboardAvoidingView, Platform, ScrollView } from "react-native";
-import axios from "axios";
+import { apiRateLimiter } from "../services/apiRateLimiter";
+import { authService } from "../services/authService";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Toast from "react-native-toast-message";
 import FormInput from "../components/FormInput";
@@ -9,7 +10,10 @@ import { useNavigation, NavigationProp, StackActions } from "@react-navigation/n
 import { RootStackParamList } from "../navigation/AppNavigator";
 import { API_BASE_URL } from "../constants/api";
 import { Ionicons } from "@expo/vector-icons";
+
 import { registerForPushNotifications } from "../services/notificationService";
+import { jwtDecode } from "../utils/jwtDecode";
+import { sanitizeObjectStrings } from "../utils/fixMojibake";
 
 const LoginScreen: React.FC = () => {
   const colors = useThemeColors();
@@ -33,26 +37,65 @@ const LoginScreen: React.FC = () => {
     setLoading(true);
 
     try {
-      const response = await axios.post(`${API_BASE_URL}/auth/login`, {
-        email,
-        password,
+      // Ensure we have a deviceId for this installation and include it in login
+      const deviceId = await authService.getOrCreateDeviceId();
+      const response = await apiRateLimiter.fetch(`${API_BASE_URL}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, deviceId }),
       });
 
-      const { accessToken, user, message } = response.data;
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        const err: any = new Error(errorData.message || `Error ${response.status}`);
+        err.status = response.status;
+        err.data = errorData;
+        throw err;
+      }
 
+      const responseData = await response.json();
+      const { accessToken, refreshToken, user, message } = responseData;
+
+
+      console.log('🔑 accessToken:', accessToken);
+      console.log('👤 user recibido:', user);
       if (!accessToken || !user) {
         throw new Error("La respuesta del servidor no es válida.");
       }
 
-      const usuarioParaGuardar = {
+      // Prioridad: responseData.rol > user.rol > JWT > 'usuario'
+      let rol = (responseData && (responseData.rol || responseData.role)) || user.rol;
+      if (!rol && accessToken) {
+        try {
+          const decoded = jwtDecode(accessToken);
+          console.log('🪪 JWT decodificado:', decoded);
+          rol = decoded.rol || decoded.role || 'usuario';
+        } catch (err) {
+          console.log('❌ Error decodificando JWT:', err);
+          rol = 'usuario';
+        }
+      }
+
+      const usuarioParaGuardar = sanitizeObjectStrings({
         id: user.id,
         nombre: user.nombre,
         email: user.email,
         cuentaId: user.cuentaId,
-      };
-  
-      await AsyncStorage.setItem("authToken", accessToken);
+        rol: rol || 'usuario',
+        // Premium fields (used for gating / plan limits)
+        premiumSubscriptionStatus: user.premiumSubscriptionStatus ?? null,
+        premiumUntil: user.premiumUntil ?? null,
+        premiumSubscriptionId: user.premiumSubscriptionId ?? null,
+      });
+
+      await authService.setAccessToken(accessToken);
+      if (refreshToken) await authService.setRefreshToken(refreshToken);
       await AsyncStorage.setItem("userData", JSON.stringify(usuarioParaGuardar));
+      // Guardar identificadores usados por componentes para render inmediato
+      try {
+        if (user.id) await AsyncStorage.setItem('userId', String(user.id));
+        if (user.cuentaId) await AsyncStorage.setItem('cuentaId', String(user.cuentaId));
+      } catch {}
     
       Toast.show({
         type: "success",
@@ -69,13 +112,47 @@ const LoginScreen: React.FC = () => {
         // No bloquear el login si falla el registro de notificaciones
       }
   
+      // Navegar a Dashboard (la pantalla se encarga de inicializar ids y sincronizar en background)
       navigation.dispatch(StackActions.replace("Dashboard"));
     } catch (error: any) {
-      Toast.show({
-        type: "error",
-        text1: "Error al iniciar sesión",
-        text2: error.message || "No se pudo conectar",
-      });
+      // Mejor manejo de errores para mostrar mensajes más útiles al usuario
+      let title = "Error al iniciar sesión";
+      let message = error?.message || "No se pudo conectar";
+
+      // Normalize message/status for backend variations (401, 404, 'Unauthorized', 'not found')
+      try {
+        const status = error?.status || (error?.response && error.response.status) || null;
+        const rawMsg = (error?.message || (error?.response && error.response.data && error.response.data.message) || '').toString().toLowerCase();
+
+        // If backend explicitly indicates user not found / not registered or returns 404/unauthorized
+        if (
+          status === 404 ||
+          rawMsg.includes('not found') ||
+          rawMsg.includes('not registered') ||
+          rawMsg.includes('usuario no registrado') ||
+          rawMsg.includes('unauthorized')
+        ) {
+          title = 'Usuario no registrado';
+          message = 'No estás registrado. Regístrate para continuar.';
+          // keep password as-is (no need to clear)
+        } else if (status === 401) {
+          title = "Credenciales incorrectas";
+          message = "Correo o contraseña incorrectos. Verifica e inténtalo de nuevo.";
+          setPassword("");
+        } else if (status >= 500) {
+          title = "Error del servidor";
+          message = "No se pudo conectar con el servidor. Intenta más tarde.";
+        } else if (status === 429) {
+          title = "Demasiados intentos";
+          message = "Has intentado iniciar sesión muchas veces. Intenta de nuevo más tarde.";
+        } else if (error?.data && typeof error.data.message === 'string') {
+          message = error.data.message;
+        }
+      } catch (internalErr) {
+        // ignore parsing errors
+      }
+
+      Toast.show({ type: "error", text1: title, text2: message });
     } finally {
       setLoading(false);
     }

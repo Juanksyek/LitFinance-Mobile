@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Dimensions, ActivityIndicator, Animated } from "react-native";
 import { LineChart } from "react-native-chart-kit";
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { analyticsService, AnalyticsFilters } from "../services/analyticsService";
 import Toast from "react-native-toast-message";
 import { useThemeColors } from "../theme/useThemeColors";
@@ -22,8 +23,42 @@ const ExpensesChart: React.FC<ExpensesChartProps> = ({ refreshKey = 0 }) => {
   const [tipoSeleccionado, setTipoSeleccionado] = useState<TipoTransaccionFiltro>('ambos');
   const [loading, setLoading] = useState(true);
   const [analisisTemporalData, setAnalisisTemporalData] = useState<any>(null);
+  
+  // 🚀 Cargar datos cacheados al montar para mostrar gráfica inmediatamente
+  useEffect(() => {
+    const loadCached = async () => {
+      try {
+        const cached = await AsyncStorage.getItem('analytics_temporal_cache');
+        if (cached) {
+          const data = JSON.parse(cached);
+          console.log('⚡ [ExpensesChart] Mostrando datos cacheados');
+          setAnalisisTemporalData(data);
+          setLoading(false);
+        }
+      } catch {}
+    };
+    loadCached();
+  }, []);
   const fadeAnim = useState(new Animated.Value(0))[0];
   const scaleAnim = useState(new Animated.Value(0.95))[0];
+
+  // Refs para prevención de memory leaks
+  const isMountedRef = useRef(true);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const lastFetchRef = useRef<number>(0);
+
+  // Cleanup al desmontar
+  useEffect(() => {
+    isMountedRef.current = true;
+    
+    return () => {
+      console.log('🧹 [ExpensesChart] Limpiando componente...');
+      isMountedRef.current = false;
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
 
   useEffect(() => {
     fetchAnalyticsData();
@@ -52,25 +87,74 @@ const ExpensesChart: React.FC<ExpensesChartProps> = ({ refreshKey = 0 }) => {
   }, [loading, analisisTemporalData]);
 
   const fetchAnalyticsData = async () => {
+    const now = Date.now();
+    const minInterval = 300; // 300ms para cambios rápidos de filtro
+    
+    // Solo aplicar cooldown si ya hubo un fetch previo (no bloquear primera carga)
+    if (lastFetchRef.current > 0 && now - lastFetchRef.current < minInterval) {
+      console.log('📊 [ExpensesChart] Fetch bloqueado: muy pronto desde el último');
+      return;
+    }
+
+    if (!isMountedRef.current) {
+      console.log('⚠️ [ExpensesChart] Componente desmontado, cancelando fetch');
+      return;
+    }
+
+    // Cancelar fetch anterior
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    
+    abortControllerRef.current = new AbortController();
+    const signal = abortControllerRef.current.signal;
+
     try {
-      setLoading(true);
+      lastFetchRef.current = now;
+      if (isMountedRef.current) {
+        setLoading(true);
+      }
       
       const filters: AnalyticsFilters = {
         rangoTiempo: periodoSeleccionado,
         tipoTransaccion: tipoSeleccionado,
       };
 
-      const temporal = await analyticsService.getAnalisisTemporal(filters);
-      setAnalisisTemporalData(temporal);
-    } catch (error) {
+      const temporal = await analyticsService.getAnalisisTemporal(filters, signal);
+
+      // Verificar si fue abortado
+      if (signal.aborted) {
+        console.log('📊 [ExpensesChart] Fetch cancelado');
+        return;
+      }
+
+      // Solo actualizar estado si el componente está montado
+      if (isMountedRef.current && !signal.aborted) {
+        setAnalisisTemporalData(temporal);
+        
+        // 💾 Guardar en cache para próxima carga instantánea
+        try {
+          await AsyncStorage.setItem('analytics_temporal_cache', JSON.stringify(temporal));
+        } catch {}
+      }
+    } catch (error: any) {
+      // Ignorar errores de abort
+      if (error.name === 'AbortError' || signal.aborted) {
+        console.log('📊 [ExpensesChart] Fetch cancelado');
+        return;
+      }
       console.error('Error fetching analytics:', error);
-      Toast.show({
-        type: 'error',
-        text1: 'Error al cargar análisis',
-        text2: 'Verifica tu conexión',
-      });
+      if (isMountedRef.current) {
+        Toast.show({
+          type: 'error',
+          text1: 'Error al cargar análisis',
+          text2: 'Verifica tu conexión',
+        });
+      }
     } finally {
-      setLoading(false);
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     }
   };
 
