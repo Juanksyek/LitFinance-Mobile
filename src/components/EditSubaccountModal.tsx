@@ -106,7 +106,8 @@ const EditSubaccountModal: React.FC<Props> = ({
 
     try {
       setLoading(true);
-      const token = await AsyncStorage.getItem("authToken");
+      const { authService } = await import('../services/authService');
+      const token = await authService.getAccessToken();
       const payload = {
         nombre: nombre.trim(),
         moneda,
