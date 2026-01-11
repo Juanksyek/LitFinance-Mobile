@@ -5,6 +5,8 @@ import {
   Animated, Dimensions, Keyboard, PanResponder, GestureResponderEvent, PanResponderGestureState
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { authService } from '../services/authService';
+import { parseNumber } from '../utils/numberFormatter';
 import { Ionicons } from '@expo/vector-icons';
 import { Switch } from 'react-native';
 import { API_BASE_URL } from '../constants/api';
@@ -129,7 +131,7 @@ const RecurrentModal: React.FC<Props> = ({
   const fetchData = useCallback(async () => {
     if (!visible) return;
 
-    const token = await AsyncStorage.getItem('authToken');
+    const token = await authService.getAccessToken();
     if (!token) {
       Toast.show({ type: 'error', text1: 'Sesión expirada', text2: 'Inicia sesión nuevamente' });
       return;
@@ -204,14 +206,14 @@ const RecurrentModal: React.FC<Props> = ({
   // Guardar o actualizar
   const [loading, setLoading] = useState(false);
   const handleGuardar = async () => {
-    if (!nombre || !plataforma || !frecuenciaTipo || !frecuenciaValor || !moneda || !montoNumerico || !montoValido) {
+    if (!nombre || !plataforma || !frecuenciaTipo || !frecuenciaValor || !moneda || montoNumerico === null || !montoValido) {
       Toast.show({ type: 'error', text1: 'Campos incompletos', text2: 'Por favor completa todos los campos requeridos' });
       return;
     }
 
     setLoading(true);
     try {
-      const token = await AsyncStorage.getItem("authToken");
+      const token = await authService.getAccessToken();
       const recurrenteData = {
         nombre,
         plataforma,
@@ -276,8 +278,8 @@ const RecurrentModal: React.FC<Props> = ({
       setNombre(recurrenteExistente.nombre || '');
       setPlataforma(recurrenteExistente.plataforma || null);
 
-      const montoParsed = toNumber(
-        recurrenteExistente.monto ?? recurrenteExistente.amount ?? recurrenteExistente.cantidad
+      const montoParsed = parseNumber(
+        String(recurrenteExistente.monto ?? recurrenteExistente.amount ?? recurrenteExistente.cantidad ?? '')
       );
       setMontoNumerico(montoParsed);
       setMontoValido(!!montoParsed && montoParsed > 0);
@@ -310,7 +312,9 @@ const RecurrentModal: React.FC<Props> = ({
         setPlataforma(recurrente.plataforma || null);
         setFrecuenciaTipo(recurrente.frecuenciaTipo || 'dia_semana');
         setFrecuenciaValor(recurrente.frecuenciaValor || '');
-        setMontoNumerico(recurrente.monto || null);
+        const parsed = parseNumber(String(recurrente.monto ?? recurrente.amount ?? recurrente.cantidad ?? ''));
+        setMontoNumerico(parsed !== null ? parsed : null);
+        setMontoValido(typeof parsed === 'number' ? parsed >= (getLimitesRecurrente().min) : false);
         const code = recurrente.moneda || 'USD';
         setMoneda(code);
         setSelectedMoneda({ id: 'seed', codigo: code, nombre: code, simbolo: recurrente.simbolo || '$' });
@@ -350,8 +354,8 @@ const RecurrentModal: React.FC<Props> = ({
       <View style={styles.listItemContent}>
         <View style={[styles.colorIndicator, { backgroundColor: platform.color }]} />
         <View style={styles.listItemTextContainer}>
-          <Text style={styles.listItemTitle}>{platform.nombre}</Text>
-          <Text style={styles.listItemSubtitle}>{platform.categoria}</Text>
+          <Text style={[styles.listItemTitle, { color: colors.text }]}>{platform.nombre}</Text>
+          <Text style={[styles.listItemSubtitle, { color: colors.textSecondary }]}>{platform.categoria}</Text>
         </View>
         {plataforma?.plataformaId === platform.plataformaId && (
           <Ionicons name="checkmark-circle" size={20} color="#EF7725" />
@@ -551,9 +555,9 @@ const RecurrentModal: React.FC<Props> = ({
                         filteredPlataformas.map((platform) => renderPlatformItem({ item: platform }))
                       ) : (
                         <View style={styles.emptyState}>
-                          <Ionicons name="search" size={48} color="#cbd5e1" />
-                          <Text style={styles.emptyStateText}>No se encontraron plataformas</Text>
-                          <Text style={styles.emptyStateSubtext}>Intenta con otro término de búsqueda</Text>
+                          <Ionicons name="search" size={48} color={colors.textSecondary} />
+                          <Text style={[styles.emptyStateText, { color: colors.text }]}>No se encontraron plataformas</Text>
+                          <Text style={[styles.emptyStateSubtext, { color: colors.textSecondary }]}>Intenta con otro término de búsqueda</Text>
                         </View>
                       )}
                     </ScrollView>
@@ -582,11 +586,11 @@ const RecurrentModal: React.FC<Props> = ({
                 <Text style={[styles.label, { color: colors.text }]}>Monto</Text>
                 <View>
                   <SmartInput
-                    key={`monto-${recurrenteExistente?.recurrenteId || 'new'}-${montoNumerico ?? 'nil'}`}
                     type="currency"
                     placeholder="0.00"
                     prefix={selectedMoneda?.simbolo || '$'}
-                    initialValue={montoNumerico ?? undefined}
+                    context={`recurrente-monto-${isEditing ? (recurrenteExistente?.recurrenteId ?? 'edit') : 'new'}-${visible ? 'open' : 'closed'}`}
+                    initialValue={typeof montoNumerico === 'number' ? montoNumerico : undefined}
                     {...getLimitesRecurrente()}
                     onValueChange={handleMontoChange}
                     onValidationChange={handleMontoValidation}
@@ -904,7 +908,7 @@ const styles = StyleSheet.create({
   },
   searchIcon: { marginRight: 8 },
   searchInput: { flex: 1, fontSize: 14 },
-  listContainer: { maxHeight: 200 },
+  listContainer: { maxHeight: 200, alignSelf: 'center', width: '86%' },
   listItem: { paddingVertical: 12, paddingHorizontal: 16 },
   listItemSelected: {},
   listItemContent: { flexDirection: 'row', alignItems: 'center' },
