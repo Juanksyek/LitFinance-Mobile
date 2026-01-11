@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { View, StyleSheet, ScrollView, RefreshControl } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import DashboardHeader from "../components/DashboardHeader";
@@ -8,14 +8,18 @@ import ExpensesChart from "../components/ExpensesChart";
 import TransactionHistory from "../components/TransactionHistory";
 import SubaccountsList from "../components/SubaccountList";
 import RecurrentesList from "../components/RecurrenteList";
-import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { authService } from "../services/authService";
 import { API_BASE_URL } from "../constants/api";
 import { useFocusEffect, useRoute, useNavigation, RouteProp, CommonActions } from "@react-navigation/native";
 import Toast from "react-native-toast-message";
 import { RootStackParamList } from "../navigation/AppNavigator";
 import { useThemeColors } from "../theme/useThemeColors";
 import { useTheme } from "../theme/ThemeContext";
+import { useSafeApi } from "../hooks/useSafeApi";
+import apiRateLimiter from "../services/apiRateLimiter";
+import { jwtDecode } from "../utils/jwtDecode";
+import { dashboardRefreshBus } from "../utils/dashboardRefreshBus";
 
 export default function DashboardScreen() {
   const colors = useThemeColors();
@@ -24,10 +28,43 @@ export default function DashboardScreen() {
   const [userId, setUserId] = useState<string | null>(null);
   const [reloadTrigger, setReloadTrigger] = useState(Date.now());
   const [refreshKey, setRefreshKey] = useState(Date.now());
+  const [recurrentesRefreshKey, setRecurrentesRefreshKey] = useState(Date.now());
+  const [subcuentasRefreshKey, setSubcuentasRefreshKey] = useState(Date.now());
   const route = useRoute<RouteProp<RootStackParamList, "Dashboard">>();
   const navigation = useNavigation();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastRefreshTime, setLastRefreshTime] = useState(0);
+  const isMountedRef = useRef(true);
+  const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Cleanup al desmontar
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      if (refreshTimeoutRef.current) {
+        clearTimeout(refreshTimeoutRef.current);
+      }
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
+
+  // Refrescos dirigidos: solo la sección afectada
+  useEffect(() => {
+    const offRec = dashboardRefreshBus.on('recurrentes:changed', () => {
+      setRecurrentesRefreshKey(Date.now());
+    });
+    const offSub = dashboardRefreshBus.on('subcuentas:changed', () => {
+      setSubcuentasRefreshKey(Date.now());
+    });
+    return () => {
+      offRec();
+      offSub();
+    };
+  }, []);
 
   const handleCurrencyChange = useCallback(() => {
     console.log('💱 [DashboardScreen] === INICIO ACTUALIZACIÓN POR CAMBIO DE MONEDA ===');
@@ -43,33 +80,79 @@ export default function DashboardScreen() {
     console.log('💱 [DashboardScreen] === FIN ACTUALIZACIÓN POR CAMBIO DE MONEDA ===');
   }, []);
 
-  const fetchCuentaId = async () => {
+  const fetchCuentaId = async (signal?: AbortSignal) => {
     try {
-      console.log('Obteniendo datos de cuenta principal...');
-      const token = await AsyncStorage.getItem("authToken");
+      console.log('[Dashboard] Obteniendo datos de cuenta principal...');
+      const token = await authService.getAccessToken();
       
       if (!token) {
         throw new Error('No hay token de autenticación');
       }
       
-      const res = await axios.get(`${API_BASE_URL}/cuenta/principal`, {
-        headers: { Authorization: `Bearer ${token}` },
-        timeout: 10000,
+      // Cancelar petición anterior si existe
+      if (abortControllerRef.current && !signal) {
+        abortControllerRef.current.abort();
+      }
+
+      // Crear nuevo AbortController si no se proporcionó uno
+      const controller = signal ? null : new AbortController();
+      if (controller) {
+        abortControllerRef.current = controller;
+      }
+      const fetchSignal = signal || controller?.signal;
+
+      const res = await apiRateLimiter.fetch(`${API_BASE_URL}/cuenta/principal`, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Cache-Control': 'no-store',
+          'X-Skip-Cache': '1',
+        },
+        signal: fetchSignal,
       });
+
+      if (fetchSignal?.aborted) {
+        console.log('[Dashboard] Petición cancelada');
+        return;
+      }
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        const statusCode = data?.statusCode ?? res.status;
+        const message = data?.message || `Error ${res.status}`;
+        const error: any = new Error(message);
+        error.statusCode = statusCode;
+        throw error;
+      }
       
-      setCuentaId(res.data.id || res.data._id);
-      setUserId(res.data.userId);
-      console.log('Datos de cuenta obtenidos exitosamente');
+      // Solo actualizar estado si el componente está montado y no fue abortado
+      if (isMountedRef.current && !fetchSignal?.aborted) {
+        const nextCuentaId = data?.id || data?._id || data?.cuentaId || data?.cuentaPrincipalId || null;
+        const nextUserId = data?.userId || data?.usuarioId || data?.user?.id || null;
+        if (nextCuentaId) setCuentaId(nextCuentaId);
+        if (nextUserId) setUserId(nextUserId);
+        console.log('[Dashboard] Datos de cuenta obtenidos exitosamente');
+      }
     } catch (err: any) {
-      console.error('Error fetching cuenta:', err);
+      // Ignorar errores de abort
+      if (err.name === 'AbortError' || err.code === 'ERR_CANCELED') {
+        console.log('[Dashboard] Petición cancelada');
+        return;
+      }
+
+      console.error('[Dashboard] Error fetching cuenta:', err);
       
+      // Solo mostrar toast si el componente está montado
+      if (!isMountedRef.current) return;
+
       let errorMessage = "Inicia sesión de nuevo o inténtalo más tarde";
       
-      if (err.response?.status === 429) {
-        errorMessage = "Demasiadas peticiones. Espera un momento e intenta de nuevo";
-      } else if (err.code === 'ECONNABORTED') {
-        errorMessage = "Tiempo de espera agotado. Verifica tu conexión";
-      } else if (err.response?.status === 401) {
+      if (err.statusCode === 429 || err.message?.includes('Rate limit') || err.message?.includes('429') || err.message?.includes('Too Many')) {
+        errorMessage = "⚠️ Demasiadas peticiones. Espera 10 segundos e intenta de nuevo";
+        // Pausar todas las peticiones por 10 segundos
+        await new Promise(resolve => setTimeout(resolve, 10000));
+      } else if (err.statusCode === 401) {
         errorMessage = "Sesión expirada. Inicia sesión nuevamente";
       }
       
@@ -82,26 +165,97 @@ export default function DashboardScreen() {
   };
 
   useEffect(() => {
-    fetchCuentaId();
+    // Intentar inicializar `userId` y `cuentaId` desde el token inmediatamente
+    (async () => {
+      try {
+        // También leer keys directas guardadas en LoginScreen (más confiable para render inmediato)
+        try {
+          const [storedUserId, storedCuentaId] = await Promise.all([
+            AsyncStorage.getItem('userId'),
+            AsyncStorage.getItem('cuentaId'),
+          ]);
+          if (storedUserId) setUserId(storedUserId);
+          if (storedCuentaId) setCuentaId(storedCuentaId);
+        } catch {
+          // ignore
+        }
+
+        // Primero intentar leer userData guardado por LoginScreen para mostrar hijos inmediatamente
+        try {
+          const raw = await AsyncStorage.getItem('userData');
+          if (raw) {
+            const u = JSON.parse(raw);
+            if (u?.id) setUserId(u.id);
+            if (u?.cuentaId) setCuentaId(u.cuentaId);
+            console.log('[Dashboard] userData cargado desde AsyncStorage');
+          }
+        } catch (stErr) {
+          // ignore
+        }
+
+        // Luego intentar obtener token y decodificar si es posible
+        try {
+          const token = await authService.getAccessToken();
+          if (token) {
+            try {
+              const decoded = jwtDecode(token as any);
+              if (decoded?.userId) setUserId(decoded.userId);
+              if (decoded?.cuentaId) setCuentaId(decoded.cuentaId);
+            } catch (decErr) {
+              // ignore decode errors
+            }
+          }
+        } catch (e) {
+          console.warn('[Dashboard] No se pudo obtener token en inicio:', e);
+        }
+      } catch (e) {
+        console.warn('[Dashboard] Error inicializando ids:', e);
+      } finally {
+        // Llamada de verificación en background para sincronizar con backend.
+        // Reintentar unos segundos si el token aún no está listo justo después del login.
+        const maxAttempts = 8;
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
+          try {
+            const token = await authService.getAccessToken();
+            if (!token) {
+              await new Promise(r => setTimeout(r, 250));
+              continue;
+            }
+            await fetchCuentaId();
+            break;
+          } catch {
+            await new Promise(r => setTimeout(r, 350));
+          }
+        }
+        // No forzar refresh global aquí: evita recargar todos los widgets al mismo tiempo.
+      }
+    })();
   }, []);
 
-  useEffect(() => {
-    if (route.params?.updated) {
-      setReloadTrigger(prev => prev + 1);
-    }
-  }, [route.params]);
+  // Removido: `route.params.updated` ya no dispara recargas globales
 
   const handleRefresh = useCallback(async () => {
     const now = Date.now();
-    const minInterval = 2000; // Mínimo 2 segundos entre refreshes
+    const minInterval = 2000; // 2 segundos entre refreshes manuales
     
     if (now - lastRefreshTime < minInterval) {
-      console.log('Refresh bloqueado: muy pronto desde el último refresh');
+      console.log('[Dashboard] ⛔ Refresh bloqueado: muy pronto desde el último refresh');
+      Toast.show({
+        type: 'info',
+        text1: 'Espera un momento',
+        text2: 'Por favor espera antes de actualizar de nuevo',
+        visibilityTime: 2000,
+      });
       return;
     }
     
     if (isRefreshing) {
-      console.log('Refresh ya en progreso, ignorando');
+      console.log('[Dashboard] Refresh ya en progreso, ignorando');
+      return;
+    }
+
+    if (!isMountedRef.current) {
+      console.log('[Dashboard] Componente desmontado, cancelando refresh');
       return;
     }
 
@@ -109,54 +263,51 @@ export default function DashboardScreen() {
     setLastRefreshTime(now);
     
     try {
-      console.log('Iniciando refresh de datos...');
+      console.log('[Dashboard] Iniciando refresh de datos...');
       
       await fetchCuentaId();
       
-      setReloadTrigger(Date.now());
-      setRefreshKey(Date.now());
-      
-      console.log('Refresh completado exitosamente');
-      Toast.show({
-        type: "success",
-        text1: "Datos actualizados",
-        text2: "La información se ha refrescado correctamente",
-      });
+      if (isMountedRef.current) {
+        const t = Date.now();
+        setReloadTrigger(t);
+        setRefreshKey(t);
+        // También disparar refresh dirigidos para listas específicas
+        setRecurrentesRefreshKey(t);
+        setSubcuentasRefreshKey(t);
+        
+        console.log('[Dashboard] Refresh completado exitosamente');
+        Toast.show({
+          type: "success",
+          text1: "Datos actualizados",
+          text2: "La información se ha refrescado correctamente",
+        });
+      }
     } catch (error) {
-      console.error('Error al refrescar:', error);
+      if (!isMountedRef.current) return;
+      
+      console.error('[Dashboard] Error al refrescar:', error);
       Toast.show({
         type: "error",
         text1: "Error al recargar",
         text2: "No se pudieron actualizar los datos.",
       });
     } finally {
-      setTimeout(() => {
-        setIsRefreshing(false);
-      }, 1500);
+      // Usar timeout para asegurar que el spinner se muestre por al menos 500ms
+      if (refreshTimeoutRef.current) {
+        clearTimeout(refreshTimeoutRef.current);
+      }
+      refreshTimeoutRef.current = setTimeout(() => {
+        if (isMountedRef.current) {
+          setIsRefreshing(false);
+        }
+      }, 500);
     }
   }, [lastRefreshTime, isRefreshing]);
 
-  useFocusEffect(
-    React.useCallback(() => {
-      if (route.params?.updated) {
-        handleRefresh();
-        navigation.dispatch(CommonActions.setParams({ updated: undefined }));
-      }
-    }, [route.params?.updated])
-  );
-
-  useFocusEffect(
-    useCallback(() => {
-      // Solo refrescar si han pasado más de 30 segundos desde el último refresh
-      const now = Date.now();
-      if (now - lastRefreshTime > 30000) {
-        console.log('Auto-refresh al enfocar la pantalla');
-        handleRefresh();
-      } else {
-        console.log('Auto-refresh omitido: refresh reciente');
-      }
-    }, [lastRefreshTime, handleRefresh])
-  );
+  // Nota: removimos auto-refresh en focus y el refresh automático por `route.params.updated`
+  // para evitar múltiples fetches y recargas costosas. El refresh queda en:
+  // - Pull-to-refresh (manual)
+  // - Cambio de moneda (handleCurrencyChange)
 
   return (
     <View style={[styles.wrapper, { backgroundColor: colors.background }]}>
@@ -175,16 +326,18 @@ export default function DashboardScreen() {
 
         <BalanceCard reloadTrigger={reloadTrigger} onCurrencyChange={handleCurrencyChange} />
 
-        {cuentaId && userId && (
-          <ActionButtons cuentaId={cuentaId} userId={userId} onRefresh={handleRefresh} />
+        <ActionButtons 
+          cuentaId={cuentaId || undefined} 
+          userId={userId || undefined} 
+          onRefresh={handleRefresh} 
+        />
+
+        {userId && (
+          <RecurrentesList userId={userId} refreshKey={recurrentesRefreshKey} />
         )}
 
         {userId && (
-          <RecurrentesList userId={userId} refreshKey={reloadTrigger} />
-        )}
-
-        {userId && (
-          <SubaccountsList userId={userId} refreshKey={reloadTrigger} />
+          <SubaccountsList userId={userId} refreshKey={subcuentasRefreshKey} />
         )}
 
         <ExpensesChart refreshKey={refreshKey} />
