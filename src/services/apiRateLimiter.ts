@@ -1,6 +1,7 @@
 import PQueue from 'p-queue';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { authService } from './authService';
+import { sanitizeObjectStrings } from '../utils/fixMojibake';
 
 /**
  * ApiRateLimiter - Servicio estricto de rate limiting para evitar saturar el backend
@@ -35,6 +36,7 @@ interface SharedResponse {
 
 class ApiRateLimiter {
   private queue: PQueue;
+  private highPriorityQueue: PQueue; // Cola prioritaria para mutaciones
   private pendingRequests: Map<string, Promise<SharedResponse>>;
   private lastRequestTime: number;
   private requestHistory: number[];
@@ -44,11 +46,18 @@ class ApiRateLimiter {
   private readonly MAX_REQUESTS_PER_MINUTE = 20; // Máximo 20 peticiones por minuto
 
   constructor() {
-    // Cola con concurrencia máxima de 2 peticiones simultáneas
+    // Cola normal para GETs
     this.queue = new PQueue({
       concurrency: 2,
       interval: 2000, // Intervalo de 2 segundos
       intervalCap: 1, // Máximo 1 petición por intervalo
+    });
+
+    // Cola prioritaria para mutaciones (PUT/POST/PATCH/DELETE)
+    this.highPriorityQueue = new PQueue({
+      concurrency: 2,
+      interval: 1000, // Mutaciones más rápidas
+      intervalCap: 1,
     });
 
     this.pendingRequests = new Map();
@@ -76,7 +85,27 @@ class ApiRateLimiter {
   }
 
   private async toSharedResponse(res: Response): Promise<SharedResponse> {
-    const body = await res.arrayBuffer();
+    let body = await res.arrayBuffer();
+
+    // If the response is JSON, attempt to sanitize string fields to fix mojibake
+    try {
+      const contentType = res.headers.get('content-type') || '';
+      if (contentType.toLowerCase().includes('application/json') && typeof TextDecoder !== 'undefined' && typeof TextEncoder !== 'undefined') {
+        const text = new TextDecoder('utf-8').decode(body);
+        // Try to parse JSON and sanitize strings recursively
+        try {
+          const parsed = JSON.parse(text);
+          const sanitized = sanitizeObjectStrings(parsed);
+          const retext = JSON.stringify(sanitized);
+          body = new TextEncoder().encode(retext).buffer as ArrayBuffer;
+        } catch (e) {
+          // If JSON parse fails, leave body untouched
+        }
+      }
+    } catch (e) {
+      // ignore errors in sanitization
+    }
+
     return {
       status: res.status,
       statusText: res.statusText,
@@ -93,6 +122,87 @@ class ApiRateLimiter {
       statusText: shared.statusText,
       headers: shared.headers,
     });
+  }
+
+  /**
+   * Normaliza headers para asegurar casing consistente de X-Skip-Cache
+   */
+  private normalizeHeaders(init?: RequestInit): Headers {
+    const h = new Headers(init?.headers || {});
+    // Asegurar que x-skip-cache (minúsculas) se mueva a X-Skip-Cache
+    const lower = h.get('x-skip-cache');
+    if (lower && !h.get('X-Skip-Cache')) {
+      h.set('X-Skip-Cache', lower);
+      h.delete('x-skip-cache');
+    }
+    return h;
+  }
+
+  /**
+   * Detecta si una petición debe omitir cache (X-Skip-Cache o Cache-Control: no-store)
+   */
+  private hasSkipCache(headers?: HeadersInit): boolean {
+    const h = new Headers(headers || {});
+    const skipCache = h.get('X-Skip-Cache') || h.get('x-skip-cache');
+    const cacheControl = h.get('Cache-Control') || h.get('cache-control');
+    return skipCache === '1' || (cacheControl?.includes('no-store') ?? false);
+  }
+
+  /**
+   * Invalida cache por prefijo (útil después de mutaciones)
+   */
+  private invalidateCacheByPrefix(prefix: string): void {
+    let invalidated = 0;
+    for (const k of this.cache.keys()) {
+      if (k.startsWith(prefix)) {
+        this.cache.delete(k);
+        invalidated++;
+      }
+    }
+    if (invalidated > 0) {
+      console.log(`🗑️ [ApiRateLimiter] Invalidados ${invalidated} entries de cache con prefijo: ${prefix}`);
+    }
+  }
+
+  /**
+   * Invalida cache relacionado con mutaciones
+   */
+  private invalidateRelatedCache(url: string, method: string): void {
+    if (method === 'GET') return; // Solo mutaciones
+
+    try {
+      const urlObj = new URL(url);
+      const baseUrl = `${urlObj.protocol}//${urlObj.host}`;
+      
+      // Extraer userId de la URL si está presente
+      const userIdMatch = url.match(/userId=([^&]+)/);
+      const userId = userIdMatch ? userIdMatch[1] : null;
+
+      // Invalidar según el recurso mutado
+      if (url.includes('/recurrentes')) {
+        this.invalidateCacheByPrefix(`GET:${baseUrl}/recurrentes`);
+        if (userId) {
+          this.invalidateCacheByPrefix(`GET:${baseUrl}/recurrentes?userId=${userId}`);
+        }
+      }
+      
+      if (url.includes('/subcuenta')) {
+        this.invalidateCacheByPrefix(`GET:${baseUrl}/subcuenta`);
+        if (userId) {
+          this.invalidateCacheByPrefix(`GET:${baseUrl}/subcuenta/${userId}`);
+        }
+      }
+      
+      if (url.includes('/transacciones') || url.includes('/cuenta/principal')) {
+        this.invalidateCacheByPrefix(`GET:${baseUrl}/cuenta/principal`);
+        this.invalidateCacheByPrefix(`GET:${baseUrl}/transacciones`);
+        if (userId) {
+          this.invalidateCacheByPrefix(`GET:${baseUrl}/cuenta/principal/${userId}`);
+        }
+      }
+    } catch (e) {
+      console.warn('⚠️ [ApiRateLimiter] Error invalidando cache:', e);
+    }
   }
 
   private refreshing: Promise<string | null> | null = null;
@@ -125,7 +235,11 @@ class ApiRateLimiter {
     const authHeader = this.getHeaderValue(headers, 'authorization') || '';
     const authHash = authHeader ? this.hashString(authHeader) : '';
     const body = this.getBodyKey(options.body);
-    const cacheHint = this.shouldUseCache(options) ? 'cache' : 'no-cache';
+    
+    // Usar hasSkipCache para determinar el modo de cache
+    const skipCache = this.hasSkipCache(headers);
+    const cacheHint = (method === 'GET' && !skipCache) ? 'cache' : 'no-cache';
+    
     return `${method}:${url}:${authHash}:${cacheHint}:${body}`;
   }
 
@@ -172,14 +286,8 @@ class ApiRateLimiter {
     const method = options.method || 'GET';
     if (method !== 'GET') return false;
 
-    // Permitir forzar no-cache desde el caller
-    if ((options as any).cache === 'no-store') return false;
-
-    const cacheControl = this.getHeaderValue(options.headers, 'cache-control')?.toLowerCase();
-    if (cacheControl?.includes('no-store') || cacheControl?.includes('no-cache')) return false;
-
-    const skipCache = this.getHeaderValue(options.headers, 'x-skip-cache');
-    if (skipCache === '1' || skipCache?.toLowerCase() === 'true') return false;
+    // Usar helper hasSkipCache que normaliza headers
+    if (this.hasSkipCache(options.headers)) return false;
 
     return true;
   }
@@ -263,30 +371,40 @@ class ApiRateLimiter {
    * Ejecuta una petición con rate limiting estricto
    */
   async fetch(url: string, options: RequestInit = {}): Promise<Response> {
+    // Normalizar headers primero
+    const normalizedHeaders = this.normalizeHeaders(options);
+    
     // Ensure Authorization header exists: if caller didn't provide, attach current access token
+    // But DO NOT attach Authorization for auth endpoints (login/register/refresh)
     try {
-      const headersObj: any = Object.assign({}, options.headers || {});
-      if (!this.getHeaderValue(headersObj, 'authorization')) {
-        const token = await authService.getAccessToken();
-        if (token) headersObj.Authorization = `Bearer ${token}`;
+      if (!this.isAuthEndpoint(url)) {
+        if (!normalizedHeaders.get('Authorization') && !normalizedHeaders.get('authorization')) {
+          const token = await authService.getAccessToken();
+          if (token) normalizedHeaders.set('Authorization', `Bearer ${token}`);
+        }
       }
-      options = Object.assign({}, options, { headers: headersObj });
     } catch (e) {
       // ignore token attach errors
     }
 
+    // Actualizar options con headers normalizados
+    options = Object.assign({}, options, { headers: normalizedHeaders });
+
+    const method = options.method || 'GET';
+    const skipCache = this.hasSkipCache(normalizedHeaders);
     const key = this.getRequestKey(url, options);
     
     console.log('📨 [ApiRateLimiter] Nueva petición:', {
       key,
       url,
-      method: options.method || 'GET',
+      method,
+      skipCache,
       queueSize: this.queue.size,
       pending: this.queue.pending,
     });
 
-    // 1. Verificar cache (solo para GET y si no se deshabilitó)
-    if (this.shouldUseCache(options)) {
+    // 1. Verificar cache (solo para GET y si no se deshabilitó con skip-cache)
+    if (method === 'GET' && !skipCache) {
       const cached = this.getFromCache(key);
       if (cached) {
         // Retornar respuesta falsa desde cache
@@ -309,8 +427,11 @@ class ApiRateLimiter {
       throw new Error('Rate limit excedido. Por favor espera un momento.');
     }
 
-    // 4. Agregar a la cola
-    const sharedPromise = this.queue.add(async (): Promise<SharedResponse> => {
+    // 4. Agregar a la cola (prioritaria para mutaciones, normal para GETs)
+    const isMutation = method !== 'GET';
+    const targetQueue = isMutation ? this.highPriorityQueue : this.queue;
+    
+    const sharedPromise = targetQueue.add(async (): Promise<SharedResponse> => {
       // Esperar intervalo mínimo desde última petición
       const now = Date.now();
       const timeSinceLastRequest = now - this.lastRequestTime;
@@ -320,7 +441,7 @@ class ApiRateLimiter {
         await new Promise(resolve => setTimeout(resolve, waitTime));
       }
 
-      console.log('🚀 [ApiRateLimiter] Ejecutando petición:', key);
+      console.log(`🚀 [ApiRateLimiter] Ejecutando petición [${isMutation ? 'PRIORITY' : 'normal'}]:`, key);
       this.lastRequestTime = Date.now();
       this.requestHistory.push(this.lastRequestTime);
 
@@ -388,17 +509,25 @@ class ApiRateLimiter {
           throw new Error('Demasiadas peticiones. Por favor espera un momento.');
         }
 
-        // Guardar en cache si fue exitoso (leer del clone para evitar 'Already read')
-        if (response.ok && this.shouldUseCache(options)) {
-          try {
-            const sharedForCache = await this.toSharedResponse(response);
-            const cacheRes = this.fromSharedResponse(sharedForCache);
-            const data = await cacheRes.json();
-            this.saveToCache(key, data);
-            return sharedForCache;
-          } catch (cacheErr) {
-            console.warn('⚠️ [ApiRateLimiter] Error caching response:', cacheErr);
-            // Continuar sin cachear si falla
+        // Guardar en cache si fue exitoso Y no tiene skip-cache
+        if (response.ok) {
+          // Invalidar cache relacionado si fue una mutación exitosa
+          if (isMutation) {
+            this.invalidateRelatedCache(url, method);
+          }
+
+          // Solo cachear GETs sin skip-cache
+          if (method === 'GET' && !skipCache) {
+            try {
+              const sharedForCache = await this.toSharedResponse(response);
+              const cacheRes = this.fromSharedResponse(sharedForCache);
+              const data = await cacheRes.json();
+              this.saveToCache(key, data);
+              return sharedForCache;
+            } catch (cacheErr) {
+              console.warn('⚠️ [ApiRateLimiter] Error caching response:', cacheErr);
+              // Continuar sin cachear si falla
+            }
           }
         }
 
@@ -424,6 +553,7 @@ class ApiRateLimiter {
     this.pendingRequests.clear();
     this.requestHistory = [];
     this.queue.clear();
+    this.highPriorityQueue.clear();
   }
 
   /**
@@ -435,7 +565,9 @@ class ApiRateLimiter {
     
     return {
       queueSize: this.queue.size,
+      highPriorityQueueSize: this.highPriorityQueue.size,
       pending: this.queue.pending,
+      highPriorityPending: this.highPriorityQueue.pending,
       cacheSize: this.cache.size,
       requestsLastMinute: recentRequests,
       maxRequestsPerMinute: this.MAX_REQUESTS_PER_MINUTE,
