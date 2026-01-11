@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Dimensions, ActivityIndicator, Animated } from "react-native";
-import { LineChart } from "react-native-chart-kit";
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Dimensions, ActivityIndicator, Animated, StyleProp, ViewStyle } from "react-native";
+import { LineChart, BarChart, PieChart } from "react-native-chart-kit";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { analyticsService, AnalyticsFilters } from "../services/analyticsService";
@@ -23,6 +23,24 @@ const ExpensesChart: React.FC<ExpensesChartProps> = ({ refreshKey = 0 }) => {
   const [tipoSeleccionado, setTipoSeleccionado] = useState<TipoTransaccionFiltro>('ambos');
   const [loading, setLoading] = useState(true);
   const [analisisTemporalData, setAnalisisTemporalData] = useState<any>(null);
+
+  // Manejador inteligente para cambio de periodo
+  const handlePeriodoChange = (nuevoPeriodo: PeriodoFiltro) => {
+    setPeriodoSeleccionado(nuevoPeriodo);
+    // Si cambia a 'dia', forzar 'ambos' ya que la gráfica de pastel muestra ambos
+    if (nuevoPeriodo === 'dia' && tipoSeleccionado !== 'ambos') {
+      setTipoSeleccionado('ambos');
+    }
+  };
+
+  // Manejador inteligente para cambio de tipo
+  const handleTipoChange = (nuevoTipo: TipoTransaccionFiltro) => {
+    // Si está en 'dia' y se selecciona ingreso o egreso, cambiar a 'semana' automáticamente
+    if (periodoSeleccionado === 'dia' && nuevoTipo !== 'ambos') {
+      setPeriodoSeleccionado('semana');
+    }
+    setTipoSeleccionado(nuevoTipo);
+  };
   
   // 🚀 Cargar datos cacheados al montar para mostrar gráfica inmediatamente
   useEffect(() => {
@@ -191,6 +209,79 @@ const ExpensesChart: React.FC<ExpensesChartProps> = ({ refreshKey = 0 }) => {
       });
     }
 
+    // Para periodo 'dia' mostraremos una gráfica de pastel con proporción de Ingresos vs Egresos
+    if (periodoSeleccionado === 'dia') {
+      const ingresos = analisisTemporalData.datos.map((d: any) => Number(d.ingresos || 0));
+      const gastos = analisisTemporalData.datos.map((d: any) => Math.abs(Number(d.gastos || 0)));
+      const totalIngresos = ingresos.reduce((s: number, v: number) => s + (v || 0), 0);
+      const totalGastos = gastos.reduce((s: number, v: number) => s + (v || 0), 0);
+
+      const pieData: any[] = [];
+      if ((tipoSeleccionado === 'ambos' || tipoSeleccionado === 'ingreso') && totalIngresos > 0) {
+        pieData.push({ name: 'Ingresos', population: totalIngresos, color: '#4CAF50', legendFontColor: colors.text, legendFontSize: 12 });
+      }
+      if ((tipoSeleccionado === 'ambos' || tipoSeleccionado === 'egreso') && totalGastos > 0) {
+        pieData.push({ name: 'Egresos', population: totalGastos, color: '#F44336', legendFontColor: colors.text, legendFontSize: 12 });
+      }
+
+      if (pieData.length === 0) {
+        return (
+          <View style={styles.chartContainer}>
+            <View style={{ flexDirection: 'row', gap: 12, marginBottom: 8 }}>
+              <Text style={{ color: colors.text, fontWeight: '600' }}>No hay valores para mostrar</Text>
+            </View>
+            <View style={styles.emptyChart}>
+              <Ionicons name="analytics-outline" size={48} color="#e0e0e0" />
+              <Text style={styles.emptyText}>No hay datos para mostrar</Text>
+            </View>
+          </View>
+        );
+      }
+
+      // calcular anchos para la tarta y la leyenda, evitando recortes
+      const legendWidth = Math.min(140, Math.floor(CHART_WIDTH * 0.35));
+      const pieWidth = Math.max(160, Math.min(CHART_WIDTH - legendWidth - 24, 300));
+
+      return (
+        <View style={styles.chartContainer}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12 }}>
+            <View style={{ width: pieWidth, alignItems: 'center', justifyContent: 'center' }}>
+              <PieChart
+                data={pieData.map(item => ({ ...item, legendFontColor: 'transparent', legendFontSize: 0 }))}
+                width={pieWidth}
+                height={220}
+                chartConfig={{
+                  backgroundColor: 'transparent',
+                  backgroundGradientFrom: colors.chartBackground,
+                  backgroundGradientTo: colors.chartBackground,
+                  color: (opacity = 1) => `rgba(255, 255, 255, ${opacity})`,
+                  labelColor: (opacity = 1) => `rgba(255, 255, 255, ${opacity})`,
+                }}
+                accessor="population"
+                backgroundColor="transparent"
+                paddingLeft="50"
+                center={[0, 0]}
+                absolute
+                hasLegend={false}
+              />
+            </View>
+
+            <View style={{ width: legendWidth, paddingLeft: 12, justifyContent: 'center' }}>
+              {pieData.map((item) => (
+                <View key={item.name} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+                  <View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: item.color, marginRight: 10 }} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: colors.text, fontWeight: '600' }}>{item.name}</Text>
+                    <Text style={{ color: colors.textSecondary, fontSize: 12 }}>{`$${Number(item.population).toLocaleString('es-MX', { minimumFractionDigits: 2 })}`}</Text>
+                  </View>
+                </View>
+              ))}
+            </View>
+          </View>
+        </View>
+      );
+    }
+
     return (
       <View style={styles.chartContainer}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -224,7 +315,7 @@ const ExpensesChart: React.FC<ExpensesChartProps> = ({ refreshKey = 0 }) => {
               },
             }}
             bezier
-            style={styles.chart}
+            style={StyleSheet.flatten(styles.chart) as ViewStyle}
             withInnerLines={true}
             withOuterLines={false}
             withShadow={false}
@@ -260,7 +351,7 @@ const ExpensesChart: React.FC<ExpensesChartProps> = ({ refreshKey = 0 }) => {
                 { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow },
                 periodoSeleccionado === periodo && styles.filterChipActive,
               ]}
-              onPress={() => setPeriodoSeleccionado(periodo)}
+              onPress={() => handlePeriodoChange(periodo)}
               activeOpacity={0.7}
             >
               <Text
@@ -277,24 +368,30 @@ const ExpensesChart: React.FC<ExpensesChartProps> = ({ refreshKey = 0 }) => {
         </View>
 
         <View style={styles.filterGroup}>
-          {(['ingreso', 'egreso', 'ambos'] as TipoTransaccionFiltro[]).map((tipo) => (
-            <TouchableOpacity
-              key={tipo}
-              style={[
-                styles.filterChip,
-                { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow },
-                tipoSeleccionado === tipo && styles.filterChipActive,
-              ]}
-              onPress={() => setTipoSeleccionado(tipo)}
-              activeOpacity={0.7}
-            >
-              <Ionicons
-                name={tipo === 'ingreso' ? 'arrow-up' : tipo === 'egreso' ? 'arrow-down' : 'swap-vertical'}
-                size={12}
-                color={tipoSeleccionado === tipo ? '#fff' : colors.textTertiary}
-              />
-            </TouchableOpacity>
-          ))}
+          {(['ingreso', 'egreso', 'ambos'] as TipoTransaccionFiltro[]).map((tipo) => {
+            // Deshabilitar ingreso/egreso cuando está en modo 'dia'
+            const isDisabled = periodoSeleccionado === 'dia' && tipo !== 'ambos';
+            return (
+              <TouchableOpacity
+                key={tipo}
+                style={[
+                  styles.filterChip,
+                  { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow },
+                  tipoSeleccionado === tipo && styles.filterChipActive,
+                  isDisabled && { opacity: 0.3 },
+                ]}
+                onPress={() => !isDisabled && handleTipoChange(tipo)}
+                activeOpacity={isDisabled ? 1 : 0.7}
+                disabled={isDisabled}
+              >
+                <Ionicons
+                  name={tipo === 'ingreso' ? 'arrow-up' : tipo === 'egreso' ? 'arrow-down' : 'swap-vertical'}
+                  size={12}
+                  color={tipoSeleccionado === tipo ? '#fff' : colors.textTertiary}
+                />
+              </TouchableOpacity>
+            );
+          })}
         </View>
       </View>
 
