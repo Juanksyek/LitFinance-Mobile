@@ -4,7 +4,7 @@ import FormInput from "../components/FormInput";
 import { useThemeColors } from "../theme/useThemeColors";
 import { useNavigation, useRoute, NavigationProp, RouteProp } from "@react-navigation/native";
 import { RootStackParamList } from "../navigation/AppNavigator";
-import axios from "axios";
+import { apiRateLimiter } from "../services/apiRateLimiter";
 import Toast from "react-native-toast-message";
 import { API_BASE_URL } from "../constants/api";
 
@@ -44,13 +44,22 @@ const ResetPasswordScreen: React.FC = () => {
     setCanResend(false);
     setTimer(60);
     try {
-      await axios.post(`${API_BASE_URL}/auth/forgot-password`, { email });
-      Toast.show({ type: "success", text1: "Correo reenviado", text2: "Revisa tu correo nuevamente." });
+      const response = await apiRateLimiter.fetch(`${API_BASE_URL}/auth/forgot-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      if (response.ok) {
+        Toast.show({ type: "success", text1: "Correo reenviado", text2: "Revisa tu correo nuevamente." });
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || 'No se pudo reenviar');
+      }
     } catch (error: any) {
       Toast.show({
         type: "error",
         text1: "Error",
-        text2: error.response?.data?.message || "No se pudo reenviar el correo.",
+        text2: error.message || "No se pudo reenviar el correo.",
       });
     }
   };
@@ -64,14 +73,24 @@ const ResetPasswordScreen: React.FC = () => {
     }
     try {
       const payload = { email, code, newPassword, confirmPassword };
-      await axios.post(`${API_BASE_URL}/auth/reset-password`, payload);
+      const response = await apiRateLimiter.fetch(`${API_BASE_URL}/auth/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Error al actualizar');
+      }
+
       Toast.show({ type: "success", text1: "Contraseña actualizada", text2: "Ya puedes iniciar sesión." });
       navigation.navigate("Login");
     } catch (error: any) {
       Toast.show({
         type: "error",
         text1: "Error",
-        text2: error.response?.data?.message || "No se pudo actualizar la contraseña.",
+        text2: error.message || "No se pudo actualizar la contraseña.",
       });
     }
   };
