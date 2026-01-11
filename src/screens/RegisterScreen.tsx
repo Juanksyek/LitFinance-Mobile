@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView, Image, Modal } from 'react-native';
-import axios from 'axios';
+import React, { useState, useEffect, useMemo } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView, Image, Modal, TextInput, FlatList } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { apiRateLimiter } from '../services/apiRateLimiter';
 import Toast from 'react-native-toast-message';
 import { Ionicons } from '@expo/vector-icons';
 import FormInput from '../components/FormInput';
@@ -8,6 +9,7 @@ import { useThemeColors } from '../theme/useThemeColors';
 import { useNavigation } from '@react-navigation/native';
 import { API_BASE_URL } from '../constants/api';
 import { monedasPredefinidas, Moneda } from '../constants/monedas';
+import ocupaciones from '../constants/ocupaciones.json';
 const getPasswordStrength = (password: string) => {
   if (password.length < 6) return 'Débil';
   if (!/[A-Z]/.test(password) || !/[0-9]/.test(password)) return 'Media';
@@ -32,25 +34,56 @@ const RegisterScreen: React.FC = () => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [monedas, setMonedas] = useState<Moneda[]>(monedasPredefinidas);
   const [monedaModalVisible, setMonedaModalVisible] = useState(false);
+  const [monedaSearch, setMonedaSearch] = useState('');
+  const [ocupacionesModalVisible, setOcupacionesModalVisible] = useState(false);
+  const [ocupSearch, setOcupSearch] = useState('');
 
   const handleChange = (key: keyof typeof form, value: string | boolean) => {
     setForm(prev => ({ ...prev, [key]: value }));
   };
 
+  const filteredOcupaciones = useMemo(() => {
+    const q = ocupSearch.trim().toLowerCase();
+    if (!q) return ocupaciones;
+    return ocupaciones.filter((o: string) => o.toLowerCase().includes(q));
+  }, [ocupSearch]);
+
+  const selectOcupacion = (o: string) => {
+    handleChange('ocupacion', o);
+    setOcupacionesModalVisible(false);
+    setOcupSearch('');
+  };
+
+  // debug: if occupations list empty, log to help diagnose
+  if (!Array.isArray(ocupaciones) || ocupaciones.length === 0) {
+    // only log in dev
+    // eslint-disable-next-line no-console
+    console.log('Advertencia: lista de ocupaciones vacía o no es un arreglo', ocupaciones);
+  }
+
   const fetchMonedas = async () => {
     try {
       console.log('Obteniendo monedas desde: /monedas/catalogo');
-      const response = await axios.get(`${API_BASE_URL}/monedas/catalogo`);
+      const response = await apiRateLimiter.fetch(`${API_BASE_URL}/monedas/catalogo`);
       
-      if (response.data && Array.isArray(response.data)) {
-        setMonedas(response.data);
-        return;
+      if (response.ok) {
+        const data = await response.json();
+        if (Array.isArray(data)) {
+          setMonedas(data);
+          return;
+        }
       }
     } catch (error: any) {
-      console.log(`Error obteniendo monedas:`, error.response?.status || error.message);
+      console.log(`Error obteniendo monedas:`, error.message);
     }
     setMonedas(monedasPredefinidas);
   };
+
+  const filteredMonedas = useMemo(() => {
+    const q = monedaSearch.trim().toLowerCase();
+    if (!q) return monedas;
+    return monedas.filter(m => ((m.nombre || '') + ' ' + (m.codigo || '')).toLowerCase().includes(q));
+  }, [monedaSearch, monedas]);
 
   useEffect(() => {
     fetchMonedas();
@@ -67,17 +100,38 @@ const RegisterScreen: React.FC = () => {
       : '#EF4444';
 
   const handleRegister = async () => {
-    if (
-      !form.email || !form.password || !form.confirmPassword ||
-      !form.nombreCompleto || !form.edad || !form.ocupacion
-    ) {
+    // Validaciones estrictas
+    if (!form.email || !form.password || !form.confirmPassword || !form.nombreCompleto) {
       return Toast.show({
         type: 'error',
         text1: 'Campos requeridos',
         text2: 'Completa todos los campos.',
       });
     }
-
+    // Normalizar y validar `edad`: entero dentro del rango aceptable
+    const EDAD_MIN = 13;
+    const EDAD_MAX = 100;
+    const edadTrim = (form.edad || '').toString().trim();
+    const edadNum = Number(edadTrim);
+    if (!edadTrim) {
+      return Toast.show({ type: 'error', text1: 'Edad requerida', text2: 'Ingresa tu edad.' });
+    }
+    if (!Number.isFinite(edadNum) || Number.isNaN(edadNum)) {
+      return Toast.show({ type: 'error', text1: 'Edad inválida', text2: 'Ingresa un número válido para la edad.' });
+    }
+    if (!Number.isInteger(edadNum)) {
+      return Toast.show({ type: 'error', text1: 'Edad inválida', text2: 'La edad debe ser un número entero.' });
+    }
+    if (edadNum < EDAD_MIN || edadNum > EDAD_MAX) {
+      return Toast.show({ type: 'error', text1: 'Edad fuera de rango', text2: `La edad debe estar entre ${EDAD_MIN} y ${EDAD_MAX} años.` });
+    }
+    if (!form.ocupacion || !form.ocupacion.trim()) {
+      return Toast.show({
+        type: 'error',
+        text1: 'Ocupación requerida',
+        text2: 'Ingresa tu ocupación.',
+      });
+    }
     if (!passwordsMatch) {
       return Toast.show({
         type: 'error',
@@ -91,12 +145,21 @@ const RegisterScreen: React.FC = () => {
         password: form.password,
         confirmPassword: form.confirmPassword,
         nombreCompleto: form.nombreCompleto,
-        edad: parseInt(form.edad, 10),
-        ocupacion: form.ocupacion,
+        edad: Number(form.edad),
+        ocupacion: form.ocupacion.trim(),
         monedaPrincipal: form.monedaPrincipal,
       };
 
-      await axios.post(`${API_BASE_URL}/auth/register`, payload);
+      const response = await apiRateLimiter.fetch(`${API_BASE_URL}/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Error al registrar');
+      }
 
       Toast.show({
         type: 'success',
@@ -109,7 +172,7 @@ const RegisterScreen: React.FC = () => {
       Toast.show({
         type: 'error',
         text1: 'Error al registrar',
-        text2: error.response?.data?.message || 'Intenta más tarde.',
+        text2: error.message || 'Intenta más tarde.',
       });
     }
   };
@@ -163,16 +226,23 @@ const RegisterScreen: React.FC = () => {
                 </View>
               </View>
               <View style={[styles.rowInput, styles.inputContainer]}>
-                <View style={[styles.inputWrapper, { backgroundColor: colors.background }]}>
-                  <FormInput
-                    placeholder="Ocupación"
-                    value={form.ocupacion}
-                    onChangeText={(v) => handleChange('ocupacion', v)}
-                    style={[styles.input, { borderWidth: 0 }]}
-                  />
-                </View>
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  style={[styles.inputWrapper, { backgroundColor: colors.background }]}
+                  onPress={() => setOcupacionesModalVisible(true)}
+                >
+                  <View style={[styles.selectInner, { paddingHorizontal: 16, paddingVertical: 12 }]}>
+                    <Text style={[styles.selectValue, { color: form.ocupacion ? colors.text : colors.placeholder }]}> 
+                      {form.ocupacion || 'Ocupación'}
+                    </Text>
+                    <View style={styles.selectIcon}>
+                      <Ionicons name="chevron-down" size={20} color={colors.placeholder} />
+                    </View>
+                  </View>
+                </TouchableOpacity>
               </View>
             </View>
+            <Text style={[styles.ageHint, { color: colors.placeholder }]}>Debes ingresar un número entero entre 13 y 100.</Text>
           </View>
 
           <View style={styles.section}>
@@ -277,19 +347,19 @@ const RegisterScreen: React.FC = () => {
               <Text style={[styles.sectionTitle, { color: colors.text }]}>Preferencias</Text>
             </View>
             
-            <TouchableOpacity 
-              style={[styles.monedaSelector, styles.neumorphicSelector, { backgroundColor: colors.card, borderColor: colors.border }]}
+            <TouchableOpacity
+              activeOpacity={0.8}
+              style={[styles.inputWrapper, { backgroundColor: colors.background }]}
               onPress={() => setMonedaModalVisible(true)}
             >
-              <View style={styles.monedaSelectorContent}>
-                <Ionicons name="card-outline" size={20} color="#6B7280" style={styles.monedaIcon} />
-                <Text style={[styles.monedaText, { color: colors.text }]}>
-                  {monedas.find(m => m.codigo === form.monedaPrincipal)?.nombre || form.monedaPrincipal}
-                </Text>
-              </View>
-              <View style={[styles.chevronContainer, { backgroundColor: colors.inputBackground }]}>
-                <Ionicons name="chevron-down" size={20} color={colors.placeholder} />
-              </View>
+                <View style={[styles.selectInner, { paddingHorizontal: 16, paddingVertical: 12 }]}>
+                  <Text style={[styles.selectValue, { color: colors.text }]}>
+                    {monedas.find(m => m.codigo === form.monedaPrincipal)?.nombre || form.monedaPrincipal}
+                  </Text>
+                  <View style={styles.selectIcon}>
+                    <Ionicons name="chevron-down" size={20} color={colors.placeholder} />
+                  </View>
+                </View>
             </TouchableOpacity>
           </View>
 
@@ -334,41 +404,127 @@ const RegisterScreen: React.FC = () => {
                 </View>
                 <Text style={[styles.modalWarning, { color: '#EF7725' }]}>⚠️ Esta moneda no se podrá cambiar después</Text>
               </View>
-              <ScrollView style={styles.modalScroll}>
-                {monedas.map((moneda) => (
-                  <TouchableOpacity
-                    key={moneda.codigo}
-                    style={[
-                      styles.monedaOption,
-                      { backgroundColor: colors.inputBackground },
-                      form.monedaPrincipal === moneda.codigo && [styles.selectedMonedaOption, { backgroundColor: colors.cardSecondary, borderColor: colors.border }]
-                    ]}
-                    onPress={() => {
-                      handleChange('monedaPrincipal', moneda.codigo);
-                      setMonedaModalVisible(false);
-                    }}
-                  >
-                    <View style={styles.monedaOptionContent}>
-                      <View style={[styles.monedaSymbol, { backgroundColor: colors.background }]}>
-                        <Text style={[styles.symbolText, { color: colors.textSecondary }]}>{moneda.simbolo}</Text>
-                      </View>
-                      <View style={styles.monedaInfo}>
-                        <Text style={[styles.monedaOptionText, { color: colors.text }]}>
-                          {moneda.nombre}
-                        </Text>
-                        <Text style={[styles.monedaCode, { color: colors.placeholder }]}>
-                          {moneda.codigo}
-                        </Text>
-                      </View>
-                    </View>
-                    {form.monedaPrincipal === moneda.codigo && (
-                      <View style={styles.checkIcon}>
-                        <Ionicons name="checkmark" size={20} color="#10B981" />
+              <View style={{ padding: 12 }}>
+                <TextInput
+                  placeholder="Buscar moneda..."
+                  value={monedaSearch}
+                  onChangeText={setMonedaSearch}
+                  style={[styles.searchInput, { backgroundColor: colors.inputBackground, color: colors.text }]}
+                  placeholderTextColor={colors.placeholder}
+                />
+                <View style={styles.modalListWrapper}>
+                  <FlatList
+                    data={filteredMonedas}
+                    keyExtractor={(item) => item.codigo}
+                    contentContainerStyle={{ paddingBottom: 32 }}
+                    style={{ height: 320 }}
+                    ListEmptyComponent={() => (
+                      <View style={{ padding: 16 }}>
+                        <Text style={{ color: colors.placeholder }}>No se encontraron monedas.</Text>
                       </View>
                     )}
+                    renderItem={({ item: moneda }) => (
+                      <TouchableOpacity
+                        key={moneda.codigo}
+                        style={[
+                          styles.ocupacionItem,
+                          { backgroundColor: colors.inputBackground },
+                          form.monedaPrincipal === moneda.codigo && { backgroundColor: colors.cardSecondary, borderColor: colors.border }
+                        ]}
+                        onPress={() => {
+                          handleChange('monedaPrincipal', moneda.codigo);
+                          setMonedaModalVisible(false);
+                          setMonedaSearch('');
+                        }}
+                      >
+                        <View style={styles.monedaOptionContent}>
+                          <View style={[styles.monedaSymbol, { backgroundColor: colors.background }]}>
+                            <Text style={[styles.symbolText, { color: colors.textSecondary }]}>{moneda.simbolo}</Text>
+                          </View>
+                          <View style={styles.monedaInfo}>
+                            <Text style={[styles.monedaOptionText, { color: colors.text }]}>
+                              {moneda.nombre}
+                            </Text>
+                            <Text style={[styles.monedaCode, { color: colors.placeholder }]}> {moneda.codigo} </Text>
+                          </View>
+                        </View>
+                        {form.monedaPrincipal === moneda.codigo && (
+                          <View style={styles.checkIcon}>
+                            <Ionicons name="checkmark" size={20} color="#10B981" />
+                          </View>
+                        )}
+                      </TouchableOpacity>
+                    )}
+                  />
+                  <LinearGradient
+                    colors={["transparent", "rgba(0,0,0,0.12)"]}
+                    style={styles.modalBottomGradient}
+                    pointerEvents="none"
+                  />
+                </View>
+              </View>
+            </View>
+          </View>
+        </Modal>
+        <Modal
+          visible={ocupacionesModalVisible}
+          animationType="fade"
+          transparent
+          onRequestClose={() => setOcupacionesModalVisible(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalContainer, styles.neumorphicModal, { backgroundColor: colors.card }]}>
+              <View style={[styles.modalHeaderContainer, { borderBottomColor: colors.border }]}>
+                <View style={styles.modalHeaderRow}>
+                  <Text style={[styles.modalTitle, { color: colors.text }]}>Seleccionar Ocupación</Text>
+                  <TouchableOpacity 
+                    style={[styles.closeButton, { backgroundColor: colors.inputBackground }]}
+                    onPress={() => setOcupacionesModalVisible(false)}
+                  >
+                    <Ionicons name="close" size={24} color={colors.text} />
                   </TouchableOpacity>
-                ))}
-              </ScrollView>
+                </View>
+              </View>
+              <View style={{ padding: 12 }}>
+                <TextInput
+                  placeholder="Buscar ocupación..."
+                  value={ocupSearch}
+                  onChangeText={setOcupSearch}
+                  style={[styles.searchInput, { backgroundColor: colors.inputBackground, color: colors.text }]}
+                  placeholderTextColor={colors.placeholder}
+                />
+                <View style={styles.modalListWrapper}>
+                  <FlatList
+                    data={filteredOcupaciones}
+                    keyExtractor={(item) => item}
+                    contentContainerStyle={{ paddingBottom: 32 }}
+                    style={{ height: 320 }}
+                    ListEmptyComponent={() => (
+                      <View style={{ padding: 16 }}>
+                        <Text style={{ color: colors.placeholder }}>No se encontraron ocupaciones.</Text>
+                      </View>
+                    )}
+                    renderItem={({ item }) => (
+                      <TouchableOpacity
+                        onPress={() => selectOcupacion(item)}
+                        activeOpacity={0.8}
+                        style={[
+                          styles.ocupacionItem,
+                          { backgroundColor: colors.inputBackground },
+                          form.ocupacion === item && { backgroundColor: colors.cardSecondary, borderColor: colors.border }
+                        ]}
+                      >
+                        <Text style={[styles.ocupacionText, { color: colors.text }]}>{item}</Text>
+                      </TouchableOpacity>
+                    )}
+                  />
+                  <LinearGradient
+                    colors={["transparent", "rgba(0,0,0,0.12)"]}
+                    style={styles.modalBottomGradient}
+                    pointerEvents="none"
+                  />
+                </View>
+              </View>
             </View>
           </View>
         </Modal>
@@ -479,6 +635,24 @@ const styles = StyleSheet.create({
     elevation: 3,
     borderWidth: 1,
     borderColor: 'rgba(0, 0, 0, 0.05)',
+  },
+  selectInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderRadius: 12,
+    height: 53,
+    flex: 1,
+  },
+  selectValue: {
+    fontSize: 16,
+    fontWeight: '500',
+    flex: 1,
+  },
+  selectIcon: {
+    marginLeft: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   iconButton: {
     padding: 4,
@@ -700,6 +874,49 @@ const styles = StyleSheet.create({
     backgroundColor: '#DCFCE7',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  searchInput: {
+    height: 44,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    fontSize: 15,
+    fontWeight: '500',
+    marginBottom: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  modalListWrapper: {
+    height: 320,
+    position: 'relative',
+  },
+  ocupacionItem: {
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    marginBottom: 10,
+  },
+  ocupacionText: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  ageHint: {
+    fontSize: 12,
+    fontWeight: '500',
+    marginTop: -8,
+    marginBottom: 16,
+    paddingHorizontal: 4,
+  },
+  modalBottomGradient: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 36,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
   },
 });
 
