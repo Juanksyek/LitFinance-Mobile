@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, StatusBar, TextInput, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, StatusBar, TextInput, Dimensions, KeyboardAvoidingView, Platform, findNodeHandle, UIManager, Keyboard } from 'react-native';
 import { RouteProp, useRoute, useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import EditSubaccountModal from '../components/EditSubaccountModal';
@@ -68,6 +68,32 @@ const SubaccountDetail = () => {
   const isMountedRef = useRef(true);
   const abortControllerRef = useRef<AbortController | null>(null);
   const lastFetchRef = useRef<number>(0);
+  // Refs para control de scroll y búsqueda
+  const scrollRef = useRef<ScrollView | null>(null);
+  const searchContainerRef = useRef<View | null>(null);
+
+  const scrollToSearch = () => {
+    try {
+      const searchNode = findNodeHandle(searchContainerRef.current as any);
+      const scrollNode = findNodeHandle(scrollRef.current as any);
+      if (searchNode && scrollNode && UIManager.measureLayout) {
+        UIManager.measureLayout(
+          searchNode,
+          scrollNode,
+          () => {},
+          (left: number, top: number, width: number, height: number) => {
+            const offset = Math.max(0, top - 20);
+            scrollRef.current?.scrollTo({ y: offset, animated: true });
+          }
+        );
+      } else {
+        scrollRef.current?.scrollTo({ y: 0, animated: true });
+      }
+    } catch (e) {
+      // ignore measurement errors
+      scrollRef.current?.scrollTo({ y: 0, animated: true });
+    }
+  };
 
   // Cleanup al desmontar
   useEffect(() => {
@@ -485,7 +511,7 @@ const SubaccountDetail = () => {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.background }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
       <View style={[styles.headerContainer, { backgroundColor: colors.background, borderBottomColor: colors.border, shadowColor: colors.shadow }]}>
@@ -526,7 +552,7 @@ const SubaccountDetail = () => {
         </View>
       </View>
 
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+      <ScrollView ref={scrollRef} style={styles.scrollView} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         <View style={[styles.balanceCard, { backgroundColor: colors.card, shadowColor: colors.shadow }]} key={subcuenta.updatedAt}>
           <Text style={[styles.balanceLabel, { color: colors.textSecondary }]}>Saldo actual</Text>
 
@@ -633,7 +659,7 @@ const SubaccountDetail = () => {
         <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow }]}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Movimientos</Text>
           <View style={styles.sectionContent}>
-            <View style={styles.searchContainer}>
+            <View ref={searchContainerRef} style={styles.searchContainer}>
               <Ionicons name="search-outline" size={20} color={colors.textSecondary} style={styles.searchIcon} />
               <TextInput
                 placeholder="Buscar en historial..."
@@ -642,6 +668,7 @@ const SubaccountDetail = () => {
                   setPagina(1);
                   setBusqueda(text);
                 }}
+                onFocus={scrollToSearch}
                 style={[styles.searchInput, { backgroundColor: colors.inputBackground, borderColor: colors.border, color: colors.text }]}
                 placeholderTextColor={colors.placeholder}
               />
@@ -864,7 +891,7 @@ const SubaccountDetail = () => {
         title="Eliminar Subcuenta"
         message="¿Estás seguro de que deseas eliminar esta Subcuenta? Esta acción no se puede deshacer."
       />
-    </View>
+    </KeyboardAvoidingView>
   );
 };
 
