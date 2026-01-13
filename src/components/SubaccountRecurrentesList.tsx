@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { authService } from '../services/authService';
 import { View, Text, FlatList, StyleSheet, TouchableOpacity, ActivityIndicator, Dimensions } from 'react-native';
 import { API_BASE_URL } from '../constants/api';
 import { Ionicons } from '@expo/vector-icons';
@@ -47,7 +48,7 @@ const SubaccountRecurrentesList = ({ subcuentaId, userId, onRefresh }: Props) =>
   const fetchRecurrentes = async () => {
     try {
       setLoading(true);
-      const token = await AsyncStorage.getItem('authToken');
+      const token = await authService.getAccessToken();
       const res = await fetch(`${API_BASE_URL}/recurrentes?userId=${userId}&subcuentaId=${subcuentaId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -66,7 +67,7 @@ const SubaccountRecurrentesList = ({ subcuentaId, userId, onRefresh }: Props) =>
 
   const handleDelete = async () => {
     try {
-      const token = await AsyncStorage.getItem('authToken');
+      const token = await authService.getAccessToken();
       await fetch(`${API_BASE_URL}/recurrentes/${selectedId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
@@ -109,7 +110,7 @@ const SubaccountRecurrentesList = ({ subcuentaId, userId, onRefresh }: Props) =>
   }
 
   return (
-    <View style={[styles.wrapper, { backgroundColor: colors.inputBackground, shadowColor: colors.shadow }]}>
+    <View style={[styles.wrapper, { backgroundColor: colors.inputBackground, shadowColor: colors.shadow }]}> 
       <Text style={[styles.title, { color: colors.text }]}>Recurrentes</Text>
       <FlatList
         data={recurrentes}
@@ -117,7 +118,7 @@ const SubaccountRecurrentesList = ({ subcuentaId, userId, onRefresh }: Props) =>
         renderItem={({ item }) => (
           <TouchableOpacity
             onPress={() => navigation.navigate('RecurrenteDetail', { recurrente: { ...item, pausado: item.pausado ?? false } })}
-            style={[styles.card, { borderColor: colors.button, backgroundColor: colors.card }]}
+            style={[styles.card, { borderColor: colors.button, backgroundColor: colors.card, alignSelf: 'center', maxWidth: 180, minWidth: 140, width: '90%' }]}
           >
             <View>
               <Text style={[styles.nombre, { color: colors.text }]} numberOfLines={1}>{item.nombre}</Text>
@@ -135,7 +136,7 @@ const SubaccountRecurrentesList = ({ subcuentaId, userId, onRefresh }: Props) =>
         )}
         scrollEnabled={false}
         numColumns={2}
-        columnWrapperStyle={{ justifyContent: 'space-between', marginBottom: 14 }}
+        columnWrapperStyle={{ justifyContent: 'center', marginBottom: 14 }}
         contentContainerStyle={{ paddingBottom: 16 }}
       />
     </View>
@@ -157,12 +158,22 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   card: {
-    width: (width - 64) / 2 - 8,
-    height: 100,
-    padding: 12,
-    borderRadius: 10,
+    minWidth: 140,
+    maxWidth: 170,
+    flex: 1,
+    height: 90,
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+    borderRadius: 12,
     borderWidth: 2,
     justifyContent: 'space-between',
+    marginHorizontal: 4,
+    backgroundColor: '#23272F', // más contraste
+    borderColor: '#F59E0B', // naranja más vivo
+    shadowColor: '#F59E0B',
+    shadowOpacity: 0.10,
+    shadowRadius: 6,
+    elevation: 2,
   },
   nombre: {
     fontSize: 12,
@@ -173,17 +184,17 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   badge: {
-    backgroundColor: '#E0E7FF',
+    backgroundColor: '#FDE68A', // amarillo suave
     alignSelf: 'flex-start',
-    paddingHorizontal: 6,
+    paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 6,
     marginTop: 4,
   },
   badgeText: {
-    fontSize: 10,
-    color: '#3730A3',
-    fontWeight: '500',
+    fontSize: 11,
+    color: '#B45309', // naranja oscuro
+    fontWeight: '600',
   },
   iconActions: {
     position: 'absolute',
