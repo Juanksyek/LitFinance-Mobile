@@ -14,6 +14,7 @@ import SettingsScreen from '../screens/SettingsScreen';
 import SupportScreen from '../screens/SupportScreen';
 import CreateTicketScreen from '../screens/CreateTicketScreen';
 import TicketDetailScreen from '../screens/TicketDetailScreen';
+import AdminNotificationsScreen from '../screens/AdminNotificationsScreen';
 
 export type Subcuenta = {
   _id: string;
@@ -66,6 +67,7 @@ export type RootStackParamList = {
   Support: undefined;
   CreateTicket: undefined;
   TicketDetail: { ticketId: string };
+  AdminNotifications: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -87,6 +89,7 @@ export default function AppNavigator() {
       <Stack.Screen name="Support" component={SupportScreen} />
       <Stack.Screen name="CreateTicket" component={CreateTicketScreen} />
       <Stack.Screen name="TicketDetail" component={TicketDetailScreen} />
+      <Stack.Screen name="AdminNotifications" component={AdminNotificationsScreen} />
     </Stack.Navigator>
   );
 }
