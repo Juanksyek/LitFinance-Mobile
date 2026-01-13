@@ -90,6 +90,7 @@ const CreateTicketScreen: React.FC = () => {
     <KeyboardAvoidingView
       style={[styles.container, { backgroundColor: colors.background }]}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 80}
     >
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
@@ -103,7 +104,10 @@ const CreateTicketScreen: React.FC = () => {
 
       <ScrollView
         style={styles.content}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: Platform.OS === 'android' ? 140 : 40 },
+        ]}
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.infoCard}>
