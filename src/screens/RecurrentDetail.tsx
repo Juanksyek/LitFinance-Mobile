@@ -1,15 +1,18 @@
 import React, { useState, useCallback, useMemo, useRef, useEffect } from "react";
-import { View, Text, StyleSheet, StatusBar, Dimensions, Animated, Pressable, Platform, SafeAreaView, ScrollView } from "react-native";
+import { View, Text, StyleSheet, StatusBar, Dimensions, Animated, Pressable, Platform, SafeAreaView, ScrollView, ActivityIndicator } from "react-native";
 import { RouteProp, useRoute, useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import RecurrentModal from "../components/RecurrentModal";
 import { API_BASE_URL } from "../constants/api";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { authService } from "../services/authService";
 import Toast from "react-native-toast-message";
+import { emitRecurrentesChanged } from "../utils/dashboardRefreshBus";
 import { StackNavigationProp } from "@react-navigation/stack";
 import { RootStackParamList } from "../navigation/AppNavigator";
 import DeleteModal from "../components/DeleteModal";
 import { useThemeColors } from "../theme/useThemeColors";
+import apiRateLimiter from "../services/apiRateLimiter";
 
 const { width } = Dimensions.get("window");
 type RecurrenteDetailRouteProp = RouteProp<
@@ -29,6 +32,8 @@ type RecurrenteDetailRouteProp = RouteProp<
         userId?: string;
         cuentaId?: string;
         pausado?: boolean;
+        monedas?: string;
+        moneda?: string;
       };
     };
   },
@@ -155,6 +160,24 @@ const RecurrenteDetail = () => {
   const [modalVisible, setModalVisible] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
 
+  // Refs para prevención de memory leaks
+  const isMountedRef = useRef(true);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const lastOperationTimeRef = useRef<number>(0);
+
+  // Cleanup al desmontar
+  useEffect(() => {
+    isMountedRef.current = true;
+    
+    return () => {
+      console.log('🧹 [RecurrenteDetail] Limpiando componente...');
+      isMountedRef.current = false;
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
+
   const descripcionFrecuencia = useMemo(
     () => obtenerDescripcionFrecuencia(recurrente.frecuenciaTipo, recurrente.frecuenciaValor),
     [recurrente.frecuenciaTipo, recurrente.frecuenciaValor]
@@ -184,56 +207,144 @@ const RecurrenteDetail = () => {
     Animated.timing(progressAnim, { toValue: progreso, duration: 650, useNativeDriver: false }).start();
   }, [progreso]);
 
-  const formatCurrency = useCallback((amount: number, currency: string = "MXN") => {
-    return new Intl.NumberFormat("es-MX", { style: "currency", currency, minimumFractionDigits: 2 }).format(amount);
+  const formatCurrency = useCallback((amount: number, currency: string) => {
+    try {
+      return new Intl.NumberFormat("es-MX", { style: "currency", currency, minimumFractionDigits: 2 }).format(amount);
+    } catch {
+      return `${amount} ${currency}`;
+    }
   }, []);
   const showToast = useCallback((type: "success" | "error", text1: string, text2?: string) => {
     Toast.show({ type, text1, text2 });
   }, []);
-  const navigateToDashboard = useCallback(() => navigation.navigate("Dashboard", { updated: true }), [navigation]);
+  const navigateBackWithRecurrentesRefresh = useCallback(() => {
+    emitRecurrentesChanged();
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+    } else {
+      navigation.navigate("Dashboard", { updated: false } as any);
+    }
+  }, [navigation]);
 
   const toggleEstadoRecurrente = useCallback(async () => {
-    if (isUpdating) return;
+    // Crear un AbortController local para esta operación sin abortar peticiones previas
+    const controller = new AbortController();
+    const signal = controller.signal;
+
+    if (!isMountedRef.current) return;
+
+    // Mostrar estado de actualización (sin bloquear llamadas repetidas)
     setIsUpdating(true);
+
     try {
-      const token = await AsyncStorage.getItem("authToken");
-      if (!token) { showToast("error", "Error de autenticación", "No se encontró token de sesión"); return; }
+      const token = await authService.getAccessToken();
+      if (!token) { 
+        if (isMountedRef.current) {
+          showToast("error", "Error de autenticación", "No se encontró token de sesión"); 
+        }
+        return; 
+      }
+
       const endpoint = `${API_BASE_URL}/recurrentes/${recurrente.recurrenteId}/${recurrente.pausado ? "reanudar" : "pausar"}`;
-      const res = await fetch(endpoint, { method: "PUT", headers: { Authorization: `Bearer ${token}` } });
+
+      // Enviar la petición; permitimos que múltiples toggles se envíen sin cancelar previos
+      const res = await apiRateLimiter.fetch(endpoint, { 
+        method: "PUT", 
+        headers: { Authorization: `Bearer ${token}` },
+        signal,
+      });
+
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message || "Error al actualizar estado");
-      setRecurrente(prev => ({ ...prev, pausado: !prev.pausado }));
-      showToast("success", `Recurrente ${!recurrente.pausado ? "pausado" : "reanudado"} exitosamente`);
-      navigateToDashboard();
-    } catch (e) {
+
+      if (isMountedRef.current && !signal.aborted) {
+        // Actualizar estado local inmediatamente
+        setRecurrente(prev => ({ ...prev, pausado: !prev.pausado }));
+        showToast("success", `Recurrente ${!recurrente.pausado ? "pausado" : "reanudado"} exitosamente`);
+        // Emitir actualización dirigida para que el dashboard refresque la lista
+        emitRecurrentesChanged();
+      }
+    } catch (e: any) {
+      // Ignorar errores de abort
+      if (e.name === 'AbortError') {
+        console.log('🔄 [RecurrenteDetail] Toggle cancelado');
+        return;
+      }
       console.error(e);
-      showToast("error", "No se pudo actualizar el recurrente");
-    } finally { setIsUpdating(false); }
-  }, [isUpdating, recurrente.pausado, recurrente.recurrenteId, navigateToDashboard, showToast]);
+      if (isMountedRef.current) {
+        const errorMsg = e.message?.includes('Rate limit') || e.message?.includes('429') || e.message?.includes('Too Many')
+          ? '⚠️ Demasiadas operaciones. Espera un momento e intenta de nuevo'
+          : 'No se pudo actualizar el recurrente';
+        showToast("error", errorMsg);
+      }
+    } finally { 
+      if (isMountedRef.current) {
+        setIsUpdating(false); 
+      }
+    }
+  }, [recurrente.pausado, recurrente.recurrenteId, showToast]);
 
   const handleDelete = useCallback(async () => {
+    if (!isMountedRef.current) return;
+    
+    // Crear nuevo AbortController para esta operación
+    const controller = new AbortController();
+    const signal = controller.signal;
+    
     try {
-      const token = await AsyncStorage.getItem("authToken");
-      if (!token) { showToast("error", "Error de autenticación"); return; }
-      const res = await fetch(`${API_BASE_URL}/recurrentes/${recurrente.recurrenteId}`, {
-        method: "DELETE", headers: { Authorization: `Bearer ${token}` },
+      const token = await authService.getAccessToken();
+      if (!token) { 
+        if (isMountedRef.current) {
+          showToast("error", "Error de autenticación"); 
+        }
+        return; 
+      }
+      
+      const res = await apiRateLimiter.fetch(`${API_BASE_URL}/recurrentes/${recurrente.recurrenteId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` , 'X-Skip-Cache': '1'},
+        signal,
       });
-      if (!res.ok) throw new Error("Error al eliminar");
-      showToast("success", "Recurrente eliminado");
-      setDeleteVisible(false);
-      navigateToDashboard();
-    } catch (e) {
+
+      // Verificar si fue abortado
+      if (signal.aborted) {
+        console.log('🗑️ [RecurrenteDetail] Delete cancelado');
+        return;
+      }
+
+      const data = await res.json();
+      if (!res.ok) {
+        const statusCode = data?.statusCode ?? res.status;
+        const message = data?.message || `Error ${res.status}`;
+        const error: any = new Error(message);
+        error.statusCode = statusCode;
+        throw error;
+      }
+      
+      if (isMountedRef.current && !signal.aborted) {
+        showToast("success", "Recurrente eliminado");
+        setDeleteVisible(false);
+        navigateBackWithRecurrentesRefresh();
+      }
+    } catch (e: any) {
+      // Ignorar errores de abort
+      if (e.name === 'AbortError' || signal.aborted) {
+        console.log('🗑️ [RecurrenteDetail] Delete cancelado');
+        return;
+      }
       console.error(e);
-      showToast("error", "No se pudo eliminar");
+      if (isMountedRef.current) {
+        showToast("error", "No se pudo eliminar");
+      }
     }
-  }, [recurrente.recurrenteId, navigateToDashboard, showToast]);
+  }, [recurrente.recurrenteId, showToast]);
 
   const handleModalSubmit = useCallback((data: any) => {
     setRecurrente(prev => ({ ...prev, ...data }));
     setModalVisible(false);
     showToast("success", "Recurrente actualizado");
-    navigateToDashboard();
-  }, [showToast, navigateToDashboard]);
+    navigateBackWithRecurrentesRefresh();
+  }, [showToast, navigateBackWithRecurrentesRefresh]);
 
   const getPlatformColor = () => {
     const c = recurrente.plataforma?.color;
@@ -307,8 +418,12 @@ const RecurrenteDetail = () => {
             <Text style={[styles.bigCardCaption, { color: colors.textSecondary }]}>Monto programado</Text>
 
             <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "center" }}>
-              <Text style={[styles.amount, { color: colors.text }]}>{formatCurrency(recurrente.monto)}</Text>
-              <Text style={[styles.currency, { color: colors.textSecondary }]}> MXN</Text>
+              <Text style={[styles.amount, { color: colors.text }]}> 
+                {formatCurrency(
+                  recurrente.monto,
+                  recurrente.monedas || recurrente.moneda || "MXN"
+                )}
+              </Text>
             </View>
 
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", marginTop: 10 }}>
