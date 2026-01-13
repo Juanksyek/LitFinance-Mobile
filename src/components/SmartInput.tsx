@@ -119,14 +119,17 @@ const SmartInput: React.FC<SmartInputProps> = ({
   const handleClear = () => numericInput.clear();
 
   const handleAutoFix = () => {
-    if (!autoFix || numericInput.numericValue == null) return;
-    let fixed = numericInput.numericValue;
+    if (!autoFix) return;
+    // Intenta parsear el valor actual, aunque sea inválido
+    let raw = numericInput.displayValue;
+    let fixed = Number(raw.replace(/[^0-9.-]/g, ''));
+    if (isNaN(fixed)) fixed = numericOptions.minValue ?? 0;
 
     if (type === 'percentage' && fixed > 100) fixed = 100;
     if (numericOptions.maxValue != null && fixed > numericOptions.maxValue) fixed = numericOptions.maxValue;
     if (numericOptions.minValue != null && fixed < numericOptions.minValue) fixed = numericOptions.minValue;
 
-    if (fixed !== numericInput.numericValue) numericInput.setValue(fixed);
+    numericInput.setValue(fixed);
   };
 
   const renderPrefix = () => {
@@ -206,12 +209,15 @@ const SmartInput: React.FC<SmartInputProps> = ({
         {renderPrefix()}
 
         <TextInput
-          {...numericInput.textInputProps}
+          value={numericInput.displayValue}
+          onChangeText={numericInput.onChangeText}
+          onFocus={numericInput.onFocus}
+          onBlur={numericInput.onBlur}
+          keyboardType={type === 'currency' || numericInput.textInputProps.keyboardType === 'decimal-pad' ? 'decimal-pad' : 'number-pad'}
           style={[styles.input, inputStyle, { color: getInputColor() }]}
           placeholder={getPlaceholder()}
           placeholderTextColor={colors.placeholder}
           editable={!disabled}
-          selectTextOnFocus
         />
 
         {renderSuffix()}
