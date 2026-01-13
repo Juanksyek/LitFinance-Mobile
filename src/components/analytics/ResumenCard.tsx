@@ -1,5 +1,7 @@
-import React from 'react';
-import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, ActivityIndicator, Animated } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
 import { useThemeColors } from '../../theme/useThemeColors';
 
 interface MetricasPeriodo {
@@ -68,6 +70,33 @@ const ResumenCard: React.FC<ResumenCardProps> = ({
   error
 }) => {
   const colors = useThemeColors();
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(0.95)).current;
+  const slideAnim = useRef(new Animated.Value(20)).current;
+
+  useEffect(() => {
+    if (!isLoading && !error) {
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 600,
+          useNativeDriver: true,
+        }),
+        Animated.spring(scaleAnim, {
+          toValue: 1,
+          tension: 50,
+          friction: 7,
+          useNativeDriver: true,
+        }),
+        Animated.timing(slideAnim, {
+          toValue: 0,
+          duration: 500,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [isLoading, error]);
+
   const formatAmount = (amount?: { monto?: number; moneda?: string; esPositivo?: boolean }): string => {
     if (!amount || typeof amount.monto !== 'number' || !amount.moneda) {
       return 'N/A';
@@ -121,12 +150,34 @@ const ResumenCard: React.FC<ResumenCardProps> = ({
     : (balance?.balance || { monto: 0, moneda: 'USD', esPositivo: true });
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.card }]}>
-      <Text style={[styles.title, { color: colors.text }]}>Resumen Financiero</Text>
-      <Text style={[styles.period, { color: colors.textSecondary }]}>{period}</Text>
+    <Animated.View style={[
+      styles.container,
+      { 
+        backgroundColor: colors.card,
+        shadowColor: colors.shadow,
+        opacity: fadeAnim,
+        transform: [{ scale: scaleAnim }, { translateY: slideAnim }]
+      }
+    ]}>
+      <View style={styles.headerRow}>
+        <View>
+          <Text style={[styles.title, { color: colors.text }]}>Resumen Financiero</Text>
+          <Text style={[styles.period, { color: colors.textSecondary }]}>{period}</Text>
+        </View>
+        <View style={[styles.iconBadge, { backgroundColor: colors.button + '15' }]}>
+          <Ionicons name="stats-chart" size={24} color={colors.button} />
+        </View>
+      </View>
       
       <View style={styles.metricsContainer}>
-        <View style={styles.metricItem}>
+        <View style={[styles.metricItem, { backgroundColor: colors.cardSecondary, shadowColor: colors.shadow }]}>
+          <View style={[styles.metricIconContainer, { backgroundColor: balanceData?.esPositivo ? '#4CAF5020' : '#EF444420' }]}>
+            <Ionicons 
+              name={balanceData?.esPositivo ? "trending-up" : "trending-down"} 
+              size={20} 
+              color={balanceData?.esPositivo ? '#4CAF50' : '#EF4444'} 
+            />
+          </View>
           <Text style={[styles.metricLabel, { color: colors.textSecondary }]}>Balance</Text>
           <Text style={[styles.metricValue, { color: balanceData?.esPositivo ? '#4CAF50' : '#EF4444' }]}>
             {formatAmount(balanceData)}
@@ -138,7 +189,10 @@ const ResumenCard: React.FC<ResumenCardProps> = ({
           )}
         </View>
         
-        <View style={styles.metricItem}>
+        <View style={[styles.metricItem, { backgroundColor: colors.cardSecondary, shadowColor: colors.shadow }]}>
+          <View style={[styles.metricIconContainer, { backgroundColor: '#10B98120' }]}>
+            <Ionicons name="arrow-down-circle" size={20} color="#10B981" />
+          </View>
           <Text style={[styles.metricLabel, { color: colors.textSecondary }]}>Ingresos</Text>
           <Text style={[styles.metricValue, styles.incomeText]}>
             {formatAmount(ingresos)}
@@ -150,7 +204,10 @@ const ResumenCard: React.FC<ResumenCardProps> = ({
           )}
         </View>
         
-        <View style={styles.metricItem}>
+        <View style={[styles.metricItem, { backgroundColor: colors.cardSecondary, shadowColor: colors.shadow }]}>
+          <View style={[styles.metricIconContainer, { backgroundColor: '#EF444420' }]}>
+            <Ionicons name="arrow-up-circle" size={20} color="#EF4444" />
+          </View>
           <Text style={[styles.metricLabel, { color: colors.textSecondary }]}>Gastos</Text>
           <Text style={[styles.metricValue, styles.expenseText]}>
             {formatAmount(gastos)}
@@ -179,52 +236,86 @@ const ResumenCard: React.FC<ResumenCardProps> = ({
           </View>
         </View>
       )}
-    </View>
+    </Animated.View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    borderRadius: 12,
+    borderRadius: 20,
     padding: 20,
     marginHorizontal: 16,
     marginVertical: 8,
-    shadowColor: '#000',
     shadowOffset: {
       width: 0,
-      height: 2,
+      height: 6,
     },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 10,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  iconBadge: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   title: {
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: 22,
+    fontWeight: '700',
     marginBottom: 4,
+    letterSpacing: 0.3,
   },
   period: {
-    fontSize: 14,
-    marginBottom: 16,
+    fontSize: 13,
+    fontWeight: '500',
+    opacity: 0.7,
   },
   metricsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    gap: 12,
   },
   metricItem: {
     flex: 1,
     alignItems: 'center',
+    borderRadius: 16,
+    padding: 16,
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  metricIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
   },
   metricLabel: {
-    fontSize: 12,
-    marginBottom: 4,
+    fontSize: 11,
+    marginBottom: 6,
     textTransform: 'uppercase',
-    fontWeight: '500',
+    fontWeight: '600',
+    letterSpacing: 0.5,
   },
   metricValue: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 18,
+    fontWeight: '700',
     textAlign: 'center',
+    letterSpacing: 0.3,
   },
   incomeText: {
     color: '#10B981',
@@ -255,22 +346,26 @@ const styles = StyleSheet.create({
   additionalMetrics: {
     flexDirection: 'row',
     justifyContent: 'space-around',
-    marginTop: 16,
-    paddingTop: 16,
+    marginTop: 20,
+    paddingTop: 20,
     borderTopWidth: 1,
+    borderTopColor: 'rgba(0,0,0,0.05)',
   },
   additionalMetricItem: {
     alignItems: 'center',
   },
   additionalMetricLabel: {
-    fontSize: 11,
-    marginBottom: 4,
+    fontSize: 10,
+    marginBottom: 6,
     textTransform: 'uppercase',
-    fontWeight: '500',
+    fontWeight: '700',
+    letterSpacing: 0.8,
+    opacity: 0.6,
   },
   additionalMetricValue: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: 0.2,
   },
 });
 
