@@ -4,7 +4,7 @@ import FormInput from "../components/FormInput";
 import { useThemeColors } from "../theme/useThemeColors";
 import { useNavigation } from "@react-navigation/native";
 import type { NavigationProp } from "@react-navigation/native";
-import axios from "axios";
+import { apiRateLimiter } from "../services/apiRateLimiter";
 import Toast from "react-native-toast-message";
 import { API_BASE_URL } from "../constants/api";
 import { RootStackParamList } from "../navigation/AppNavigator";
@@ -27,8 +27,19 @@ const ForgotPasswordScreen: React.FC = () => {
       const payload = { email };
       console.log("📤 Enviando solicitud de recuperación:", payload);
 
-      const response = await axios.post(`${API_BASE_URL}/auth/forgot-password`, payload);
-      console.log("✅ Respuesta del servidor:", response.data);
+      const response = await apiRateLimiter.fetch(`${API_BASE_URL}/auth/forgot-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || 'No se pudo enviar el correo');
+      }
+
+      const data = await response.json();
+      console.log("✅ Respuesta del servidor:", data);
 
       Toast.show({
         type: "success",
@@ -42,7 +53,7 @@ const ForgotPasswordScreen: React.FC = () => {
       Toast.show({
         type: "error",
         text1: "Error",
-        text2: error.response?.data?.message || "No se pudo enviar el correo. Intenta más tarde.",
+        text2: error.message || "No se pudo enviar el correo. Intenta más tarde.",
       });
     }
   };
