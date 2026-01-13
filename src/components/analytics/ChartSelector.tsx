@@ -1,6 +1,6 @@
 
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import React, { useState, useRef } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { AnalyticsFilters } from '../../services/analyticsService';
 import ConceptosChart from '../analytics/ConceptosChart';
@@ -19,6 +19,8 @@ type ChartType = 'conceptos' | 'subcuentas' | 'recurrentes' | 'temporal';
 const ChartSelector: React.FC<ChartSelectorProps> = ({ filters, refreshKey = 0 }) => {
   const colors = useThemeColors();
   const [activeChart, setActiveChart] = useState<ChartType>('conceptos');
+  const fadeAnim = useRef(new Animated.Value(1)).current;
+  const scaleAnim = useRef(new Animated.Value(1)).current;
 
   const chartOptions = [
     {
@@ -47,6 +49,41 @@ const ChartSelector: React.FC<ChartSelectorProps> = ({ filters, refreshKey = 0 }
     },
   ];
 
+  const handleChartChange = (chartId: ChartType) => {
+    if (chartId === activeChart) return;
+
+    // Animación de transición
+    Animated.sequence([
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 0,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+        Animated.timing(scaleAnim, {
+          toValue: 0.95,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+      ]),
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.spring(scaleAnim, {
+          toValue: 1,
+          tension: 80,
+          friction: 8,
+          useNativeDriver: true,
+        }),
+      ]),
+    ]).start();
+
+    setActiveChart(chartId);
+  };
+
   const renderChart = () => {
     switch (activeChart) {
       case 'conceptos':
@@ -68,33 +105,41 @@ const ChartSelector: React.FC<ChartSelectorProps> = ({ filters, refreshKey = 0 }
         horizontal 
         showsHorizontalScrollIndicator={false}
         style={styles.tabsContainer}
+        contentContainerStyle={styles.tabsContent}
       >
         {chartOptions.map((option) => (
           <TouchableOpacity
             key={option.id}
             style={[
               styles.tab,
-              { backgroundColor: activeChart === option.id ? '#6366f1' : colors.card },
-              activeChart === option.id && styles.activeTab
+              { 
+                backgroundColor: activeChart === option.id ? colors.button : colors.cardSecondary,
+                shadowColor: activeChart === option.id ? colors.button : colors.shadow,
+                borderColor: activeChart === option.id ? colors.button : 'transparent',
+              }
             ]}
-            onPress={() => setActiveChart(option.id)}
+            onPress={() => handleChartChange(option.id)}
+            activeOpacity={0.85}
           >
-            <Ionicons 
-              name={option.icon as any} 
-              size={20} 
-              color={activeChart === option.id ? '#ffffff' : colors.textSecondary} 
-            />
+            <View style={[
+              styles.iconContainer,
+              { backgroundColor: activeChart === option.id ? 'rgba(255,255,255,0.2)' : 'transparent' }
+            ]}>
+              <Ionicons 
+                name={option.icon as any} 
+                size={24} 
+                color={activeChart === option.id ? '#FFF' : colors.text} 
+              />
+            </View>
             <Text style={[
               styles.tabTitle,
-              { color: activeChart === option.id ? '#ffffff' : colors.text },
-              activeChart === option.id && styles.activeTabTitle
+              { color: activeChart === option.id ? '#FFF' : colors.text }
             ]}>
               {option.title}
             </Text>
             <Text style={[
               styles.tabDescription,
-              { color: activeChart === option.id ? '#e2e8f0' : colors.textSecondary },
-              activeChart === option.id && styles.activeTabDescription
+              { color: activeChart === option.id ? 'rgba(255,255,255,0.85)' : colors.textSecondary }
             ]}>
               {option.description}
             </Text>
@@ -102,66 +147,70 @@ const ChartSelector: React.FC<ChartSelectorProps> = ({ filters, refreshKey = 0 }
         ))}
       </ScrollView>
 
-      <View style={[styles.chartContainer, { backgroundColor: colors.card }]}>
+      <Animated.View style={[
+        styles.chartContainer, 
+        { 
+          backgroundColor: colors.card,
+          shadowColor: colors.shadow,
+          opacity: fadeAnim,
+          transform: [{ scale: scaleAnim }],
+        }
+      ]}>
         {renderChart()}
-      </View>
+      </Animated.View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    marginBottom: 20,
+    marginBottom: 16,
   },
   tabsContainer: {
-    marginBottom: 20,
+    marginBottom: 18,
+    flexGrow: 0,
+  },
+  tabsContent: {
+    paddingHorizontal: 4,
+    gap: 12,
   },
   tab: {
-    borderRadius: 12,
-    padding: 16,
-    marginRight: 12,
-    minWidth: 120,
+    borderRadius: 18,
+    padding: 18,
+    minWidth: 130,
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    borderWidth: 2,
   },
-  activeTab: {
-    backgroundColor: '#6366f1',
+  iconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
   },
   tabTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    marginTop: 8,
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 6,
     textAlign: 'center',
-  },
-  activeTabTitle: {
-    color: '#ffffff',
+    letterSpacing: 0.2,
   },
   tabDescription: {
-    fontSize: 12,
-    marginTop: 4,
+    fontSize: 11,
     textAlign: 'center',
-  },
-  activeTabDescription: {
-    color: '#e2e8f0',
+    letterSpacing: 0.1,
+    lineHeight: 14,
   },
   chartContainer: {
-    borderRadius: 16,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
+    borderRadius: 20,
+    padding: 18,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
   },
 });
 
