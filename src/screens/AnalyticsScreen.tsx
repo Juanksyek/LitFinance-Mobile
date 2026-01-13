@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, ActivityIndicator, Platform, RefreshControl } from 'react-native';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, ActivityIndicator, Platform, RefreshControl, Dimensions, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { analyticsService, ResumenFinanciero, AnalyticsFilters } from '../services/analyticsService';
@@ -7,26 +7,57 @@ import AnalyticsFiltersComponent from '../components/analytics/AnalyticsFilters'
 import ResumenCard from '../components/analytics/ResumenCard';
 import ChartSelector from '../components/analytics/ChartSelector';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { authService } from '../services/authService';
 import { useThemeColors } from '../theme/useThemeColors';
 
 interface AnalyticsScreenProps {
   navigation: any;
+  route?: any;
 }
 
-const HEADER_H = Platform.OS === 'ios' ? 96 : 84;
+const { width: screenWidth } = Dimensions.get('window');
+const isTablet = screenWidth >= 700;
+const isAndroid = Platform.OS === 'android';
+const HEADER_H = isTablet ? 110 : (Platform.OS === 'ios' ? 96 : 84);
 
-const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ navigation }) => {
+const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ navigation, route }) => {
+  // Si viene subcuentaId por params, filtrar solo esa subcuenta
+  const subcuentaId = route?.params?.subcuentaId;
   const colors = useThemeColors();
   const [resumen, setResumen] = useState<ResumenFinanciero | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const refreshAnim = useRef(new Animated.Value(0)).current;
   const [showFilters, setShowFilters] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [filters, setFilters] = useState<AnalyticsFilters>({
     rangoTiempo: 'mes',
     tipoTransaccion: 'ambos',
+    ...(subcuentaId ? { subcuentas: [subcuentaId] } : {}),
   });
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // Refs para prevención de memory leaks
+  const isMountedRef = useRef(true);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const lastFetchRef = useRef<number>(0);
+  const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Cleanup al desmontar
+  useEffect(() => {
+    isMountedRef.current = true;
+    
+    return () => {
+      console.log('🧹 [AnalyticsScreen] Limpiando componente...');
+      isMountedRef.current = false;
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      if (refreshTimeoutRef.current) {
+        clearTimeout(refreshTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const rangoLabel = useMemo(() => {
     const map: Record<string, string> = {
@@ -41,7 +72,22 @@ const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ navigation }) => {
   }, [filters.rangoTiempo]);
 
   useEffect(() => {
-    loadResumenFinanciero();
+    const checkAnalyticsAllowed = async () => {
+      const planConfigService = await import('../services/planConfigService');
+      const gate = await planConfigService.canPerform('grafica');
+      if (gate.allowed === false) {
+        const isConfigError = gate.message?.includes('Configuración de plan no disponible');
+        setErrorMsg(
+          isConfigError 
+            ? 'No se pudo verificar tu plan. Por favor, contacta a soporte.'
+            : gate.message || 'Las gráficas avanzadas están disponibles solo para usuarios premium'
+        );
+        setLoading(false);
+        return;
+      }
+      loadResumenFinanciero();
+    };
+    checkAnalyticsAllowed();
   }, [filters]);
 
   // Recargar datos cuando vuelves a esta pantalla
@@ -52,44 +98,118 @@ const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ navigation }) => {
   );
 
   const loadResumenFinanciero = async (isPullRefresh = false) => {
-    try {
-      setLoading(true);
-      setErrorMsg(null);
+    const now = Date.now();
+    const minInterval = 2000; // Mínimo 2 segundos entre refreshes
+    
+    if (now - lastFetchRef.current < minInterval) {
+      console.log('📊 [AnalyticsScreen] Carga bloqueada: muy pronto desde el último');
+      if (isMountedRef.current) {
+        setRefreshing(false);
+      }
+      return;
+    }
 
-      const token = await AsyncStorage.getItem('authToken');
+    if (!isMountedRef.current) {
+      console.log('⚠️ [AnalyticsScreen] Componente desmontado, cancelando carga');
+      return;
+    }
+
+    // Cancelar fetch anterior
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    
+    abortControllerRef.current = new AbortController();
+    const signal = abortControllerRef.current.signal;
+
+    try {
+      lastFetchRef.current = now;
+      if (isMountedRef.current) {
+        setLoading(true);
+        setErrorMsg(null);
+      }
+
+      const token = await authService.getAccessToken();
       if (!token) {
-        setErrorMsg('Tu sesión ha expirado. Por favor inicia sesión nuevamente.');
-        setResumen(null);
-        setLoading(false);
+        if (isMountedRef.current && !signal.aborted) {
+          setErrorMsg('Tu sesión ha expirado. Por favor inicia sesión nuevamente.');
+          setResumen(null);
+          setLoading(false);
+        }
         return;
       }
 
       const data = await analyticsService.getResumenFinanciero(filters);
-      setResumen(data);
-      setRefreshKey(prev => prev + 1); // Incrementar key para refrescar gráficas
-    } catch (error: any) {
-      if (error?.response?.status === 401) {
-        await AsyncStorage.removeItem('authToken');
-        setErrorMsg('Tu sesión ha expirado. Redirigiendo al login...');
-        setTimeout(() => {
-          navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
-        }, 1600);
-      } else {
-        setErrorMsg('Error cargando analytics. Intenta de nuevo.');
+
+      // Verificar si fue abortado
+      if (signal.aborted) {
+        console.log('📊 [AnalyticsScreen] Carga cancelada');
+        return;
       }
-      console.error('Error loading resumen financiero:', error);
+
+      // Solo actualizar estado si el componente está montado
+      if (isMountedRef.current && !signal.aborted) {
+        setResumen(data);
+        setRefreshKey(prev => prev + 1); // Incrementar key para refrescar gráficas
+      }
+    } catch (error: any) {
+      // Ignorar errores de abort
+      if (error.name === 'AbortError' || signal.aborted) {
+        console.log('📊 [AnalyticsScreen] Carga cancelada');
+        return;
+      }
+      
+      if (isMountedRef.current && !signal.aborted) {
+        if (error?.response?.status === 401) {
+          await authService.clearAll();
+          setErrorMsg('Tu sesión ha expirado. Redirigiendo al login...');
+          if (refreshTimeoutRef.current) {
+            clearTimeout(refreshTimeoutRef.current);
+          }
+          refreshTimeoutRef.current = setTimeout(() => {
+            if (isMountedRef.current) {
+              navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+            }
+          }, 1600);
+        } else {
+          setErrorMsg('Error cargando analytics. Intenta de nuevo.');
+        }
+        console.error('Error loading resumen financiero:', error);
+      }
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (isMountedRef.current) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   };
 
   const onRefresh = useCallback(() => {
+    if (!isMountedRef.current || refreshing) {
+      console.log('🔄 [AnalyticsScreen] Refresh bloqueado');
+      return;
+    }
+    
+    setRefreshing(true);
+    Animated.timing(refreshAnim, {
+      toValue: 1,
+      duration: 800,
+      useNativeDriver: true,
+    }).start(() => {
+      if (isMountedRef.current) {
+        refreshAnim.setValue(0);
+      }
+    });
     loadResumenFinanciero(true);
-  }, [filters]);
+  }, [filters, refreshing]);
 
   const handleFiltersChange = (newFilters: AnalyticsFilters) => {
-    setFilters(newFilters);
+    // Si es subcuenta, forzar el filtro de subcuentaId
+    if (subcuentaId) {
+      setFilters({ ...newFilters, subcuentas: [subcuentaId] });
+    } else {
+      setFilters(newFilters);
+    }
     setShowFilters(false);
   };
 
@@ -156,9 +276,26 @@ const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ navigation }) => {
             onRefresh={onRefresh}
             tintColor={colors.button}
             colors={[colors.button]}
+            progressViewOffset={-30}
+            progressBackgroundColor={colors.cardSecondary}
+            // Custom refresh indicator
+            // Not all platforms support custom indicator, so we animate an icon above
           />
         }
       >
+        {/* Animated refresh icon overlay */}
+        {refreshing && (
+          <View style={{ alignItems: 'center', marginBottom: 8 }}>
+            <Animated.View style={{
+              transform: [{ rotate: refreshAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: ['0deg', '360deg']
+              }) }],
+            }}>
+              <Ionicons name="refresh" size={28} color={colors.button} />
+            </Animated.View>
+          </View>
+        )}
         {!!errorMsg && (
           <View style={[styles.alertCard, { backgroundColor: colors.backgroundSecondary, borderColor: colors.warning }] }>
             <Ionicons name="warning-outline" size={18} color={colors.warning} />
