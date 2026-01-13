@@ -12,7 +12,9 @@ import {
   Alert,
   Modal,
   ScrollView,
+  Keyboard,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { useThemeColors } from "../theme/useThemeColors";
 import supportService from "../services/supportService";
@@ -31,12 +33,14 @@ const TicketDetailScreen: React.FC = () => {
   const { ticketId } = route.params as RouteParams;
 
   const [ticket, setTicket] = useState<Ticket | null>(null);
+  const [isStaffOrAdmin, setIsStaffOrAdmin] = useState(false);
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const [mensaje, setMensaje] = useState("");
   const [refreshing, setRefreshing] = useState(false);
   const [showStatusModal, setShowStatusModal] = useState(false);
   const flatListRef = useRef<FlatList>(null);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
@@ -45,10 +49,37 @@ const TicketDetailScreen: React.FC = () => {
       loadTicket(true);
     }, 15000);
 
+    // Keyboard listeners to adjust FlatList padding and scroll to end
+    const showSub = Keyboard.addListener('keyboardDidShow', (e) => {
+      const h = e.endCoordinates?.height || 0;
+      setKeyboardHeight(h);
+      // allow layout to settle then scroll
+      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 80);
+    });
+    const hideSub = Keyboard.addListener('keyboardDidHide', () => {
+      setKeyboardHeight(0);
+    });
+
+    (async () => {
+      try {
+        const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+        const raw = await AsyncStorage.getItem('userData');
+        if (raw) {
+          const u = JSON.parse(raw);
+          const role = (u && (u.rol || u.role || u.roleName)) || '';
+          setIsStaffOrAdmin(role === 'admin' || role === 'staff');
+        }
+      } catch (e) {
+        // ignore
+      }
+    })();
+
     return () => {
       if (pollingIntervalRef.current) {
         clearInterval(pollingIntervalRef.current);
       }
+      showSub.remove();
+      hideSub.remove();
     };
   }, [ticketId]);
 
@@ -252,10 +283,21 @@ const TicketDetailScreen: React.FC = () => {
       });
     } catch (error: any) {
       console.error("❌ [TicketDetail] handleChangeStatus - Error:", error);
+      const raw = (error && (error.message || String(error))) || '';
+      const msg = raw.toLowerCase();
+      let friendly = 'No se pudo actualizar el estado. Intenta de nuevo más tarde.';
+      if (msg.includes('network') || msg.includes('timeout') || msg.includes('failed to fetch')) {
+        friendly = 'No se pudo conectar al servidor. Revisa tu conexión a internet.';
+      } else if (msg.includes('unauthorized') || msg.includes('401') || msg.includes('forbidden') || msg.includes('403')) {
+        friendly = 'No tienes permisos para cambiar el estado del ticket.';
+      } else if (msg.includes('not found') || msg.includes('404')) {
+        friendly = 'El ticket no fue encontrado. Actualiza la pantalla e intenta de nuevo.';
+      }
+
       Toast.show({
-        type: "error",
-        text1: "Error",
-        text2: error.message || "No se pudo actualizar el estado",
+        type: 'error',
+        text1: 'No fue posible cambiar el estado',
+        text2: friendly,
       });
     }
   };
@@ -417,8 +459,8 @@ const TicketDetailScreen: React.FC = () => {
   return (
     <KeyboardAvoidingView
       style={[styles.container, { backgroundColor: colors.background }]}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 60 : 80}
     >
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
@@ -428,12 +470,14 @@ const TicketDetailScreen: React.FC = () => {
           Ticket
         </Text>
         <View style={styles.headerActions}>
-          <TouchableOpacity 
-            onPress={() => setShowStatusModal(true)}
-            style={{ marginRight: 16 }}
-          >
-            <Ionicons name="swap-horizontal" size={24} color={colors.button} />
-          </TouchableOpacity>
+          {isStaffOrAdmin && (
+            <TouchableOpacity 
+              onPress={() => setShowStatusModal(true)}
+              style={{ marginRight: 16 }}
+            >
+              <Ionicons name="swap-horizontal" size={24} color={colors.button} />
+            </TouchableOpacity>
+          )}
           <TouchableOpacity onPress={handleDeleteTicket}>
             <Ionicons name="trash-outline" size={24} color="#E53935" />
           </TouchableOpacity>
@@ -446,7 +490,7 @@ const TicketDetailScreen: React.FC = () => {
         renderItem={renderMessage}
         keyExtractor={(item) => item.id}
         ListHeaderComponent={renderHeader}
-        contentContainerStyle={styles.messagesList}
+        contentContainerStyle={[styles.messagesList, { paddingBottom: Math.max(80, 16 + keyboardHeight) }]}
         onRefresh={loadTicket}
         refreshing={refreshing}
         onContentSizeChange={() =>
@@ -474,6 +518,10 @@ const TicketDetailScreen: React.FC = () => {
             placeholderTextColor={colors.placeholder}
             value={mensaje}
             onChangeText={setMensaje}
+            onFocus={() => {
+              // ensure messages are visible when typing
+              setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 50);
+            }}
             multiline
             maxLength={2000}
             editable={!sending}
@@ -507,7 +555,7 @@ const TicketDetailScreen: React.FC = () => {
 
       {/* Modal de cambio de estatus */}
       <Modal
-        visible={showStatusModal}
+        visible={showStatusModal && isStaffOrAdmin}
         transparent
         animationType="fade"
         onRequestClose={() => setShowStatusModal(false)}
@@ -546,34 +594,37 @@ const TicketDetailScreen: React.FC = () => {
               <Text style={[styles.statusOptionText, { color: colors.text }]}>
                 En progreso
               </Text>
-              {ticket?.estado === "en_progreso" && (
-                <Ionicons name="checkmark" size={20} color={colors.button} />
-              )}
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.statusOption, { borderBottomColor: colors.placeholder + "30" }]}
-              onPress={() => handleChangeStatus("resuelto")}
-            >
-              <Ionicons name="checkmark-circle" size={20} color="#43A047" />
-              <Text style={[styles.statusOptionText, { color: colors.text }]}>
-                Resuelto
-              </Text>
-              {ticket?.estado === "resuelto" && (
-                <Ionicons name="checkmark" size={20} color={colors.button} />
-              )}
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.statusOption}
-              onPress={() => handleChangeStatus("cerrado")}
-            >
-              <Ionicons name="close-circle" size={20} color="#9E9E9E" />
-              <Text style={[styles.statusOptionText, { color: colors.text }]}>
-                Cerrado
-              </Text>
-              {ticket?.estado === "cerrado" && (
-                <Ionicons name="checkmark" size={20} color={colors.button} />
+              {ticket?.estado !== "cerrado" && (
+                <SafeAreaView edges={["bottom"]} style={{ backgroundColor: colors.inputBackground }}>
+                  <View
+                    style={[
+                      styles.inputContainer,
+                      { backgroundColor: colors.inputBackground, borderTopColor: colors.placeholder + "30", paddingBottom: Platform.OS === 'android' ? 18 : 0 },
+                    ]}
+                  >
+                    <TextInput
+                      style={[
+                        styles.input,
+                        {
+                          backgroundColor: colors.background,
+                          color: colors.text,
+                          borderColor: colors.placeholder,
+                        },
+                      ]}
+                      placeholder="Escribe tu mensaje..."
+                      placeholderTextColor={colors.placeholder}
+                      value={mensaje}
+                      onChangeText={setMensaje}
+                      onFocus={() => {
+                        setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+                      }}
+                      multiline
+                      maxLength={2000}
+                      editable={!sending}
+                    />
+                    /* Lines 517-532 omitted */
+                  </View>
+                </SafeAreaView>
               )}
             </TouchableOpacity>
 
