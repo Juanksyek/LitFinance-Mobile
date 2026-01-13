@@ -39,6 +39,8 @@ const LoginScreen: React.FC = () => {
     try {
       // Ensure we have a deviceId for this installation and include it in login
       const deviceId = await authService.getOrCreateDeviceId();
+      // Login uses direct fetch to avoid rate-limiter intercepting auth endpoints
+      // Use centralized apiRateLimiter which now bypasses auth endpoints safely
       const response = await apiRateLimiter.fetch(`${API_BASE_URL}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
