@@ -1,12 +1,15 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { View, Text, TextInput, StyleSheet, FlatList, ActivityIndicator, TouchableOpacity, Dimensions } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { authService } from "../services/authService";
 import { API_BASE_URL } from "../constants/api";
 import { useNavigation } from '@react-navigation/native';
 import { useThemeColors } from "../theme/useThemeColors";
 // ✅ NUEVO: Importar SmartNumber para mostrar cifras grandes de forma segura
 import SmartNumber from './SmartNumber';
+import apiRateLimiter from "../services/apiRateLimiter";
+import Toast from "react-native-toast-message";
 
 const { width } = Dimensions.get("window");
 
@@ -21,10 +24,11 @@ interface Subcuenta {
   subCuentaId: string;
   updatedAt: string;
   activa: boolean;
+  origenSaldo?: 'cuenta_principal' | 'nuevo';
 }
 
 interface Props {
-  userId: string;
+  userId?: string;
   refreshKey?: number;
 }
 
@@ -41,27 +45,79 @@ const SubaccountsList: React.FC<Props> = ({ userId, refreshKey = 0 }) => {
   const navigation = useNavigation<any>();
   const [mostrarSoloActivas, setMostrarSoloActivas] = useState(false);
 
+  // Refs para cleanup y control de estado
+  const isMountedRef = useRef(true);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const lastFetchRef = useRef<number>(0);
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Cleanup al desmontar
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, []);
+
   useEffect(() => {
     const delay = setTimeout(() => setDebouncedSearch(search), 500);
     return () => clearTimeout(delay);
   }, [search]);
 
-  const fetchSubcuentas = async () => {
+  const fetchSubcuentas = async (forceFresh = false) => {
+    if (!userId) {
+      console.log('💳 [SubaccountsList] Esperando userId antes de hacer fetch');
+      return;
+    }
+    const now = Date.now();
+
     console.log('💳 [SubaccountsList] Iniciando fetch de subcuentas:', {
       userId,
       page,
       mostrarSoloActivas,
       refreshKey,
+      forceFresh,
       timestamp: new Date().toISOString()
     });
     
+    // Cancelar fetch anterior
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    
+    abortControllerRef.current = new AbortController();
+    const signal = abortControllerRef.current.signal;
+    
     try {
       setLoading(true);
-      const token = await AsyncStorage.getItem("authToken");
-      const res = await fetch(
+      lastFetchRef.current = now;
+      
+      const token = await authService.getAccessToken();
+
+      // Construir headers y permitir forzar fresh cuando venga el flag
+      const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
+      if (forceFresh) headers['X-Skip-Cache'] = '1';
+
+      // 🔥 Usar apiRateLimiter en lugar de fetch directo
+      const res = await apiRateLimiter.fetch(
         `${API_BASE_URL}/subcuenta/${userId}?soloActivas=${mostrarSoloActivas}&page=${page}&limit=${LIMIT}`,
-        { headers: { Authorization: `Bearer ${token}` } }
+        { 
+          headers,
+          signal,
+        }
       );
+
+      // Verificar si fue abortado
+      if (signal.aborted) {
+        console.log('💳 [SubaccountsList] Fetch cancelado');
+        return;
+      }
 
       const data = await res.json();
 
@@ -72,33 +128,75 @@ const SubaccountsList: React.FC<Props> = ({ userId, refreshKey = 0 }) => {
 
       if (!Array.isArray(data)) {
         console.error("❌ [SubaccountsList] Respuesta inválida:", data);
-        setSubcuentas([]);
-        setHasMore(false);
+        if (isMountedRef.current && !signal.aborted) {
+          setSubcuentas([]);
+          setHasMore(false);
+          
+          // Mostrar mensaje específico para error 429
+          if (data?.statusCode === 429 || data?.message?.includes('Too Many')) {
+            Toast.show({
+              type: 'error',
+              text1: '⚠️ Demasiadas peticiones',
+              text2: 'Por favor espera 10 segundos antes de actualizar',
+              visibilityTime: 5000,
+            });
+          }
+        }
         return;
       }
 
-      let filtered = data;
+      // rawData = respuesta sin filtrar
+      const rawData = Array.isArray(data) ? data : [];
 
+      // Aplicar búsqueda sobre el dataset recibido
+      let filtered = rawData;
       if (debouncedSearch.trim()) {
-        filtered = data.filter((s) =>
-          s.nombre.toLowerCase().includes(debouncedSearch.toLowerCase())
-        );
+        filtered = rawData.filter((s) => s.nombre.toLowerCase().includes(debouncedSearch.toLowerCase()));
       }
-
       filtered = filtered.sort((a, b) => Number(b.activa) - Number(a.activa));
 
+      const moreAvailable = rawData.length === LIMIT; // si el backend devolvió LIMIT, asumimos que hay más
+
       console.log('✅ [SubaccountsList] Subcuentas actualizadas:', {
-        totalOriginal: data.length,
+        totalOriginal: rawData.length,
         totalFiltrado: filtered.length,
-        hasMore: data.length === LIMIT && filtered.length > 0
+        hasMore: moreAvailable,
       });
 
-      setSubcuentas(filtered);
-      setHasMore(data.length === LIMIT && filtered.length > 0);
-    } catch (err) {
+      // Solo actualizar estado si el componente está montado
+      if (isMountedRef.current && !signal.aborted) {
+        setSubcuentas(filtered);
+        setHasMore(moreAvailable);
+
+        // Si avanzamos a una página vacía (no debería pasar), corregimos al primer page
+        if (rawData.length === 0 && page > 1) {
+          console.warn('[SubaccountsList] Página vacía recibida, reset page -> 1');
+          setPage(1);
+        }
+      }
+    } catch (err: any) {
+      // Ignorar errores de abort
+      if (err.name === 'AbortError' || signal.aborted) {
+        console.log('💳 [SubaccountsList] Fetch cancelado');
+        return;
+      }
       console.error("❌ [SubaccountsList] Error al obtener subcuentas:", err);
+      
+      if (isMountedRef.current && !signal.aborted) {
+        const isRateLimit = err.message?.includes('Rate limit') || err.message?.includes('429') || err.message?.includes('Too Many');
+        if (isRateLimit) {
+          Toast.show({
+            type: 'error',
+            text1: '⚠️ Demasiadas peticiones',
+            text2: 'Espera 10 segundos e intenta de nuevo',
+            visibilityTime: 5000,
+          });
+        }
+      }
     } finally {
-      setLoading(false);
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     }
   };
 
@@ -108,11 +206,13 @@ const SubaccountsList: React.FC<Props> = ({ userId, refreshKey = 0 }) => {
 
   useEffect(() => {
     const delay = setTimeout(() => {
-      fetchSubcuentas();
+      // Si el refreshKey cambió, forzamos fetch fresco para evitar cache
+      fetchSubcuentas(Boolean(refreshKey));
     }, 400);
 
     return () => clearTimeout(delay);
   }, [page, debouncedSearch, refreshKey, mostrarSoloActivas]);
+
 
 
   const handlePrev = () => {
@@ -151,10 +251,20 @@ const SubaccountsList: React.FC<Props> = ({ userId, refreshKey = 0 }) => {
       </Text>
 
       {/* Badge de estado */}
-      <View style={[styles.statusBadge, { backgroundColor: item.activa ? "#D1FAE5" : "#FEE2E2" }]}>
-        <Text style={[styles.statusText, { color: item.activa ? "#10B981" : "#EF4444" }]}>
-          {item.activa ? "Activa" : "Inactiva"}
-        </Text>
+      <View style={styles.badgesRow}>
+        <View style={[styles.statusBadge, { backgroundColor: item.activa ? "#D1FAE5" : "#FEE2E2" }]}>
+          <Text style={[styles.statusText, { color: item.activa ? "#10B981" : "#EF4444" }]}>
+            {item.activa ? "Activa" : "Inactiva"}
+          </Text>
+        </View>
+
+        {item.origenSaldo && (
+          <View style={[styles.originBadge, { backgroundColor: colors.cardSecondary, borderColor: colors.border }]}>
+            <Text style={[styles.originText, { color: colors.textSecondary }]}>
+              {item.origenSaldo === 'cuenta_principal' ? 'Apartado' : 'Saldo nuevo'}
+            </Text>
+          </View>
+        )}
       </View>
     </TouchableOpacity>
   );
@@ -324,12 +434,28 @@ const styles = StyleSheet.create({
   },
   statusBadge: {
     alignSelf: 'flex-start',
-    marginTop: 6,
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 6,
   },
+  badgesRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 6,
+  },
   statusText: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  originBadge: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  originText: {
     fontSize: 10,
     fontWeight: '700',
   },
