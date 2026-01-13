@@ -15,7 +15,8 @@ import { StatusBar } from "expo-status-bar";
 import { useTheme } from "../theme/ThemeContext";
 import { useThemeColors } from "../theme/useThemeColors";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import axios from "axios";
+import { authService } from "../services/authService";
+import { apiRateLimiter } from "../services/apiRateLimiter";
 import { API_BASE_URL } from "../constants/api";
 import Toast from "react-native-toast-message";
 
@@ -68,7 +69,7 @@ export default function AdminNotificationsScreen() {
           onPress: async () => {
             try {
               setSending(true);
-              const token = await AsyncStorage.getItem("authToken");
+              const token = await authService.getAccessToken();
 
               if (!token) {
                 Alert.alert("Error", "No se encontró token de autenticación");
@@ -76,24 +77,27 @@ export default function AdminNotificationsScreen() {
               }
 
               // Endpoint para enviar notificación broadcast
-              await axios.post(
+              const response = await apiRateLimiter.fetch(
                 `${API_BASE_URL}/notificaciones/enviar-todos`,
                 {
-                  titulo: title,
-                  mensaje: message,
-                  filtro: selectedFilter, // all, active, inactive
-                  data: {
-                    tipo: "admin_broadcast",
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    titulo: title,
+                    mensaje: message,
                     filtro: selectedFilter,
-                  },
-                },
-                {
-                  headers: {
-                    Authorization: `Bearer ${token}`,
-                    "Content-Type": "application/json",
-                  },
+                    data: {
+                      tipo: "admin_broadcast",
+                      filtro: selectedFilter,
+                    },
+                  }),
                 }
               );
+
+              if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.message || 'Error al enviar notificación');
+              }
 
               Toast.show({
                 type: "success",
