@@ -373,6 +373,17 @@ class ApiRateLimiter {
   async fetch(url: string, options: RequestInit = {}): Promise<Response> {
     // Normalizar headers primero
     const normalizedHeaders = this.normalizeHeaders(options);
+    // Bypass completo para endpoints de autenticación: no queuear ni intentar refresh
+    if (this.isAuthEndpoint(url)) {
+      try {
+        console.log('🔒 [ApiRateLimiter] Bypass para endpoint auth, ejecutando fetch directo:', url);
+        const directOptions = Object.assign({}, options, { headers: normalizedHeaders });
+        return await fetch(url, directOptions);
+      } catch (e) {
+        console.error('🔒 [ApiRateLimiter] Error en fetch directo para auth endpoint:', e);
+        throw e;
+      }
+    }
     
     // Ensure Authorization header exists: if caller didn't provide, attach current access token
     // But DO NOT attach Authorization for auth endpoints (login/register/refresh)
