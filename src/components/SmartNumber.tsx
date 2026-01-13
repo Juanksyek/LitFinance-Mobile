@@ -4,8 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { formatCurrency, FormatOptions } from '../utils/numberFormatter';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Toast from 'react-native-toast-message';
-import CurrencyChangeModal from './CurrencyChangeModal';
-import { CurrencyField, Moneda } from '../components/CurrencyPicker'; // ✅ reutilizable
+// Eliminado: CurrencyChangeModal y CurrencyField
 import { useThemeColors } from '../theme/useThemeColors';
 
 interface SmartNumberProps {
@@ -16,10 +15,7 @@ interface SmartNumberProps {
   showWarnings?: boolean;
   allowTooltip?: boolean;
   color?: string;
-  allowCurrencyChange?: boolean;
-  currentCurrency?: string;
-  onCurrencyChange?: (newCurrency: string) => void;
-  refreshPreferences?: number;
+  // Eliminado: props de cambio de moneda
 }
 
 const { width } = Dimensions.get('window');
@@ -29,39 +25,25 @@ const SmartNumber: React.FC<SmartNumberProps> = ({
   options = {},
   style,
   textStyle,
-  showWarnings = true,
+  showWarnings = false,
   allowTooltip = true,
   color,
-  allowCurrencyChange = false,
-  currentCurrency = 'MXN',
-  onCurrencyChange,
-  refreshPreferences = 0
 }) => {
   const colors = useThemeColors();
-  // Si no se pasa color, usar el color del tema
-  const effectiveColor = color ?? colors.text;
-  
-  // Tooltip
   const [tooltipVisible, setTooltipVisible] = useState(false);
-
-  // Picker (usaremos CurrencyField dentro de un modal simple)
-  const [pickerVisible, setPickerVisible] = useState(false);
-  const [selectedMonedaObj, setSelectedMonedaObj] = useState<Moneda | null>(null);
-
-  // Confirmación/cambio
-  const [changeModalVisible, setChangeModalVisible] = useState(false);
-  const [selectedCurrencyCode, setSelectedCurrencyCode] = useState('');
-
-  // Preferencia de números completos/compactos
   const [showFullNumbers, setShowFullNumbers] = useState(false);
+  const effectiveColor = color || colors.text;
 
   useEffect(() => {
     loadNumberPreference();
+    
+    // Listener para cambios en la preferencia
+    const checkInterval = setInterval(() => {
+      loadNumberPreference();
+    }, 500);
+    
+    return () => clearInterval(checkInterval);
   }, []);
-
-  useEffect(() => {
-    if (refreshPreferences > 0) loadNumberPreference();
-  }, [refreshPreferences]);
 
   const loadNumberPreference = async () => {
     try {
@@ -82,9 +64,7 @@ const SmartNumber: React.FC<SmartNumberProps> = ({
   const shouldShowTooltip = allowTooltip && (result.isTruncated || result.isLarge || hasWarnings);
 
   const handlePress = () => {
-    if (allowCurrencyChange) {
-      setPickerVisible(true);
-    } else if (shouldShowTooltip) {
+    if (shouldShowTooltip) {
       setTooltipVisible(true);
     }
   };
@@ -95,28 +75,7 @@ const SmartNumber: React.FC<SmartNumberProps> = ({
     return effectiveColor;
   };
 
-  // ✅ Cuando el usuario elige moneda en el CurrencyField
-  const handleMonedaChange = (m: Moneda) => {
-    // Si es la misma, no hacemos nada
-    if (m?.codigo === currentCurrency) {
-      setPickerVisible(false);
-      return;
-    }
-    setSelectedMonedaObj(m);
-    setSelectedCurrencyCode(m.codigo);
-    setPickerVisible(false);
-    setChangeModalVisible(true); // abre confirmación/conversión
-  };
-
-  // ✅ Éxito de conversión
-  const handleCurrencyChangeSuccess = (result: any) => {
-    if (onCurrencyChange) onCurrencyChange(result?.cuenta?.moneda);
-    Toast.show({
-      type: 'success',
-      text1: 'Conversión Exitosa',
-      text2: `Se convirtieron ${result?.conversion?.summary?.totalElementos ?? 0} elementos`,
-    });
-  };
+  // Eliminado: lógica de cambio de moneda y conversión
 
   // Tooltip UI
   const renderTooltip = () => (
@@ -195,21 +154,6 @@ const SmartNumber: React.FC<SmartNumberProps> = ({
             )}
 
             <View style={styles.actionButtons}>
-              {allowCurrencyChange && (
-                <TouchableOpacity
-                  style={[styles.actionButton, styles.currencyActionButton, { backgroundColor: colors.inputBackground, borderColor: colors.border }]}
-                  onPress={() => {
-                    setTooltipVisible(false);
-                    setPickerVisible(true);
-                  }}
-                >
-                  <Ionicons name="swap-horizontal" size={16} color="#667EEA" />
-                  <Text style={[styles.actionButtonText, { color: '#667EEA' }]}>
-                    Cambiar Moneda
-                  </Text>
-                </TouchableOpacity>
-              )}
-
               <TouchableOpacity
                 style={[styles.actionButton, { backgroundColor: colors.inputBackground, borderColor: colors.border }]}
                 onPress={() => setTooltipVisible(false)}
@@ -226,13 +170,8 @@ const SmartNumber: React.FC<SmartNumberProps> = ({
 
   return (
     <View style={[styles.container, style]}>
-      <TouchableOpacity
-        onPress={handlePress}
-        disabled={!shouldShowTooltip && !allowCurrencyChange}
-        activeOpacity={shouldShowTooltip || allowCurrencyChange ? 0.7 : 1}
-        style={styles.numberContainer}
-      >
-        <Text style={[styles.numberText, textStyle, { color: getWarningColor() }]}>
+      <View style={styles.numberContainer}>
+        <Text style={[styles.numberText, textStyle, { color: getWarningColor() }]}> 
           {result.formatted}
         </Text>
 
@@ -246,50 +185,11 @@ const SmartNumber: React.FC<SmartNumberProps> = ({
             )}
           </View>
         )}
-      </TouchableOpacity>
+      </View>
 
       {tooltipVisible && renderTooltip()}
 
-      {/* ✅ Modal simple que contiene el CurrencyField reutilizable */}
-      <Modal
-        visible={pickerVisible}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={() => setPickerVisible(false)}
-      >
-        <View style={[{ flex: 1 }, { backgroundColor: colors.background }]}>
-          <View style={[styles.currencyModalHeader, { borderBottomColor: colors.border, backgroundColor: colors.card }]}>
-            <Text style={[styles.currencyModalTitle, { color: colors.text }]}>Cambiar Moneda</Text>
-            <TouchableOpacity onPress={() => setPickerVisible(false)}>
-              <Ionicons name="close" size={24} color={colors.textSecondary} />
-            </TouchableOpacity>
-          </View>
-
-          <View style={{ paddingHorizontal: 20, paddingTop: 12 }}>
-            <CurrencyField
-              label="Selecciona la moneda"
-              value={selectedMonedaObj}
-              onChange={handleMonedaChange}
-              showSearch
-              currentCode={currentCurrency}
-            />
-          </View>
-
-          <View style={{ padding: 20 }}>
-            <Text style={[styles.exchangeDisclaimer, { color: colors.textSecondary }]}>
-              💡 La conversión se realizará automáticamente en el servidor.
-            </Text>
-          </View>
-        </View>
-      </Modal>
-
-      {/* ✅ Confirmación/conversión */}
-      <CurrencyChangeModal
-        visible={changeModalVisible}
-        newCurrency={selectedCurrencyCode}
-        onClose={() => setChangeModalVisible(false)}
-        onSuccess={handleCurrencyChangeSuccess}
-      />
+      {/* Eliminado: Modal de cambio de moneda y confirmación/conversión */}
     </View>
   );
 };

@@ -7,7 +7,7 @@ import Toast from "react-native-toast-message";
 import { API_BASE_URL } from "../constants/api";
 import SmartInput from './SmartInput';
 import SmartNumber from './SmartNumber';
-import { CurrencyField, Moneda } from "../components/CurrencyPicker"; // ✅ reutilizable
+import { CurrencyField, Moneda } from "../components/CurrencyPicker";
 import { useThemeColors } from "../theme/useThemeColors";
 
 const SCREEN_HEIGHT = Dimensions.get("window").height;
@@ -53,6 +53,7 @@ const SubaccountModal: React.FC<Props> = ({
   const [cantidadValida, setCantidadValida] = useState(true);
   const [erroresCantidad, setErroresCantidad] = useState<string[]>([]);
   const [selectedMonedaObj, setSelectedMonedaObj] = useState<Moneda | null>(null);
+  const [usarSaldoCuentaPrincipal, setUsarSaldoCuentaPrincipal] = useState<boolean>(false);
 
   React.useEffect(() => {
     if (subcuentaToEdit) {
@@ -69,6 +70,7 @@ const SubaccountModal: React.FC<Props> = ({
       setSimbolo("$");
       setColor("#4CAF50");
       setAfectaCuenta(true);
+      setUsarSaldoCuentaPrincipal(false);
     }
   }, [subcuentaToEdit]);
 
@@ -116,9 +118,27 @@ const SubaccountModal: React.FC<Props> = ({
 
     try {
       setLoading(true);
-      const token = await AsyncStorage.getItem("authToken");
+      // Validar con backend si se puede crear la subcuenta
+      const planConfigService = await import('../services/planConfigService');
+      const userId = cuentaPrincipalId;
+      const canPerformRes = await planConfigService.canPerform('subcuenta', { userId });
+      if (!canPerformRes.allowed) {
+        const isConfigError = canPerformRes.message?.includes('Configuración de plan no disponible');
+        Toast.show({
+          type: "error",
+          text1: isConfigError ? "Error de configuración" : "Límite alcanzado",
+          text2: isConfigError 
+            ? "No se pudo verificar tu plan. Por favor, contacta a soporte."
+            : canPerformRes.message || "Has alcanzado el límite de subcuentas para tu plan.",
+        });
+        setLoading(false);
+        return;
+      }
 
-      const payload = {
+      const { authService } = await import('../services/authService');
+      const token = await authService.getAccessToken();
+
+      const payload: any = {
         nombre: nombre.trim(),
         cantidad: cantidadNumerica,
         moneda,
@@ -127,6 +147,11 @@ const SubaccountModal: React.FC<Props> = ({
         afectaCuenta,
         cuentaPrincipalId,
       };
+
+      // Nuevo contrato backend: Apartado (true) vs Saldo nuevo (false/omit)
+      if (!subcuentaToEdit) {
+        payload.usarSaldoCuentaPrincipal = usarSaldoCuentaPrincipal;
+      }
 
       const url = subcuentaToEdit
         ? `${API_BASE_URL}/subcuenta/${subcuentaToEdit.id}` // Endpoint para editar
@@ -146,6 +171,10 @@ const SubaccountModal: React.FC<Props> = ({
       const responseData = await res.json().catch(() => null);
       if (!res.ok) {
         const msg = responseData?.message || "Error desconocido al guardar subcuenta";
+        // Backend: 400 + "Saldo insuficiente en la cuenta principal"
+        if (res.status === 400 && typeof msg === 'string' && msg.toLowerCase().includes('saldo insuficiente')) {
+          throw new Error('No tienes suficiente saldo para apartar esa cantidad.');
+        }
         throw new Error(msg);
       }
 
@@ -207,6 +236,66 @@ const SubaccountModal: React.FC<Props> = ({
           style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.border, color: colors.inputText }]}
           placeholderTextColor={colors.placeholder}
         />
+
+        {!subcuentaToEdit && (
+          <View style={[styles.sourceContainer, { backgroundColor: colors.cardSecondary, borderColor: colors.border }]}
+>
+            <Text style={[styles.sourceTitle, { color: colors.text }]}>
+              ¿Deseas apartar saldo de tu cuenta principal o ingresar saldo nuevo?
+            </Text>
+            <View style={styles.sourceOptionsRow}>
+              <TouchableOpacity
+                style={[
+                  styles.sourceOption,
+                  {
+                    backgroundColor: usarSaldoCuentaPrincipal ? colors.button : colors.card,
+                    borderColor: usarSaldoCuentaPrincipal ? colors.button : colors.border,
+                  },
+                ]}
+                onPress={() => setUsarSaldoCuentaPrincipal(true)}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="lock-closed-outline" size={18} color={usarSaldoCuentaPrincipal ? '#fff' : colors.textSecondary} />
+                <Text
+                  style={[
+                    styles.sourceOptionText,
+                    { color: usarSaldoCuentaPrincipal ? '#fff' : colors.text },
+                  ]}
+                >
+                  Apartado
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.sourceOption,
+                  {
+                    backgroundColor: !usarSaldoCuentaPrincipal ? colors.button : colors.card,
+                    borderColor: !usarSaldoCuentaPrincipal ? colors.button : colors.border,
+                  },
+                ]}
+                onPress={() => setUsarSaldoCuentaPrincipal(false)}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="add-circle-outline" size={18} color={!usarSaldoCuentaPrincipal ? '#fff' : colors.textSecondary} />
+                <Text
+                  style={[
+                    styles.sourceOptionText,
+                    { color: !usarSaldoCuentaPrincipal ? '#fff' : colors.text },
+                  ]}
+                >
+                  Saldo nuevo
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            <Text style={[styles.sourceHelper, { color: colors.textSecondary }]}>
+              {usarSaldoCuentaPrincipal
+                ? 'Apartado: reserva saldo existente (si no alcanza, falla).'
+                : 'Saldo nuevo: incrementa el saldo total (depósito adicional).'}
+            </Text>
+          </View>
+        )}
 
         {/* ✅ CurrencyPicker reutilizable */}
         <View style={{ marginBottom: 10 }}>
@@ -382,6 +471,42 @@ const styles = StyleSheet.create({
   // ✅ Estilos para SmartInput y advertencias
   smartInputContainer: {
     marginBottom: 0,
+  },
+  sourceContainer: {
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    marginBottom: 12,
+  },
+  sourceTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    marginBottom: 10,
+    lineHeight: 18,
+  },
+  sourceOptionsRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  sourceOption: {
+    flex: 1,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 10,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8,
+  },
+  sourceOptionText: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  sourceHelper: {
+    marginTop: 10,
+    fontSize: 12,
+    lineHeight: 16,
   },
   warningContainer: {
     flexDirection: 'row',
