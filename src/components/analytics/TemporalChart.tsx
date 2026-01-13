@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Dimensions, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { analyticsService, AnalisisTemporal, AnalyticsFilters } from '../../services/analyticsService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { authService } from '../../services/authService';
 import { useThemeColors } from '../../theme/useThemeColors';
 
 interface TemporalChartProps {
@@ -19,9 +20,16 @@ const TemporalChart: React.FC<TemporalChartProps> = ({ filters, refreshKey = 0 }
   const [loading, setLoading] = useState(true);
   const [userCurrency, setUserCurrency] = useState<string>('MXN');
   const fadeAnim = useState(new Animated.Value(0))[0];
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     loadUserCurrency();
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) abortControllerRef.current.abort();
+    };
   }, []);
 
   useEffect(() => {
@@ -60,18 +68,22 @@ const TemporalChart: React.FC<TemporalChartProps> = ({ filters, refreshKey = 0 }
   const loadData = async () => {
     try {
       setLoading(true);
-      
-      const token = await AsyncStorage.getItem("authToken");
+      // Cancel previous request if any
+      if (abortControllerRef.current) abortControllerRef.current.abort();
+      abortControllerRef.current = new AbortController();
+      const signal = abortControllerRef.current.signal;
+
+      const token = await authService.getAccessToken();
       if (!token) {
         console.error('No auth token found');
         return;
       }
-      
-      const response = await analyticsService.getAnalisisTemporal(filters);
-      setData(response);
+
+      const response = await analyticsService.getAnalisisTemporal(filters, signal);
+      if (!signal.aborted) setData(response);
     } catch (error: any) {
       if (error?.message?.includes('401')) {
-        await AsyncStorage.removeItem("authToken");
+        await authService.clearAll();
         console.error('Session expired in TemporalChart');
       }
       console.error('Error loading temporal data:', error);
@@ -143,7 +155,12 @@ const TemporalChart: React.FC<TemporalChartProps> = ({ filters, refreshKey = 0 }
 
   return (
     <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
-      <Text style={[styles.title, { color: colors.text }]}>Análisis Temporal</Text>
+      <View style={styles.header}>
+        <View style={[styles.headerIcon, { backgroundColor: colors.button + '15' }]}>
+          <Ionicons name="trending-up" size={22} color={colors.button} />
+        </View>
+        <Text style={[styles.title, { color: colors.text }]}>Análisis Temporal</Text>
+      </View>
       
       <View style={[styles.trendsContainer, { backgroundColor: colors.card }]}>
         <View style={styles.trendItem}>
@@ -207,33 +224,41 @@ const TemporalChart: React.FC<TemporalChartProps> = ({ filters, refreshKey = 0 }
         </View>
       </View>
 
-      <ScrollView 
-        horizontal 
-        showsHorizontalScrollIndicator={false}
-        style={styles.chartScrollContainer}
-      >
-        <View style={[styles.chartContainer, { width: Math.max(chartWidth, data.datos.length * 60) }]}>
-          {data.datos.map((item, index) => {
-            const incomeHeight = (item.ingresos / maxValue) * 100;
-            const expenseHeight = (Math.abs(item.gastos) / maxValue) * 100;
-            
-            return (
-              <View key={index} style={styles.chartItem}>
-                <View style={styles.barsContainer}>
-                  <View 
-                    style={[styles.incomeBar, { height: incomeHeight }]}
-                  />
-                  <View 
-                    style={[styles.expenseBar, { height: expenseHeight }]}
-                  />
-                </View>
-                <Text style={[styles.chartDate, { color: colors.textSecondary }]}>{formatDate(item.fecha)}</Text>
-                <Text style={[styles.chartMovements, { color: colors.textSecondary }]}>{item.cantidadMovimientos}</Text>
-              </View>
-            );
-          })}
-        </View>
-      </ScrollView>
+      <View style={{ flex: 1, minHeight: 0 }}>
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={{ flexGrow: 1 }}
+          showsVerticalScrollIndicator={true}
+        >
+          <ScrollView 
+            horizontal 
+            showsHorizontalScrollIndicator={false}
+            style={styles.chartScrollContainer}
+          >
+            <View style={[styles.chartContainer, { width: Math.max(chartWidth, data.datos.length * 60) }]}> 
+              {data.datos.map((item, index) => {
+                const incomeHeight = (item.ingresos / maxValue) * 100;
+                const expenseHeight = (Math.abs(item.gastos) / maxValue) * 100;
+                
+                return (
+                  <View key={index} style={styles.chartItem}>
+                    <View style={styles.barsContainer}>
+                      <View 
+                        style={[styles.incomeBar, { height: incomeHeight }]}
+                      />
+                      <View 
+                        style={[styles.expenseBar, { height: expenseHeight }]}
+                      />
+                    </View>
+                    <Text style={[styles.chartDate, { color: colors.textSecondary }]}>{formatDate(item.fecha)}</Text>
+                    <Text style={[styles.chartMovements, { color: colors.textSecondary }]}>{item.cantidadMovimientos}</Text>
+                  </View>
+                );
+              })}
+            </View>
+          </ScrollView>
+        </ScrollView>
+      </View>
 
       <View style={styles.legend}>
         <View style={styles.legendItem}>
@@ -253,10 +278,23 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+    gap: 12,
+  },
+  headerIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   title: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 16,
+    fontSize: 20,
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
   loadingContainer: {
     flex: 1,
