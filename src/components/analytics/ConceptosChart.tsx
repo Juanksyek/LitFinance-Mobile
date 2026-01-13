@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { analyticsService, EstadisticaConcepto, AnalyticsFilters } from '../../services/analyticsService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { authService } from '../../services/authService';
 import { useThemeColors } from '../../theme/useThemeColors';
 
 interface ConceptosChartProps {
@@ -58,7 +59,7 @@ const ConceptosChart: React.FC<ConceptosChartProps> = ({ filters, refreshKey = 0
     try {
       setLoading(true);
       
-      const token = await AsyncStorage.getItem("authToken");
+      const token = await authService.getAccessToken();
       if (!token) {
         console.error('No auth token found');
         return;
@@ -68,7 +69,7 @@ const ConceptosChart: React.FC<ConceptosChartProps> = ({ filters, refreshKey = 0
       setData(response);
     } catch (error: any) {
       if (error?.message?.includes('401')) {
-        await AsyncStorage.removeItem("authToken");
+        await authService.clearAll();
         console.error('Session expired in ConceptosChart');
       }
       console.error('Error loading conceptos data:', error);
@@ -127,64 +128,175 @@ const ConceptosChart: React.FC<ConceptosChartProps> = ({ filters, refreshKey = 0
 
   return (
     <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
-      <Text style={[styles.title, { color: colors.text }]}>Gastos e Ingresos por Concepto</Text>
+      <View style={styles.header}>
+        <View style={[styles.headerIcon, { backgroundColor: colors.button + '15' }]}>
+          <Ionicons name="pie-chart" size={22} color={colors.button} />
+        </View>
+        <Text style={[styles.title, { color: colors.text }]}>Gastos e Ingresos por Concepto</Text>
+      </View>
       
-      <ScrollView style={styles.itemsContainer} showsVerticalScrollIndicator={false}>
-        {data.map((item, index) => (
-          <View key={item.concepto.id} style={[styles.item, { backgroundColor: colors.card }]}>
-            <View style={styles.itemHeader}>
-              <View style={styles.conceptInfo}>
-                <View style={[styles.iconContainer, { backgroundColor: item.concepto.color }]}>
-                  <Text style={styles.icon}>{item.concepto.icono}</Text>
-                </View>
-                <View style={styles.conceptText}>
-                  <Text style={[styles.conceptName, { color: colors.text }]}>{item.concepto.nombre}</Text>
-                  <Text style={[styles.conceptStats, { color: colors.textSecondary }]}>
-                    {item.cantidadMovimientos} movimientos • {item.participacionPorcentual.toFixed(1)}%
-                  </Text>
-                </View>
-              </View>
-              <Text style={[styles.promedio, { color: colors.textSecondary }]}>
-                Promedio: {formatMoney(item.montoPromedio, getMoneda(item))}
-              </Text>
-            </View>
+      <View style={{ flex: 1, minHeight: 0 }}>
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={{ paddingBottom: 32, flexGrow: 1 }}
+          showsVerticalScrollIndicator={true}
+        >
+          {data.map((item, index) => (
+            <AnimatedConceptItem 
+              key={item.concepto.id} 
+              item={item} 
+              maxAmount={maxAmount}
+              index={index}
+              colors={colors}
+              formatMoney={formatMoney}
+              getMoneda={getMoneda}
+            />
+          ))}
+        </ScrollView>
+      </View>
+    </Animated.View>
+  );
+};
 
-            <View style={styles.amounts}>
-              <View style={styles.amountRow}>
-                <Text style={[styles.amountLabel, { color: colors.textSecondary }]}>Gastos</Text>
-                <View style={[styles.barContainer, { backgroundColor: colors.inputBackground }]}>
-                  <View 
-                    style={[
-                      styles.bar, 
-                      styles.expenseBar,
-                      { width: `${(item.totalGasto / maxAmount) * 100}%` }
-                    ]} 
-                  />
-                </View>
-                <Text style={[styles.amountValue, { color: '#ef4444' }]}>
-                  {formatMoney(item.totalGasto, getMoneda(item))}
+// Componente animado para cada item individual
+const AnimatedConceptItem: React.FC<{
+  item: EstadisticaConcepto;
+  maxAmount: number;
+  index: number;
+  colors: any;
+  formatMoney: (amount: number, moneda: string) => string;
+  getMoneda: (item?: any) => string;
+}> = ({ item, maxAmount, index, colors, formatMoney, getMoneda }) => {
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(30)).current;
+  const barWidthGasto = useRef(new Animated.Value(0)).current;
+  const barWidthIngreso = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    // Animación de entrada con delay basado en el índice
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 500,
+        delay: index * 100,
+        useNativeDriver: true,
+      }),
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        tension: 50,
+        friction: 8,
+        delay: index * 100,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      // Después de la entrada, animar las barras
+      Animated.parallel([
+        Animated.timing(barWidthGasto, {
+          toValue: (item.totalGasto / maxAmount) * 100,
+          duration: 800,
+          useNativeDriver: false,
+        }),
+        Animated.timing(barWidthIngreso, {
+          toValue: (item.totalIngreso / maxAmount) * 100,
+          duration: 800,
+          useNativeDriver: false,
+        }),
+      ]).start();
+    });
+  }, []);
+
+  return (
+    <Animated.View 
+      style={[
+        styles.item, 
+        { 
+          backgroundColor: colors.card,
+          shadowColor: colors.shadow,
+          opacity: fadeAnim,
+          transform: [{ translateY: slideAnim }]
+        }
+      ]}
+    >
+      <View style={styles.itemHeader}>
+        <View style={styles.conceptInfo}>
+          <View style={[styles.iconContainer, { backgroundColor: item.concepto.color + '20' }]}>
+            <Text style={styles.icon}>{item.concepto.icono}</Text>
+          </View>
+          <View style={styles.conceptText}>
+            <Text style={[styles.conceptName, { color: colors.text }]}>{item.concepto.nombre}</Text>
+            <View style={styles.statsRow}>
+              <View style={[styles.badge, { backgroundColor: colors.button + '15' }]}>
+                <Ionicons name="analytics" size={12} color={colors.button} />
+                <Text style={[styles.conceptStats, { color: colors.button }]}>
+                  {item.cantidadMovimientos} mov.
                 </Text>
               </View>
-
-              <View style={styles.amountRow}>
-                <Text style={[styles.amountLabel, { color: colors.textSecondary }]}>Ingresos</Text>
-                <View style={[styles.barContainer, { backgroundColor: colors.inputBackground }]}>
-                  <View 
-                    style={[
-                      styles.bar, 
-                      styles.incomeBar,
-                      { width: `${(item.totalIngreso / maxAmount) * 100}%` }
-                    ]} 
-                  />
-                </View>
-                <Text style={[styles.amountValue, { color: '#10b981' }]}>
-                  {formatMoney(item.totalIngreso, getMoneda(item))}
+              <View style={[styles.badge, { backgroundColor: colors.success + '15' }]}>
+                <Ionicons name="pie-chart" size={12} color={colors.success} />
+                <Text style={[styles.conceptStats, { color: colors.success }]}>
+                  {item.participacionPorcentual.toFixed(1)}%
                 </Text>
               </View>
             </View>
           </View>
-        ))}
-      </ScrollView>
+        </View>
+        <View style={[styles.promedioContainer, { backgroundColor: colors.cardSecondary }]}>
+          <Text style={[styles.promedioLabel, { color: colors.textSecondary }]}>Promedio</Text>
+          <Text style={[styles.promedio, { color: colors.text }]}>
+            {formatMoney(item.montoPromedio, getMoneda(item))}
+          </Text>
+        </View>
+      </View>
+
+      <View style={styles.amounts}>
+        <View style={styles.amountRow}>
+          <View style={styles.labelContainer}>
+            <Ionicons name="arrow-up-circle" size={16} color="#ef4444" />
+            <Text style={[styles.amountLabel, { color: colors.textSecondary }]}>Gastos</Text>
+          </View>
+          <View style={[styles.barContainer, { backgroundColor: colors.inputBackground }]}>
+            <Animated.View 
+              style={[
+                styles.bar, 
+                styles.expenseBar,
+                { 
+                  width: barWidthGasto.interpolate({
+                    inputRange: [0, 100],
+                    outputRange: ['0%', '100%']
+                  })
+                }
+              ]} 
+            />
+          </View>
+          <Text style={[styles.amountValue, { color: '#ef4444' }]}>
+            {formatMoney(item.totalGasto, getMoneda(item))}
+          </Text>
+        </View>
+
+        <View style={styles.amountRow}>
+          <View style={styles.labelContainer}>
+            <Ionicons name="arrow-down-circle" size={16} color="#10b981" />
+            <Text style={[styles.amountLabel, { color: colors.textSecondary }]}>Ingresos</Text>
+          </View>
+          <View style={[styles.barContainer, { backgroundColor: colors.inputBackground }]}>
+            <Animated.View 
+              style={[
+                styles.bar, 
+                styles.incomeBar,
+                { 
+                  width: barWidthIngreso.interpolate({
+                    inputRange: [0, 100],
+                    outputRange: ['0%', '100%']
+                  })
+                }
+              ]} 
+            />
+          </View>
+          <Text style={[styles.amountValue, { color: '#10b981' }]}>
+            {formatMoney(item.totalIngreso, getMoneda(item))}
+          </Text>
+        </View>
+      </View>
     </Animated.View>
   );
 };
@@ -193,10 +305,23 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+    gap: 12,
+  },
+  headerIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   title: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 16,
+    fontSize: 20,
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
   loadingContainer: {
     flex: 1,
@@ -222,9 +347,13 @@ const styles = StyleSheet.create({
     maxHeight: 400,
   },
   item: {
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
+    borderRadius: 16,
+    padding: 18,
+    marginBottom: 16,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 5,
   },
   itemHeader: {
     flexDirection: 'row',
@@ -238,52 +367,87 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   iconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginRight: 14,
   },
   icon: {
-    fontSize: 20,
+    fontSize: 24,
   },
   conceptText: {
     flex: 1,
   },
   conceptName: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 17,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+    marginBottom: 6,
+  },
+  statsRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  badge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 4,
   },
   conceptStats: {
-    fontSize: 12,
-    marginTop: 2,
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  promedioContainer: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  promedioLabel: {
+    fontSize: 10,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 2,
   },
   promedio: {
-    fontSize: 12,
-    fontWeight: '500',
+    fontSize: 13,
+    fontWeight: '700',
   },
   amounts: {
-    gap: 8,
+    gap: 12,
+    marginTop: 12,
   },
   amountRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 10,
+  },
+  labelContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    width: 80,
   },
   amountLabel: {
     fontSize: 12,
-    width: 60,
+    fontWeight: '600',
   },
   barContainer: {
     flex: 1,
-    height: 6,
-    borderRadius: 3,
+    height: 10,
+    borderRadius: 10,
+    overflow: 'hidden',
   },
   bar: {
     height: '100%',
-    borderRadius: 3,
-    minWidth: 2,
+    borderRadius: 10,
+    minWidth: 4,
   },
   expenseBar: {
     backgroundColor: '#ef4444',
@@ -292,9 +456,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#10b981',
   },
   amountValue: {
-    fontSize: 14,
-    fontWeight: '600',
-    width: 80,
+    fontSize: 13,
+    fontWeight: '700',
+    width: 90,
     textAlign: 'right',
   },
 });
