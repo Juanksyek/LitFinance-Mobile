@@ -4,6 +4,7 @@ import Modal from "react-native-modal";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Toast from "react-native-toast-message";
+import userService from "../services/userService";
 import { API_BASE_URL } from "../constants/api";
 import { useThemeColors } from '../theme/useThemeColors';
 
@@ -191,14 +192,9 @@ export const CurrencyPicker: React.FC<CurrencyPickerProps> = ({
 
       try {
         const headers = await getHeaders();
-        const res = await fetch(`${API_BASE_URL}/user/monedas/toggle-favorita`, {
-          method: "POST",
-          headers,
-          body: JSON.stringify({ codigoMoneda }),
-        });
-        const json = await res.json().catch(() => null);
-        if (!res.ok) throw new Error(json?.message || "No se pudo actualizar favorita");
-        Toast.show({ type: "success", text1: json?.message || "Actualizado" });
+        // Use centralized userService which wraps apiRateLimiter
+        const resp = await userService.toggleMonedaFavorita(codigoMoneda);
+        Toast.show({ type: "success", text1: resp.message || "Actualizado" });
       } catch (err: any) {
         console.error(err);
         LayoutAnimation.configureNext(ease);

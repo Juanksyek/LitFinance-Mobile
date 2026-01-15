@@ -1,23 +1,28 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ActivityIndicator,
-  Dimensions,
-  FlatList,
-  LayoutAnimation,
-  Modal,
-  Platform,
-  Pressable,
-  StyleSheet,
+  View,
   Text,
   TextInput,
   TouchableOpacity,
-  UIManager,
-  View,
+  FlatList,
+  StyleSheet,
+  ActivityIndicator,
+  Modal,
+  Pressable,
   Animated,
+  LayoutAnimation,
+  Platform,
+  UIManager,
+  Dimensions,
+  SafeAreaView,
+  StatusBar,
 } from "react-native";
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from "@expo/vector-icons";
-import Toast from "react-native-toast-message";
+import { useNavigation } from "@react-navigation/native";
 import { apiRateLimiter } from "../services/apiRateLimiter";
+import { fixMojibake, takeFirstGrapheme, emojiFontFix } from '../utils/fixMojibake';
+import Toast from "react-native-toast-message";
 import { API_BASE_URL } from "../constants/api";
 import { useThemeColors } from "../theme/useThemeColors";
 
@@ -26,10 +31,6 @@ interface Concepto {
   nombre: string;
   color: string;
   icono?: string;
-}
-
-interface Props {
-  onClose: () => void;
 }
 
 type FormMode = "create" | "edit";
@@ -87,6 +88,7 @@ const QUICK_EMOJIS = [
 
 const DEFAULT_ICON = "📌";
 
+// Debounced value hook
 function useDebouncedValue<T>(value: T, delay = 280) {
   const [debounced, setDebounced] = useState(value);
   useEffect(() => {
@@ -96,33 +98,7 @@ function useDebouncedValue<T>(value: T, delay = 280) {
   return debounced;
 }
 
-// Arregla “mojibake” típico (UTF-8 interpretado como Latin-1) para emojis/símbolos.
-function fixMojibake(input: string) {
-  if (!input) return input;
-  const suspicious = /Ã|Â|â|ï|�/.test(input);
-  if (!suspicious) return input;
-
-  try {
-    const bytes = Uint8Array.from(Array.from(input).map((ch) => ch.charCodeAt(0) & 0xff));
-    const decoded = new TextDecoder("utf-8", { fatal: false }).decode(bytes);
-    if (decoded && !/Ã|Â|â|ï|�/.test(decoded)) return decoded;
-    return decoded || input;
-  } catch {
-    return input;
-  }
-}
-
-function takeFirstGrapheme(s: string) {
-  const trimmed = (s ?? "").trim();
-  if (!trimmed) return "";
-  return Array.from(trimmed)[0] ?? trimmed;
-}
-
-const emojiFontFix = Platform.select({
-  ios: { fontFamily: "System" },
-  android: { fontFamily: "sans-serif" },
-  default: {},
-});
+// Reuse shared utils: fixMojibake, takeFirstGrapheme, emojiFontFix
 
 function shortId(id: string) {
   if (!id) return "";
@@ -130,8 +106,12 @@ function shortId(id: string) {
   return `${id.slice(0, 4)}…${id.slice(-3)}`;
 }
 
-const ConceptsManager: React.FC<Props> = ({ onClose }) => {
+const ConceptsScreen: React.FC = () => {
   const colors = useThemeColors();
+  const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
+  const topInset = insets?.top ?? (Platform.OS === 'android' ? StatusBar.currentHeight ?? 0 : 0);
+  const bottomInset = insets?.bottom ?? 0;
 
   const [query, setQuery] = useState("");
   const debouncedQuery = useDebouncedValue(query, 300);
@@ -165,8 +145,7 @@ const ConceptsManager: React.FC<Props> = ({ onClose }) => {
 
   const activeIcon = useMemo(() => {
     const raw = form.icono?.trim() || DEFAULT_ICON;
-    const fixed = fixMojibake(raw);
-    return fixed || DEFAULT_ICON;
+    return takeFirstGrapheme(fixMojibake(raw)) || DEFAULT_ICON;
   }, [form.icono]);
 
   const activeColor = form.color || COLORS[0];
@@ -222,7 +201,7 @@ const ConceptsManager: React.FC<Props> = ({ onClose }) => {
         conceptoId: it.conceptoId ?? it.id ?? String(it._id ?? Math.random()),
         nombre: it.nombre ?? it.name ?? "",
         color: it.color ?? it.hex ?? COLORS[0],
-        icono: fixMojibake(it.icono ?? it.icon ?? "") ?? "",
+        icono: fixMojibake(it.icono ?? it.icon ?? "") || DEFAULT_ICON,
       }));
 
       lastConceptosRef.current = normalized;
@@ -255,15 +234,39 @@ const ConceptsManager: React.FC<Props> = ({ onClose }) => {
     try {
       const res = await apiRateLimiter.fetch(`${API_BASE_URL}/conceptos`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json; charset=utf-8" },
         body: JSON.stringify({ nombre, color: form.color, icono: iconoFinal }),
       });
 
       if (!res.ok) throw new Error("Error al crear");
 
+      // Try to read created item from response and normalize it. If unavailable, build a local stub.
+      let createdBody: any = null;
+      try {
+        createdBody = await res.json();
+      } catch {}
+
+      const created: Concepto = createdBody
+        ? {
+            conceptoId: createdBody.conceptoId ?? createdBody.id ?? String(createdBody._id ?? Math.random()),
+            nombre: createdBody.nombre ?? createdBody.name ?? nombre,
+            color: createdBody.color ?? createdBody.hex ?? form.color,
+            icono: fixMojibake(createdBody.icono ?? createdBody.icon ?? iconoFinal) || DEFAULT_ICON,
+          }
+        : {
+            conceptoId: String(Math.random()),
+            nombre,
+            color: form.color,
+            icono: iconoFinal,
+          };
+
+      // Insert locally so user sees it immediately
+      animateLayout();
+      setConceptos((prev) => [created, ...prev]);
+      lastConceptosRef.current = [created, ...lastConceptosRef.current];
+
       Toast.show({ type: "success", text1: "Concepto creado" });
       resetToCreate();
-      setTimeout(() => fetchConceptos(), 250);
     } catch {
       Toast.show({ type: "error", text1: "Error al crear concepto" });
     }
@@ -295,14 +298,43 @@ const ConceptsManager: React.FC<Props> = ({ onClose }) => {
     try {
       const res = await apiRateLimiter.fetch(`${API_BASE_URL}/conceptos/${form.conceptoId}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json; charset=utf-8" },
         body: JSON.stringify(payload),
       });
       if (!res.ok) throw new Error("Error al editar");
 
+      // Prefer server-returned updated object; otherwise merge locally
+      let updatedBody: any = null;
+      try {
+        updatedBody = await res.json();
+      } catch {}
+
+      const original = conceptos.find((c) => c.conceptoId === form.conceptoId) ??
+        lastConceptosRef.current.find((c) => c.conceptoId === form.conceptoId) ?? {
+          conceptoId: form.conceptoId,
+          nombre: form.nombre,
+          color: form.color,
+          icono: form.icono,
+        };
+
+      const updated: Concepto = updatedBody
+        ? {
+            conceptoId: updatedBody.conceptoId ?? updatedBody.id ?? String(updatedBody._id ?? form.conceptoId),
+            nombre: updatedBody.nombre ?? updatedBody.name ?? original.nombre,
+            color: updatedBody.color ?? updatedBody.hex ?? original.color,
+            icono: fixMojibake(updatedBody.icono ?? updatedBody.icon ?? original.icono) || DEFAULT_ICON,
+          }
+        : { ...original, ...payload } as Concepto;
+
+      // Apply change locally so user sees update immediately
+      animateLayout();
+      setConceptos((prev) => prev.map((c) => (c.conceptoId === updated.conceptoId ? updated : c)));
+      lastConceptosRef.current = lastConceptosRef.current.map((c) =>
+        c.conceptoId === updated.conceptoId ? updated : c
+      );
+
       Toast.show({ type: "success", text1: "Concepto actualizado" });
       resetToCreate();
-      setTimeout(() => fetchConceptos(), 220);
     } catch {
       Toast.show({ type: "error", text1: "Error al editar concepto" });
     }
@@ -350,7 +382,8 @@ const ConceptsManager: React.FC<Props> = ({ onClose }) => {
 
   const pickColor = useCallback((hex: string) => setForm((s) => ({ ...s, color: hex })), []);
   const pickEmoji = useCallback((emoji: string) => {
-    setForm((s) => ({ ...s, icono: emoji }));
+    const clean = takeFirstGrapheme(fixMojibake(emoji || DEFAULT_ICON)) || DEFAULT_ICON;
+    setForm((s) => ({ ...s, icono: clean }));
     setShowEmojiPicker(false);
   }, []);
   const applyEmojiFromInput = useCallback((text: string) => {
@@ -359,22 +392,22 @@ const ConceptsManager: React.FC<Props> = ({ onClose }) => {
       setForm((s) => ({ ...s, icono: "" }));
       return;
     }
-    setForm((s) => ({ ...s, icono: takeFirstGrapheme(trimmed) }));
+    const cleaned = takeFirstGrapheme(fixMojibake(trimmed)) || "";
+    setForm((s) => ({ ...s, icono: cleaned }));
   }, []);
 
   const isEdit = form.mode === "edit";
 
-  // ✅ LISTA “lista” (no grid): minimalista, animada, con expansión suave
+  // Row component for concept list
   const ConceptRow = useCallback(
     ({ item, index }: { item: Concepto; index: number }) => {
       const isExpanded = expandedId === item.conceptoId;
-      const icon = fixMojibake(item.icono ?? "")?.trim() || DEFAULT_ICON;
+      const icon = takeFirstGrapheme(fixMojibake(item.icono ?? "")) || DEFAULT_ICON;
 
       const scale = useRef(new Animated.Value(1)).current;
       const appear = useRef(new Animated.Value(0)).current;
 
       useEffect(() => {
-        // micro-anim de aparición por fila (suave y rápido)
         Animated.timing(appear, {
           toValue: 1,
           duration: 180,
@@ -431,64 +464,48 @@ const ConceptsManager: React.FC<Props> = ({ onClose }) => {
               },
             ]}
           >
-            {/* Accent line */}
             <View style={[styles.rowAccent, { backgroundColor: item.color }]} />
 
-            {/* Left: icon */}
-            <View style={[styles.rowIconBadge, { backgroundColor: colors.cardSecondary, borderColor: colors.border }]}>
-              <Text style={[styles.rowIconText, { color: colors.text }]}>{icon}</Text>
-            </View>
+            <View style={styles.rowMain}>
+              <View style={[styles.rowIconBadge, { backgroundColor: colors.cardSecondary, borderColor: colors.border }]}>
+                <Text style={[styles.rowIconText, emojiFontFix]}>{icon}</Text>
+              </View>
 
-            {/* Center: name + meta */}
-            <View style={styles.rowCenter}>
-              <Text style={[styles.rowName, { color: colors.text }]} numberOfLines={1}>
-                {item.nombre}
-              </Text>
-
-              {isExpanded ? (
-                <Text style={[styles.rowMetaExpanded, { color: colors.textSecondary }]} numberOfLines={1}>
-                  ID: {item.conceptoId}
+              <View style={styles.rowCenter}>
+                <Text style={[styles.rowName, { color: colors.text }]} numberOfLines={1}>
+                  {item.nombre}
                 </Text>
-              ) : (
-                <Text style={[styles.rowMeta, { color: colors.textSecondary }]} numberOfLines={1}>
+                <Text style={[styles.rowMeta, { color: colors.textSecondary }]}>
                   ID: {shortId(item.conceptoId)}
                 </Text>
-              )}
+              </View>
+
+              <View style={styles.rowRight}>
+                <View style={[styles.rowDot, { backgroundColor: item.color, borderColor: colors.card }]} />
+                <Ionicons
+                  name={isExpanded ? "chevron-up" : "chevron-down"}
+                  size={18}
+                  color={colors.textSecondary}
+                />
+              </View>
             </View>
 
-            {/* Right: dot + chevron */}
-            <View style={styles.rowRight}>
-              <View style={[styles.rowDot, { backgroundColor: item.color, borderColor: colors.card }]} />
-              <Ionicons
-                name={isExpanded ? "chevron-up" : "chevron-down"}
-                size={18}
-                color={colors.textSecondary}
-              />
-            </View>
-
-            {/* Expanded actions */}
             {isExpanded ? (
               <View style={[styles.rowExpandedArea, { borderTopColor: colors.border }]}>
                 <TouchableOpacity
-                  activeOpacity={0.86}
-                  onPress={() => {
-                    animateLayout();
-                    openEdit(item);
-                    setExpandedId(null);
-                  }}
-                  style={[styles.rowActionPill, { backgroundColor: colors.cardSecondary, borderColor: colors.border }]}
+                  onPress={() => openEdit(item)}
+                  style={[styles.rowActionPill, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}
                 >
-                  <Ionicons name="create-outline" size={16} color={colors.button} />
-                  <Text style={[styles.rowActionText, { color: colors.text }]}>Editar</Text>
+                  <Ionicons name="pencil" size={18} color={colors.button} />
+                  <Text style={[styles.rowActionText, { color: colors.button }]}>Editar</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  activeOpacity={0.86}
-                  disabled={!!deletingId}
                   onPress={() => openDeleteConfirm(item.conceptoId)}
-                  style={[styles.rowActionPill, { backgroundColor: colors.cardSecondary, borderColor: colors.border }]}
+                  disabled={!!deletingId}
+                  style={[styles.rowActionPill, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}
                 >
-                  <Ionicons name="trash-outline" size={16} color={colors.error} />
+                  <Ionicons name="trash-outline" size={18} color={colors.error} />
                   <Text style={[styles.rowActionText, { color: colors.error }]}>Eliminar</Text>
                 </TouchableOpacity>
               </View>
@@ -506,6 +523,7 @@ const ConceptsManager: React.FC<Props> = ({ onClose }) => {
       colors.error,
       colors.text,
       colors.textSecondary,
+      colors.backgroundSecondary,
       deletingId,
       expandedId,
       openDeleteConfirm,
@@ -514,188 +532,175 @@ const ConceptsManager: React.FC<Props> = ({ onClose }) => {
   );
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.cardSecondary }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background, paddingTop: topInset + 8 }]}>
       {/* Header */}
-      <View style={styles.header}>
-        <View>
-          <Text style={[styles.title, { color: colors.text }]}>Mis Conceptos</Text>
-          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Lista limpia, dinámica y minimal ✨</Text>
-        </View>
-
-        <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-          <Ionicons name="close" size={26} color={colors.textSecondary} />
+      <View style={[styles.header, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
+        <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+          <Ionicons name="arrow-back" size={26} color={colors.text} />
         </TouchableOpacity>
+        <View style={styles.headerCenter}>
+          <Text style={[styles.title, { color: colors.text }]}>Mis Conceptos</Text>
+          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+            {isEdit ? "Editando concepto" : "Gestiona tus categorías"}
+          </Text>
+        </View>
+        <View style={{ width: 26 }} />
       </View>
 
-      {/* Search */}
-      <View style={[styles.searchWrap, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}>
-        <Ionicons name="search" size={18} color={colors.textSecondary} style={{ marginRight: 10 }} />
-        <TextInput
-          placeholder="Buscar concepto…"
-          value={query}
-          onChangeText={setQuery}
-          style={[styles.searchInput, { color: colors.inputText }]}
-          placeholderTextColor={colors.placeholder}
-        />
+      <View style={[styles.content, { paddingBottom: Math.max(20, bottomInset + 12) }]}>
+        {/* Search */}
+        <View style={[styles.searchWrap, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}>
+          <Ionicons name="search" size={18} color={colors.textSecondary} style={{ marginRight: 10 }} />
+          <TextInput
+            placeholder="Buscar concepto…"
+            value={query}
+            onChangeText={setQuery}
+            style={[styles.searchInput, { color: colors.inputText }]}
+            placeholderTextColor={colors.placeholder}
+          />
 
-        {loading ? (
-          <ActivityIndicator size="small" color={colors.textSecondary} />
-        ) : query ? (
-          <TouchableOpacity onPress={() => setQuery("")} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <Ionicons name="close-circle" size={20} color={colors.textSecondary} />
-          </TouchableOpacity>
-        ) : null}
-      </View>
-
-      {/* Form Card */}
-      <View style={[styles.formCard, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}>
-        <View style={styles.formTopRow}>
-          <View style={styles.previewWrap}>
-            <View style={[styles.previewIcon, { backgroundColor: colors.card, borderColor: activeColor }]}>
-              <Text style={[styles.previewIconText, { color: colors.text }]}>{activeIcon}</Text>
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.formTitle, { color: colors.text }]}>
-                {isEdit ? "Editando concepto" : "Crear concepto"}
-              </Text>
-              <Text style={[styles.formHint, { color: colors.textSecondary }]}>
-                {isEdit ? "Guarda cambios o cancela" : "Nombre, emoji y color"}
-              </Text>
-            </View>
-          </View>
-
-          {isEdit ? (
-            <TouchableOpacity
-              onPress={() => {
-                animateLayout();
-                resetToCreate();
-              }}
-              style={[styles.cancelPill, { backgroundColor: colors.cardSecondary, borderColor: colors.border }]}
-              activeOpacity={0.86}
-            >
-              <Ionicons name="close" size={16} color={colors.textSecondary} />
-              <Text style={[styles.cancelText, { color: colors.textSecondary }]}>Cancelar</Text>
+          {loading ? (
+            <ActivityIndicator size="small" color={colors.textSecondary} />
+          ) : query ? (
+            <TouchableOpacity onPress={() => setQuery("")}>
+              <Ionicons name="close-circle" size={20} color={colors.textSecondary} />
             </TouchableOpacity>
           ) : null}
         </View>
 
-        <TextInput
-          placeholder={isEdit ? "Nombre del concepto…" : "Ej. Viajes, Café, Renta…"}
-          value={form.nombre}
-          onChangeText={(v) => setForm((s) => ({ ...s, nombre: v }))}
-          style={[styles.nameInput, { backgroundColor: colors.card, borderColor: colors.border, color: colors.inputText }]}
-          placeholderTextColor={colors.placeholder}
-        />
+        {/* Form Card */}
+        <View style={[styles.formCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={styles.formTopRow}>
+            <View style={styles.previewWrap}>
+              <View style={[styles.previewIcon, { backgroundColor: activeColor + "30", borderColor: activeColor }]}>
+                <Text style={styles.previewIconText}>{takeFirstGrapheme(fixMojibake(activeIcon || DEFAULT_ICON))}</Text>
+              </View>
+              <View>
+                <Text style={[styles.formTitle, { color: colors.text }]}>
+                  {isEdit ? "Editar" : "Nuevo"}
+                </Text>
+                <Text style={[styles.formHint, { color: colors.textSecondary }]}>
+                  {isEdit ? "Actualiza los detalles" : "Crea un concepto"}
+                </Text>
+              </View>
+            </View>
 
-        <View style={styles.emojiRow}>
-          <TouchableOpacity
-            onPress={() => setShowEmojiPicker(true)}
-            activeOpacity={0.86}
-            style={[styles.emojiPickBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
-          >
-            <Text style={[styles.emojiPickBtnText, { color: colors.text }]}>{activeIcon}</Text>
-            <Ionicons name="chevron-down" size={16} color={colors.textSecondary} />
-          </TouchableOpacity>
+            {isEdit ? (
+              <TouchableOpacity
+                onPress={resetToCreate}
+                style={[styles.cancelPill, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}
+              >
+                <Ionicons name="close" size={14} color={colors.textSecondary} />
+                <Text style={[styles.cancelText, { color: colors.textSecondary }]}>Cancelar</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
 
           <TextInput
-            value={form.icono}
-            onChangeText={applyEmojiFromInput}
-            placeholder="Escribe un emoji…"
+            placeholder={isEdit ? "Nombre del concepto…" : "Ej. Viajes, Café, Renta…"}
+            value={form.nombre}
+            onChangeText={(v) => setForm((s) => ({ ...s, nombre: v }))}
+            style={[styles.nameInput, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border, color: colors.inputText }]}
             placeholderTextColor={colors.placeholder}
-            style={[styles.emojiInput, { backgroundColor: colors.card, borderColor: colors.border, color: colors.inputText }]}
-            maxLength={6}
-            keyboardType="default"
-            returnKeyType="done"
           />
-        </View>
 
-        <Text style={[styles.sectionLabel, { color: colors.text }]}>Color</Text>
-        <View style={styles.colorGrid}>
-          {COLORS.map((c) => {
-            const selected = activeColor === c;
-            return (
+          <View style={styles.emojiRow}>
+            <TouchableOpacity
+              onPress={() => setShowEmojiPicker(true)}
+              style={[styles.emojiPickBtn, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}
+            >
+              <Text style={styles.emojiPickBtnText}>{takeFirstGrapheme(fixMojibake(activeIcon || DEFAULT_ICON))}</Text>
+              <Ionicons name="chevron-down" size={14} color={colors.textSecondary} />
+            </TouchableOpacity>
+
+            <TextInput
+              value={form.icono}
+              onChangeText={applyEmojiFromInput}
+              placeholder="Escribe un emoji…"
+              placeholderTextColor={colors.placeholder}
+              style={[styles.emojiInput, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border, color: colors.inputText }]}
+              maxLength={6}
+              keyboardType="default"
+              returnKeyType="done"
+            />
+          </View>
+
+          <Text style={[styles.sectionLabel, { color: colors.text }]}>Color</Text>
+          <View style={styles.colorGrid}>
+            {COLORS.map((color) => (
               <TouchableOpacity
-                key={c}
-                onPress={() => pickColor(c)}
-                activeOpacity={0.86}
-                style={[
-                  styles.colorCircle,
-                  {
-                    backgroundColor: c,
-                    borderWidth: selected ? 2 : 0,
-                    borderColor: selected ? colors.text : "transparent",
-                  },
-                ]}
+                key={color}
+                style={[styles.colorCircle, { backgroundColor: color, borderWidth: activeColor === color ? 3 : 0, borderColor: colors.text }]}
+                onPress={() => pickColor(color)}
               />
-            );
-          })}
+            ))}
+          </View>
+
+          <TouchableOpacity
+            onPress={isEdit ? guardarEdicion : crearConcepto}
+            activeOpacity={0.88}
+            style={[styles.primaryBtn, { backgroundColor: activeColor }]}
+          >
+            <Ionicons
+              name={isEdit ? "checkmark-circle-outline" : "add-circle-outline"}
+              size={22}
+              color="#FFF"
+            />
+            <Text style={[styles.primaryBtnText, { color: "#FFF" }]}>
+              {isEdit ? "Guardar cambios" : "Crear concepto"}
+            </Text>
+          </TouchableOpacity>
         </View>
 
-        <TouchableOpacity
-          onPress={isEdit ? guardarEdicion : crearConcepto}
-          activeOpacity={0.88}
-          style={[styles.primaryBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
-        >
-          <Ionicons
-            name={isEdit ? "checkmark-circle-outline" : "add-circle-outline"}
-            size={22}
-            color={isEdit ? "#059669" : "#EF6C00"}
+        {/* List */}
+        {conceptos.length === 0 && !loading ? (
+          <View style={[styles.emptyWrap, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Ionicons name="albums-outline" size={48} color={colors.textSecondary} />
+            <Text style={[styles.emptyTitle, { color: colors.text }]}>Aún no tienes conceptos</Text>
+            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+              Crea uno arriba y aparecerá aquí para reutilizarlo en tus movimientos.
+            </Text>
+          </View>
+        ) : (
+          <FlatList
+            data={conceptos}
+            keyExtractor={(item) => item.conceptoId}
+            renderItem={({ item, index }) => <ConceptRow item={item} index={index} />}
+            contentContainerStyle={{ paddingBottom: 22 }}
+            showsVerticalScrollIndicator={false}
+            removeClippedSubviews
+            initialNumToRender={10}
+            windowSize={9}
+            ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
           />
-          <Text style={[styles.primaryBtnText, { color: colors.text }]}>
-            {isEdit ? "Guardar cambios" : "Crear concepto"}
-          </Text>
-        </TouchableOpacity>
+        )}
       </View>
-
-      {/* List */}
-      {conceptos.length === 0 && !loading ? (
-        <View style={[styles.emptyWrap, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Text style={[styles.emptyTitle, { color: colors.text }]}>Aún no tienes conceptos</Text>
-          <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-            Crea uno arriba y aparecerá aquí para reutilizarlo en tus movimientos.
-          </Text>
-        </View>
-      ) : (
-        <FlatList
-          data={conceptos}
-          keyExtractor={(item) => item.conceptoId}
-          renderItem={({ item, index }) => <ConceptRow item={item} index={index} />}
-          style={{ maxHeight: SCREEN_HEIGHT * 0.44, minHeight: SCREEN_HEIGHT * 0.24 }}
-          contentContainerStyle={{ paddingBottom: 22 }}
-          showsVerticalScrollIndicator
-          removeClippedSubviews
-          initialNumToRender={10}
-          windowSize={9}
-          ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
-        />
-      )}
 
       {/* Emoji Picker */}
       <Modal visible={showEmojiPicker} transparent animationType="fade" onRequestClose={() => setShowEmojiPicker(false)}>
-        <View style={[styles.modalOverlay, { backgroundColor: "rgba(0,0,0,0.18)" }]}>
+        <View style={[styles.modalOverlay, { backgroundColor: "rgba(0,0,0,0.5)" }]}>
           <View style={[styles.emojiModal, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={styles.emojiModalHeader}>
-              <Text style={[styles.emojiModalTitle, { color: colors.text }]}>Elige un símbolo</Text>
+              <Text style={[styles.emojiModalTitle, { color: colors.text }]}>Elige un emoji</Text>
               <TouchableOpacity onPress={() => setShowEmojiPicker(false)}>
-                <Ionicons name="close" size={22} color={colors.textSecondary} />
+                <Ionicons name="close" size={24} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
 
             <View style={styles.emojiGrid}>
-              {QUICK_EMOJIS.map((e) => (
+              {QUICK_EMOJIS.map((emoji) => (
                 <TouchableOpacity
-                  key={e}
-                  onPress={() => pickEmoji(e)}
-                  activeOpacity={0.86}
-                  style={[styles.emojiCell, { backgroundColor: colors.cardSecondary, borderColor: colors.border }]}
+                  key={emoji}
+                  onPress={() => pickEmoji(emoji)}
+                  style={[styles.emojiCell, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}
                 >
-                  <Text style={[styles.emojiCellText, { color: colors.text }]}>{e}</Text>
+                  <Text style={styles.emojiCellText}>{takeFirstGrapheme(fixMojibake(emoji))}</Text>
                 </TouchableOpacity>
               ))}
             </View>
 
             <Text style={[styles.emojiTip, { color: colors.textSecondary }]}>
-              Tip: también puedes escribir un emoji directamente en el campo.
+              💡 También puedes escribir cualquier emoji directamente en el campo de texto
             </Text>
           </View>
         </View>
@@ -703,70 +708,80 @@ const ConceptsManager: React.FC<Props> = ({ onClose }) => {
 
       {/* Delete Confirm */}
       <Modal visible={showDeleteModal} transparent animationType="fade" onRequestClose={closeDeleteConfirm}>
-        <View style={[styles.modalOverlay, { backgroundColor: "rgba(0,0,0,0.18)" }]}>
+        <View style={[styles.modalOverlay, { backgroundColor: "rgba(0,0,0,0.5)" }]}>
           <View style={[styles.deleteCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={[styles.deleteIconContainer, { backgroundColor: colors.error + "20" }]}>
+              <Ionicons name="trash" size={32} color={colors.error} />
+            </View>
             <Text style={[styles.deleteTitle, { color: colors.text }]}>¿Eliminar concepto?</Text>
-            <Text style={[styles.deleteText, { color: colors.textSecondary }]}>Esta acción no se puede deshacer.</Text>
+            <Text style={[styles.deleteText, { color: colors.textSecondary }]}>
+              Esta acción no se puede deshacer.
+            </Text>
 
             <View style={styles.deleteActions}>
               <TouchableOpacity
-                style={[styles.deleteBtn, { backgroundColor: colors.cardSecondary, borderColor: colors.border }]}
+                style={[styles.deleteBtn, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}
                 onPress={closeDeleteConfirm}
-                activeOpacity={0.88}
               >
                 <Text style={[styles.deleteBtnText, { color: colors.text }]}>Cancelar</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.deleteBtn, { backgroundColor: colors.cardSecondary, borderColor: colors.border }]}
+                style={[styles.deleteBtn, { backgroundColor: colors.error, borderColor: colors.error }]}
                 onPress={() => {
-                  if (!confirmDeleteId) return;
-                  eliminarConcepto(confirmDeleteId);
+                  if (confirmDeleteId) eliminarConcepto(confirmDeleteId);
                 }}
-                activeOpacity={0.88}
-                disabled={!confirmDeleteId}
               >
-                <Text style={[styles.deleteBtnText, { color: colors.error }]}>
-                  {deletingId ? "Eliminando…" : "Eliminar"}
-                </Text>
+                <Text style={[styles.deleteBtnText, { color: "#FFF" }]}>Eliminar</Text>
               </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
-    </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    width: "100%",
-    maxHeight: SCREEN_HEIGHT * 0.95,
-    minHeight: SCREEN_HEIGHT * 0.7,
-    padding: 22,
-    borderRadius: 28,
-    alignSelf: "center",
-    shadowColor: "#000",
-    shadowOpacity: 0.12,
-    shadowRadius: 16,
-    elevation: 8,
+    flex: 1,
+    paddingTop: 8,
   },
 
   header: {
     flexDirection: "row",
+    alignItems: "center",
     justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: 14,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    zIndex: 20,
+    elevation: 6,
+    shadowColor: '#000',
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+  },
+  headerCenter: {
+    flex: 1,
+    alignItems: "center",
   },
   title: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: "800",
     letterSpacing: 0.3,
   },
   subtitle: {
-    marginTop: 3,
-    fontSize: 13,
+    marginTop: 2,
+    fontSize: 12,
     fontWeight: "600",
+  },
+
+  content: {
+    flex: 1,
+    padding: 20,
+    marginTop: 8,
+    paddingTop: 6,
   },
 
   searchWrap: {
@@ -893,16 +908,16 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   colorCircle: {
-    width: 28,
-    height: 28,
+    width: 32,
+    height: 32,
     borderRadius: 999,
   },
 
   primaryBtn: {
     marginTop: 4,
     borderRadius: 16,
-    borderWidth: 1,
-    paddingVertical: 12,
+    borderWidth: 0,
+    paddingVertical: 14,
     paddingHorizontal: 14,
     flexDirection: "row",
     alignItems: "center",
@@ -910,11 +925,11 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   primaryBtnText: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: "900",
   },
 
-  // ===== LISTA (NO GRID) =====
+  // List styles
   rowWrap: {
     width: "100%",
   },
@@ -923,9 +938,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     padding: 12,
     overflow: "hidden",
-    shadowOpacity: 0.10,
-    shadowRadius: 14,
-    elevation: 4,
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 3,
   },
   rowAccent: {
     position: "absolute",
@@ -935,6 +950,10 @@ const styles = StyleSheet.create({
     width: 4,
     borderTopLeftRadius: 18,
     borderBottomLeftRadius: 18,
+  },
+  rowMain: {
+    flexDirection: "row",
+    alignItems: "center",
   },
   rowIconBadge: {
     width: 46,
@@ -949,7 +968,6 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
     ...emojiFontFix,
   },
-  rowTop: {},
   rowCenter: {
     flex: 1,
     marginLeft: 12,
@@ -975,20 +993,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "700",
     opacity: 0.95,
-  },
-  rowMetaExpanded: {
-    fontSize: 12,
-    fontWeight: "700",
-  },
-
-  // Layout for row main content
-  // (icon + center + right) in one line
-  // then expanded area below
-  // NOTE: this relies on parent row being a column; we build it with the wrapper below
-  // We'll do that by applying this style through inline composition:
-  rowMain: {
-    flexDirection: "row",
-    alignItems: "center",
   },
 
   rowExpandedArea: {
@@ -1017,17 +1021,20 @@ const styles = StyleSheet.create({
   emptyWrap: {
     borderRadius: 18,
     borderWidth: 1,
-    padding: 14,
+    padding: 24,
+    alignItems: "center",
+    gap: 12,
   },
   emptyTitle: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: "900",
-    marginBottom: 4,
+    textAlign: "center",
   },
   emptyText: {
     fontSize: 13,
     fontWeight: "600",
     lineHeight: 18,
+    textAlign: "center",
   },
 
   modalOverlay: {
@@ -1080,36 +1087,48 @@ const styles = StyleSheet.create({
 
   deleteCard: {
     width: "100%",
-    maxWidth: 420,
-    borderRadius: 16,
+    maxWidth: 380,
+    borderRadius: 18,
     borderWidth: 1,
-    padding: 16,
+    padding: 20,
+    alignItems: "center",
+  },
+  deleteIconContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 16,
   },
   deleteTitle: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: "900",
     marginBottom: 6,
+    textAlign: "center",
   },
   deleteText: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: "600",
-    marginBottom: 14,
+    marginBottom: 20,
+    textAlign: "center",
   },
   deleteActions: {
     flexDirection: "row",
-    justifyContent: "flex-end",
-    gap: 10,
+    width: "100%",
+    gap: 12,
   },
   deleteBtn: {
-    paddingVertical: 10,
-    paddingHorizontal: 14,
+    flex: 1,
+    paddingVertical: 14,
     borderRadius: 12,
     borderWidth: 1,
+    alignItems: "center",
   },
   deleteBtnText: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: "900",
   },
 });
 
-export default ConceptsManager;
+export default ConceptsScreen;

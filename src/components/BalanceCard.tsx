@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, Animated, LayoutAnimation, Platform, UIManager } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, Animated, LayoutAnimation, Platform, UIManager, ActivityIndicator } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { authService } from "../services/authService";
@@ -177,6 +177,8 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
     
     try {
       lastFetchRef.current = now;
+      // Mostrar feedback de carga para el saldo principal
+      if (isMountedRef.current) setIsLoadingFresh(true);
       const token = await authService.getAccessToken();
       console.log('🔑 [BalanceCard] Token obtenido:', token ? 'Existe' : 'No encontrado');
       
@@ -275,6 +277,11 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
         });
       }
       
+    }
+    finally {
+      if (isMountedRef.current) {
+        setIsLoadingFresh(false);
+      }
     }
   };
 
@@ -584,15 +591,24 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
 
       {/* Contenedor del saldo principal */}
       <View style={styles.balanceWrapper}>
-        <SmartNumber
-          value={saldo}
-          textStyle={[styles.balanceAmount, { color: colors.text }]}
-          options={{
-            context: 'card',
-            currency: monedaActual,
-            maxLength: 20
-          }}
-        />
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <SmartNumber
+            value={saldo}
+            textStyle={[styles.balanceAmount, { color: colors.text }]}
+            options={{
+              context: 'card',
+              currency: monedaActual,
+              maxLength: 20
+            }}
+          />
+          {isLoadingFresh && (
+            <ActivityIndicator
+              style={{ marginLeft: 8 }}
+              size="small"
+              color={colors.textSecondary}
+            />
+          )}
+        </View>
       </View>
 
       {/* Contenedor de ingresos y egresos */}
@@ -632,6 +648,11 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
             />
           </View>
         </View>
+        {isFetching && (
+          <View style={{ justifyContent: 'center', marginLeft: 8 }}>
+            <ActivityIndicator size="small" color={colors.textSecondary} />
+          </View>
+        )}
       </View>
 
       {/* Sección de filtros con animación */}

@@ -36,6 +36,9 @@ const TicketDetailScreen: React.FC = () => {
   const [isStaffOrAdmin, setIsStaffOrAdmin] = useState(false);
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
+  const [updatingStatus, setUpdatingStatus] = useState(false);
+  const updatingStatusRef = useRef(false);
+  const sendingQueueRef = useRef<Promise<any>[]>([]);
   const [mensaje, setMensaje] = useState("");
   const [refreshing, setRefreshing] = useState(false);
   const [showStatusModal, setShowStatusModal] = useState(false);
@@ -112,7 +115,12 @@ const TicketDetailScreen: React.FC = () => {
         console.log("⚠️ [TicketDetail] loadTicket - No hay mensajes en el ticket");
       }
       
-      setTicket(data);
+      // If we're mid-status-update, avoid clobbering optimistic state
+      if (!updatingStatusRef.current) {
+        setTicket(data);
+      } else {
+        console.log('🔄 [TicketDetail] loadTicket - Skipping update because status update in progress');
+      }
       
       if (data.mensajes && data.mensajes.length > 0) {
         setTimeout(() => {
@@ -177,50 +185,51 @@ const TicketDetailScreen: React.FC = () => {
       ticketId 
     });
     
-    try {
-      console.log("🚀 [TicketDetail] handleSendMessage - Estableciendo estados...");
-      setSending(true);
-      setMensaje("");
-      
-      console.log("📨 [TicketDetail] handleSendMessage - Llamando a supportService.addMessage...");
-      const updatedTicket = await supportService.addMessage(ticketId, {
-        mensaje: mensajeAEnviar,
-      });
-      
-      console.log("✅ [TicketDetail] handleSendMessage - Respuesta recibida:", {
-        ticketId: updatedTicket.ticketId,
-        mensajesCount: updatedTicket.mensajes?.length || 0,
-        estado: updatedTicket.estado
-      });
-      
-      console.log("🔄 [TicketDetail] handleSendMessage - Actualizando estado del ticket...");
-      setTicket(updatedTicket);
-      
-      Toast.show({
-        type: "success",
-        text1: "Mensaje enviado",
-      });
-      
-      setTimeout(() => {
-        console.log("📄 [TicketDetail] handleSendMessage - Scrolling to end...");
-        flatListRef.current?.scrollToEnd({ animated: true });
-      }, 100);
-    } catch (error: any) {
-      console.error("❌ [TicketDetail] handleSendMessage - Error:", {
-        message: error.message,
-        stack: error.stack
-      });
-      console.log("↩️ [TicketDetail] handleSendMessage - Restaurando mensaje en input");
-      setMensaje(mensajeAEnviar);
-      Toast.show({
-        type: "error",
-        text1: "Error",
-        text2: error.message || "No se pudo enviar el mensaje",
-      });
-    } finally {
-      console.log("🏁 [TicketDetail] handleSendMessage - Finalizando (setSending(false))");
-      setSending(false);
-    }
+    // Optimistic: append message locally and send in background to allow rapid sends
+    const tempId = `temp-${Date.now()}`;
+    const optimisticMsg = {
+      id: tempId,
+      mensaje: mensajeAEnviar,
+      createdAt: new Date().toISOString(),
+      esStaff: false,
+    } as any;
+
+    setMensaje("");
+    // append optimistic message
+    setTicket((t) => {
+      if (!t) return t;
+      return { ...t, mensajes: [...(t.mensajes || []), optimisticMsg] } as Ticket;
+    });
+
+    const sendPromise = (async () => {
+      try {
+        const updatedTicket = await supportService.addMessage(ticketId, { mensaje: mensajeAEnviar });
+        // replace optimistic message with server response
+        setTicket((t) => {
+          if (!t) return updatedTicket;
+          return updatedTicket;
+        });
+
+        Toast.show({ type: 'success', text1: 'Mensaje enviado' });
+        setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+      } catch (err: any) {
+        console.error('❌ [TicketDetail] optimistic addMessage failed', err);
+        // rollback optimistic message
+        setTicket((t) => {
+          if (!t) return t;
+          return { ...t, mensajes: (t.mensajes || []).filter((m: any) => m.id !== tempId) } as Ticket;
+        });
+        setMensaje(mensajeAEnviar);
+        Toast.show({ type: 'error', text1: 'Error', text2: err?.message || 'No se pudo enviar el mensaje' });
+      }
+    })();
+
+    // keep track of pending sends
+    sendingQueueRef.current.push(sendPromise);
+    // remove when done
+    sendPromise.finally(() => {
+      sendingQueueRef.current = sendingQueueRef.current.filter((p) => p !== sendPromise);
+    });
   };
 
   const handleDeleteTicket = () => {
@@ -258,31 +267,23 @@ const TicketDetailScreen: React.FC = () => {
   };
 
   const handleChangeStatus = async (newStatus: "abierto" | "en_progreso" | "resuelto" | "cerrado") => {
+    // Optimistic status update: set locally and send request in background
+    if (!ticket) return;
+    const previous = ticket.estado;
     try {
-      console.log("🔄 [TicketDetail] handleChangeStatus - Cambiando estatus...", { 
-        ticketId, 
-        currentStatus: ticket?.estado,
-        newStatus 
-      });
-      
-      const updatedTicket = await supportService.updateTicketStatus(ticketId, {
-        estado: newStatus,
-      });
-      
-      console.log("✅ [TicketDetail] handleChangeStatus - Estatus actualizado", {
-        newStatus: updatedTicket.estado
-      });
-      
-      setTicket(updatedTicket);
+      console.log('🔄 [TicketDetail] handleChangeStatus - Optimistic update', { ticketId, previous, newStatus });
+      setUpdatingStatus(true);
+      updatingStatusRef.current = true;
+      // optimistic
+      setTicket((t) => t ? ({ ...t, estado: newStatus } as Ticket) : t);
       setShowStatusModal(false);
-      
-      Toast.show({
-        type: "success",
-        text1: "Estado actualizado",
-        text2: `El ticket ahora está ${newStatus.replace('_', ' ')}`,
-      });
+
+      const updatedTicket = await supportService.updateTicketStatus(ticketId, { estado: newStatus });
+      console.log('✅ [TicketDetail] handleChangeStatus - Server confirmed', { estado: updatedTicket.estado });
+      setTicket(updatedTicket);
+      Toast.show({ type: 'success', text1: 'Estado actualizado', text2: `El ticket ahora está ${newStatus.replace('_', ' ')}` });
     } catch (error: any) {
-      console.error("❌ [TicketDetail] handleChangeStatus - Error:", error);
+      console.error('❌ [TicketDetail] handleChangeStatus - Error:', error);
       const raw = (error && (error.message || String(error))) || '';
       const msg = raw.toLowerCase();
       let friendly = 'No se pudo actualizar el estado. Intenta de nuevo más tarde.';
@@ -294,11 +295,10 @@ const TicketDetailScreen: React.FC = () => {
         friendly = 'El ticket no fue encontrado. Actualiza la pantalla e intenta de nuevo.';
       }
 
-      Toast.show({
-        type: 'error',
-        text1: 'No fue posible cambiar el estado',
-        text2: friendly,
-      });
+      Toast.show({ type: 'error', text1: 'No fue posible cambiar el estado', text2: friendly });
+    } finally {
+      setUpdatingStatus(false);
+      updatingStatusRef.current = false;
     }
   };
 
@@ -474,8 +474,9 @@ const TicketDetailScreen: React.FC = () => {
             <TouchableOpacity 
               onPress={() => setShowStatusModal(true)}
               style={{ marginRight: 16 }}
+              disabled={updatingStatus}
             >
-              <Ionicons name="swap-horizontal" size={24} color={colors.button} />
+              <Ionicons name="swap-horizontal" size={24} color={updatingStatus ? colors.placeholder : colors.button} />
             </TouchableOpacity>
           )}
           <TouchableOpacity onPress={handleDeleteTicket}>
@@ -594,37 +595,34 @@ const TicketDetailScreen: React.FC = () => {
               <Text style={[styles.statusOptionText, { color: colors.text }]}>
                 En progreso
               </Text>
-              {ticket?.estado !== "cerrado" && (
-                <SafeAreaView edges={["bottom"]} style={{ backgroundColor: colors.inputBackground }}>
-                  <View
-                    style={[
-                      styles.inputContainer,
-                      { backgroundColor: colors.inputBackground, borderTopColor: colors.placeholder + "30", paddingBottom: Platform.OS === 'android' ? 18 : 0 },
-                    ]}
-                  >
-                    <TextInput
-                      style={[
-                        styles.input,
-                        {
-                          backgroundColor: colors.background,
-                          color: colors.text,
-                          borderColor: colors.placeholder,
-                        },
-                      ]}
-                      placeholder="Escribe tu mensaje..."
-                      placeholderTextColor={colors.placeholder}
-                      value={mensaje}
-                      onChangeText={setMensaje}
-                      onFocus={() => {
-                        setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
-                      }}
-                      multiline
-                      maxLength={2000}
-                      editable={!sending}
-                    />
-                    /* Lines 517-532 omitted */
-                  </View>
-                </SafeAreaView>
+              {ticket?.estado === "en_progreso" && (
+                <Ionicons name="checkmark" size={20} color={colors.button} />
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.statusOption, { borderBottomColor: colors.placeholder + "30" }]}
+              onPress={() => handleChangeStatus("resuelto")}
+            >
+              <Ionicons name="checkmark-circle" size={20} color="#43A047" />
+              <Text style={[styles.statusOptionText, { color: colors.text }]}>
+                Resuelto
+              </Text>
+              {ticket?.estado === "resuelto" && (
+                <Ionicons name="checkmark" size={20} color={colors.button} />
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.statusOption, { borderBottomColor: colors.placeholder + "30" }]}
+              onPress={() => handleChangeStatus("cerrado")}
+            >
+              <Ionicons name="close-circle" size={20} color="#9E9E9E" />
+              <Text style={[styles.statusOptionText, { color: colors.text }]}>
+                Cerrado
+              </Text>
+              {ticket?.estado === "cerrado" && (
+                <Ionicons name="checkmark" size={20} color={colors.button} />
               )}
             </TouchableOpacity>
 

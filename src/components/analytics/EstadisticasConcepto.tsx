@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, FlatList } from 'react-native';
 import type { EstadisticaConcepto } from '../../types/analytics';
 import { useThemeColors } from '../../theme/useThemeColors';
+import { fixMojibake, takeFirstGrapheme, emojiFontFix } from '../../utils/fixMojibake';
 
 interface EstadisticasConceptoProps {
   data: EstadisticaConcepto[];
@@ -24,11 +25,11 @@ const EstadisticasConcepto: React.FC<EstadisticasConceptoProps> = ({
     <View style={[styles.conceptoItem, { borderBottomColor: colors.border, backgroundColor: colors.cardSecondary, shadowColor: colors.shadow }]}> 
       <View style={styles.conceptoHeader}> 
         <View style={[styles.emojiCircle, { backgroundColor: item.concepto.color + '22', borderColor: item.concepto.color }]}> 
-          <Text style={styles.emoji}>{item.concepto.icono}</Text> 
+          <Text style={[styles.emoji, emojiFontFix]}>{takeFirstGrapheme(fixMojibake(item.concepto.icono ?? ''))}</Text> 
         </View> 
         <View style={styles.conceptoNameRow}>
           <Text style={[styles.conceptoNombre, { color: colors.text }]}>{item.concepto.nombre}</Text>
-          <Text style={styles.emojiInline}>{item.concepto.icono}</Text>
+          <Text style={[styles.emojiInline, emojiFontFix]}>{takeFirstGrapheme(fixMojibake(item.concepto.icono ?? ''))}</Text>
         </View>
         <Text style={[styles.participacion, { color: colors.button }]}>{item.participacionPorcentual.toFixed(1)}%</Text> 
       </View> 
