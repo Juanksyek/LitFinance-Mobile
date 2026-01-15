@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -20,12 +20,12 @@ import { API_BASE_URL } from '../constants/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { authService } from '../services/authService';
 import Toast from 'react-native-toast-message';
-import ConceptsManager from './ConceptsManager';
 import SmartInput from './SmartInput';
 import SmartNumber from './SmartNumber';
 import { CurrencyField, Moneda } from '../components/CurrencyPicker';
 import { useThemeColors } from '../theme/useThemeColors';
 import { emitSubcuentasChanged } from '../utils/dashboardRefreshBus';
+import { fixMojibake, takeFirstGrapheme, emojiFontFix } from '../utils/fixMojibake';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 
@@ -77,7 +77,6 @@ const MovementModal: React.FC<Props> = ({
   const [conceptos, setConceptos] = useState<Concepto[]>([]);
   const [conceptoBusqueda, setConceptoBusqueda] = useState('');
   const [conceptoSeleccionado, setConceptoSeleccionado] = useState<Concepto | null>(null);
-  const [showConceptsManager, setShowConceptsManager] = useState(false);
   const [loading, setLoading] = useState(false);
   const navigation = useNavigation<any>();
 
@@ -312,7 +311,10 @@ const MovementModal: React.FC<Props> = ({
             onChangeText={setConceptoBusqueda}
             style={[styles.input, { flex: 1, fontSize: 12, backgroundColor: colors.inputBackground, borderColor: colors.border, color: colors.inputText }]}
           />
-          <TouchableOpacity onPress={() => setShowConceptsManager(true)}>
+          <TouchableOpacity onPress={() => {
+            onClose();
+            navigation.navigate('Concepts');
+          }}>
             <Text style={styles.adminLink}>+ Conceptos</Text>
           </TouchableOpacity>
         </View>
@@ -327,7 +329,7 @@ const MovementModal: React.FC<Props> = ({
                 onPress={() => setConceptoSeleccionado(isSelected ? null : item)}
                 style={[styles.chip, { backgroundColor: colors.cardSecondary }, isSelected && styles.chipSelected]}
               >
-                <Text style={[styles.chipText, { color: isSelected ? '#fff' : colors.text }]}>{item.icono} {item.nombre}</Text>
+                <Text style={[styles.chipText, { color: isSelected ? '#fff' : colors.text }]}>{takeFirstGrapheme(fixMojibake(item.icono || ''))} {item.nombre}</Text>
               </TouchableOpacity>
             );
           })}
@@ -344,26 +346,6 @@ const MovementModal: React.FC<Props> = ({
         <TouchableOpacity style={[styles.button, { backgroundColor: color }]} onPress={handleSend} disabled={loading}>
           <Text style={styles.buttonText}>{loading ? 'Guardando...' : 'Guardar'}</Text>
         </TouchableOpacity>
-
-        {/* Gestor de conceptos */}
-        <Modal
-          isVisible={showConceptsManager}
-          onBackdropPress={() => setShowConceptsManager(false)}
-          backdropOpacity={0.4}
-          animationIn="fadeIn"
-          animationOut="fadeOut"
-          useNativeDriver={false}
-          style={{ justifyContent: 'center', alignItems: 'center', margin: 0 }}
-        >
-          <View style={[styles.subModalCard, { backgroundColor: colors.chartBackground }]}>
-            <ConceptsManager
-              onClose={() => {
-                setShowConceptsManager(false);
-                fetchCuentaYConceptos();
-              }}
-            />
-          </View>
-        </Modal>
       </KeyboardAvoidingView>
     </Modal>
   );
@@ -413,7 +395,7 @@ const styles = StyleSheet.create({
   conceptosBox: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 14 },
   chip: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: 20, margin: 3 },
   chipSelected: { backgroundColor: '#EF7725' },
-  chipText: { fontSize: 13 },
+  chipText: { fontSize: 13, ...emojiFontFix },
   switchRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginVertical: 10 },
   switchLabel: { fontSize: 14 },
   button: { padding: 14, borderRadius: 12, alignItems: 'center', marginTop: 10, marginBottom: 40 },
