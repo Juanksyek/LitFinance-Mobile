@@ -5,6 +5,7 @@ import { analyticsService, EstadisticaConcepto, AnalyticsFilters } from '../../s
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { authService } from '../../services/authService';
 import { useThemeColors } from '../../theme/useThemeColors';
+import { fixMojibake, takeFirstGrapheme, emojiFontFix } from '../../utils/fixMojibake';
 
 interface ConceptosChartProps {
   filters: AnalyticsFilters;
@@ -219,8 +220,8 @@ const AnimatedConceptItem: React.FC<{
     >
       <View style={styles.itemHeader}>
         <View style={styles.conceptInfo}>
-          <View style={[styles.iconContainer, { backgroundColor: item.concepto.color + '20' }]}>
-            <Text style={styles.icon}>{item.concepto.icono}</Text>
+            <View style={[styles.iconContainer, { backgroundColor: item.concepto.color + '20' }]}>
+            <Text style={[styles.icon, emojiFontFix]}>{takeFirstGrapheme(fixMojibake(item.concepto.icono ?? ''))}</Text>
           </View>
           <View style={styles.conceptText}>
             <Text style={[styles.conceptName, { color: colors.text }]}>{item.concepto.nombre}</Text>
