@@ -60,10 +60,13 @@ const SmartNumber: React.FC<SmartNumberProps> = ({
     forceFullNumbers: showFullNumbers,
   });
 
+  console.log('🔢 [SmartNumber] value computed', { value, formatted: result.formatted, isTruncated: result.isTruncated });
+
   const hasWarnings = result.warnings.length > 0;
   const shouldShowTooltip = allowTooltip && (result.isTruncated || result.isLarge || hasWarnings);
 
   const handlePress = () => {
+    console.log('🔢 [SmartNumber] handlePress, shouldShowTooltip:', shouldShowTooltip);
     if (shouldShowTooltip) {
       setTooltipVisible(true);
     }

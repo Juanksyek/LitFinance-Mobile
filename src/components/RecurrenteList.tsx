@@ -42,6 +42,7 @@ const RecurrentesList = ({
     refreshKey?: number;
 }) => {
     const colors = useThemeColors();
+    console.log('🔁 [RecurrentesList] render', { userId, subcuentaId });
     const [recurrentes, setRecurrentes] = useState<Recurrente[]>([]);
     const [page, setPage] = useState(1);
     const [search, setSearch] = useState("");

@@ -45,6 +45,7 @@ const ActionButtons = ({
   onAnalyticsPress,
 }: ActionButtonsProps) => {
   const colors = useThemeColors();
+  console.log('🧭 [ActionButtons] render', { cuentaId, isSubcuenta });
 
   const [modalVisible, setModalVisible] = useState(false);
   const [subcuentaModalVisible, setSubcuentaModalVisible] = useState(false);
@@ -60,6 +61,7 @@ const ActionButtons = ({
   });
 
   const handlePress = async (label: string) => {
+    console.log('🧭 [ActionButtons] handlePress', { label, cuentaId });
     // If no cuentaId yet, inform the user and avoid opening modals
     if (!cuentaId) {
       Toast.show({ type: 'info', text1: 'Cargando datos', text2: 'Espera un momento mientras iniciamos sesión' });
