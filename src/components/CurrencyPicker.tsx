@@ -61,6 +61,7 @@ export const CurrencyPicker: React.FC<CurrencyPickerProps> = ({
   maxListHeight = 360,
 }) => {
   const colors = useThemeColors();
+  console.log('💱 [CurrencyPicker] render', { visible });
   const [data, setData] = useState<MonedasResponse>({
     favoritas: [],
     otras: [],
@@ -90,6 +91,7 @@ export const CurrencyPicker: React.FC<CurrencyPickerProps> = ({
   const fetchMonedas = useCallback(async () => {
     try {
       setLoading(true);
+      console.log('💱 [CurrencyPicker] fetchMonedas start');
       const headers = await getHeaders();
       const res = await fetch(`${API_BASE_URL}/monedas`, { headers });
       if (!res.ok) throw new Error(await res.text());
