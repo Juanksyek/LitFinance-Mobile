@@ -30,7 +30,6 @@ if (Platform.OS === 'android') {
 }
 
 const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChange }) => {
-  console.log('🚀 [BalanceCard] Componente inicializado con reloadTrigger:', reloadTrigger);
   const colors = useThemeColors();
   
   const [saldo, setSaldo] = useState(0);
@@ -68,7 +67,6 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
         if (cached) {
           const data = JSON.parse(cached);
           if (isMountedRef.current && data.saldo !== undefined) {
-            console.log('⚡ [BalanceCard] Mostrando datos cacheados inmediatamente');
             setSaldo(data.saldo || 0);
             setMonedaActual(data.moneda || 'MXN');
             setIngresos(data.ingresos || 0);
@@ -76,13 +74,12 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
           }
         }
       } catch (err) {
-        console.log('⚠️ [BalanceCard] No hay cache disponible, esperando fetch');
+        // cache miss — ignore
       }
     };
     loadCachedData();
     
     return () => {
-      console.log('🧹 [BalanceCard] Limpiando componente...');
       isMountedRef.current = false;
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
@@ -153,7 +150,6 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
     const minInterval = 1000; // Mínimo 1 segundo entre fetches
     
     if (now - lastFetchRef.current < minInterval) {
-      console.log('💳 [BalanceCard] Fetch bloqueado: muy pronto desde el último');
       Toast.show({
         type: 'info',
         text1: 'Espera un momento',
@@ -163,8 +159,7 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
       });
       return;
     }
-
-    console.log('📊 [BalanceCard] Iniciando fetch de datos de cuenta...');
+    // initiating account fetch
     
     // Cancelar fetch anterior
     if (abortControllerRef.current) {
@@ -180,15 +175,8 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
       // Mostrar feedback de carga para el saldo principal
       if (isMountedRef.current) setIsLoadingFresh(true);
       const token = await authService.getAccessToken();
-      console.log('🔑 [BalanceCard] Token obtenido:', token ? 'Existe' : 'No encontrado');
-      
       const url = `${API_BASE_URL}/cuenta/principal`;
-      console.log('🌐 [BalanceCard] Realizando petición a:', url);
-
-      if (!token) {
-        console.log('⚠️ [BalanceCard] No hay token de autenticación, saltando fetch de cuenta');
-        return;
-      }
+      if (!token) return;
 
       const resCuenta = await apiRateLimiter.fetch(url, {
         method: 'GET',
@@ -201,10 +189,7 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
       });
 
       // Verificar si fue abortado
-      if (signal.aborted) {
-        console.log('💳 [BalanceCard] Fetch cancelado');
-        return;
-      }
+      if (signal.aborted) return;
       
       const cuentaData = await resCuenta.json();
 
@@ -219,29 +204,16 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
       // Normalizar payload: algunos endpoints devuelven { data: {...} }
       const payload = cuentaData?.data ?? cuentaData ?? {};
 
-      console.log('📥 [BalanceCard] Respuesta de cuenta recibida (normalizada):', {
-        status: resCuenta.status,
-        raw: cuentaData,
-        payload
-      });
-
       // Aceptar varias claves posibles para saldo/moneda para ser tolerantes a cambios de backend
       const nuevoSaldo = payload.cantidad ?? payload.saldo ?? payload.balance ?? payload.amount ?? 0;
       const nuevaMoneda = payload.moneda ?? payload.currency ?? payload.monedaCuenta ?? 'MXN';
       
-      console.log('💰 [BalanceCard] Actualizando estado con datos de cuenta:', {
-        saldoAnterior: saldo,
-        saldoNuevo: nuevoSaldo,
-        monedaAnterior: monedaActual,
-        monedaNueva: nuevaMoneda,
-        sincronizacionBackend: nuevaMoneda !== monedaActual ? 'Detectado cambio de moneda en backend' : 'Moneda consistente'
-      });
+      // updating state with new account data
       
       // Solo actualizar estado si el componente está montado
       if (isMountedRef.current && !signal.aborted && requestId === cuentaRequestIdRef.current) {
         setSaldo(nuevoSaldo);
         setMonedaActual(nuevaMoneda);
-        console.log('✅ [BalanceCard] Datos de cuenta actualizados exitosamente');
         
         // 💾 Guardar en cache para próxima carga instantánea
         try {
@@ -254,10 +226,7 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
       }
     } catch (err: any) {
       // Ignorar errores de abort
-      if (err.name === 'AbortError' || signal.aborted) {
-        console.log('💳 [BalanceCard] Fetch cancelado');
-        return;
-      }
+      if (err.name === 'AbortError' || signal.aborted) return;
       console.error('❌ [BalanceCard] Error al obtener datos de cuenta:', {
         error: err instanceof Error ? err.message : err,
         statusCode: err?.statusCode,
@@ -286,15 +255,11 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
   };
 
   const fetchTransacciones = async () => {
-    if (isFetching) {
-      console.log('⏳ [BalanceCard] Fetch de transacciones ya en progreso, saltando...');
-      return;
-    }
+    if (isFetching) return;
 
     const now = Date.now();
     const minInterval = 1000; // 1 segundo para permitir refrescos más rápidos
     if (now - lastTxFetchRef.current < minInterval) {
-      console.log('💳 [BalanceCard] Fetch de transacciones bloqueado: muy pronto desde el último');
       Toast.show({
         type: 'info',
         text1: 'Espera un momento',
@@ -306,12 +271,7 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
     }
     lastTxFetchRef.current = now;
     
-    console.log('📋 [BalanceCard] Iniciando fetch de transacciones:', { periodo });
-    
-    if (!isMountedRef.current) {
-      console.log('⚠️ [BalanceCard] Componente desmontado, cancelando fetch de transacciones');
-      return;
-    }
+    if (!isMountedRef.current) return;
     
     setIsFetching(true);
     
@@ -325,10 +285,7 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
     
     try {
       const token = await authService.getAccessToken();
-      console.log('🔑 [BalanceCard] Token obtenido para transacciones:', token ? 'Existe' : 'No encontrado');
-      
       const url = `${API_BASE_URL}/transacciones?rango=${periodo}`;
-      console.log('🌐 [BalanceCard] Realizando petición de transacciones a:', url);
 
       const res = await apiRateLimiter.fetch(url, {
         method: 'GET',
@@ -341,10 +298,7 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
       });
 
       // Verificar si fue abortado
-      if (signal.aborted) {
-        console.log('💳 [BalanceCard] Fetch de transacciones cancelado');
-        return;
-      }
+      if (signal.aborted) return;
 
       const data = await res.json();
       if (!res.ok) {
@@ -357,19 +311,6 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
 
       const transacciones = Array.isArray(data) ? data : (data?.data || []);
 
-      console.log('📥 [BalanceCard] Respuesta de transacciones recibida:', {
-        status: res.status,
-        dataLength: transacciones?.length || 0,
-        periodo
-      });
-      console.log('🔍 [BalanceCard] Procesando transacciones:', {
-        totalTransacciones: transacciones.length,
-        tipos: transacciones.reduce((acc: any, t: Transaccion) => {
-          acc[t.tipo] = (acc[t.tipo] || 0) + 1;
-          return acc;
-        }, {})
-      });
-
       const ingresoTotal: number = transacciones
         .filter((t: Transaccion): t is Transaccion => t.tipo === 'ingreso')
         .reduce((acc: number, t: Transaccion): number => acc + t.monto, 0);
@@ -377,22 +318,12 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
         .filter((t: Transaccion): t is Transaccion => t.tipo === 'egreso')
         .reduce((acc: number, t: Transaccion): number => acc + t.monto, 0);
 
-      console.log('💹 [BalanceCard] Totales calculados:', {
-        ingresosAnteriores: ingresos,
-        ingresosNuevos: ingresoTotal,
-        egresosAnteriores: egresos,
-        egresosNuevos: egresoTotal,
-        diferencia: {
-          ingresos: ingresoTotal - ingresos,
-          egresos: egresoTotal - egresos
-        }
-      });
+      // totals calculated
 
       // Solo actualizar estado si el componente está montado
       if (isMountedRef.current && !signal.aborted && requestId === txRequestIdRef.current) {
         setIngresos(ingresoTotal);
         setEgresos(egresoTotal);
-        console.log('✅ [BalanceCard] Transacciones actualizadas exitosamente');
         
         // 💾 Actualizar cache con totales de transacciones
         try {
@@ -408,10 +339,7 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
       }
     } catch (err: any) {
       // Ignorar errores de abort
-      if (err.name === 'AbortError' || signal.aborted) {
-        console.log('💳 [BalanceCard] Fetch de transacciones cancelado');
-        return;
-      }
+      if (err.name === 'AbortError' || signal.aborted) return;
       console.error('❌ [BalanceCard] Error al obtener transacciones:', {
         error: err instanceof Error ? err.message : err,
         statusCode: err?.statusCode,
@@ -431,58 +359,38 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
       if (isMountedRef.current) {
         setIsFetching(false);
       }
-      console.log('🏁 [BalanceCard] Finalizando fetch de transacciones');
     }
   };
 
   const reloadAllData = async () => {
-    console.log('🔄 [BalanceCard] Iniciando recarga completa de datos...');
+    // removed verbose debug log
     try {
       await Promise.all([
         fetchDatosCuenta(),
         fetchTransacciones()
       ]);
-      console.log('✅ [BalanceCard] Recarga completa de datos exitosa');
+      // removed verbose success log
     } catch (error) {
       console.error('❌ [BalanceCard] Error en recarga completa:', error);
     }
   };
 
   const handleCurrencyChange = async (nuevaMoneda: string) => {
-    console.log('🔄 [BalanceCard] === INICIO CAMBIO DE MONEDA ===');
-    console.log('🔄 [BalanceCard] Iniciando cambio de moneda:', {
-      monedaActual,
-      nuevaMoneda,
-      saldoActual: saldo,
-      ingresosActuales: ingresos,
-      egresosActuales: egresos,
-      periodo,
-      timestamp: new Date().toISOString()
-    });
+    // handle currency change
 
-    if (monedaActual === nuevaMoneda) {
-      console.log('⚠️ [BalanceCard] La moneda solicitada es igual a la actual, cancelando cambio');
-      return;
-    }
+    if (monedaActual === nuevaMoneda) return;
 
     setIsChangingCurrency(true);
     
     try {
-      console.log('🔄 [BalanceCard] Actualizando moneda local para sincronización visual');
       setMonedaActual(nuevaMoneda);
-      
-      console.log('🔄 [BalanceCard] Esperando procesamiento del backend...');
       await new Promise(resolve => setTimeout(resolve, 500));
-      
-      console.log('🔄 [BalanceCard] Recargando todos los datos...');
       await reloadAllData();
       
       let retries = 0;
       const maxRetries = 3;
       
       while (retries < maxRetries) {
-        console.log(`🔍 [BalanceCard] Verificación ${retries + 1}/${maxRetries} de sincronización`);
-        
         try {
           const token = await authService.getAccessToken();
           const response = await apiRateLimiter.fetch(`${API_BASE_URL}/cuenta/principal`, {
@@ -496,14 +404,10 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
 
           const responseData = await response.json();
           const currentBackendCurrency = responseData.moneda;
-          console.log('🔍 [BalanceCard] Moneda en backend:', currentBackendCurrency);
-          
           if (currentBackendCurrency === nuevaMoneda) {
-            console.log('✅ [BalanceCard] Sincronización confirmada');
             setMonedaActual(currentBackendCurrency); // Asegurar sincronización
             break;
           } else {
-            console.log('⚠️ [BalanceCard] Moneda aún no sincronizada, reintentando...');
             retries++;
             if (retries < maxRetries) {
               await new Promise(resolve => setTimeout(resolve, 1000));
@@ -515,18 +419,7 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
           break;
         }
       }
-      
-      console.log('✅ [BalanceCard] Cambio de moneda completado exitosamente:', {
-        monedaFinal: nuevaMoneda,
-        timestamp: new Date().toISOString()
-      });
-      console.log('🔄 [BalanceCard] === FIN CAMBIO DE MONEDA EXITOSO ===');
-      
-      // 🆕 Notificar al Dashboard para que actualice todos los componentes
-      if (onCurrencyChange) {
-        console.log('📢 [BalanceCard] Notificando al Dashboard sobre cambio de moneda');
-        onCurrencyChange();
-      }
+      if (onCurrencyChange) onCurrencyChange();
       
       Toast.show({
         type: 'success',
@@ -534,16 +427,7 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
         text2: `Cuenta convertida a ${nuevaMoneda}`,
       });
     } catch (error) {
-      console.error('❌ [BalanceCard] === ERROR EN CAMBIO DE MONEDA ===');
-      console.error('❌ [BalanceCard] Error en el proceso de cambio de moneda:', {
-        error: error instanceof Error ? error.message : error,
-        stack: error instanceof Error ? error.stack : undefined,
-        monedaInicial: monedaActual,
-        monedaObjetivo: nuevaMoneda,
-        timestamp: new Date().toISOString()
-      });
-      
-      console.log('🔄 [BalanceCard] Revirtiendo cambio y recargando desde backend');
+      console.error('❌ [BalanceCard] Error en el proceso de cambio de moneda:', error);
       await reloadAllData();
       
       Toast.show({
@@ -565,15 +449,9 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
     setRefreshPreferences(prev => prev + 1);
   };
 
-  useEffect(() => {
-    console.log('🔄 [BalanceCard] useEffect - reloadTrigger cambió:', reloadTrigger);
-    fetchDatosCuenta();
-  }, [reloadTrigger]);
+  useEffect(() => { fetchDatosCuenta(); }, [reloadTrigger]);
 
-  useEffect(() => {
-    console.log('🔄 [BalanceCard] useEffect - reloadTrigger o periodo cambió:', { reloadTrigger, periodo });
-    fetchTransacciones();
-  }, [reloadTrigger, periodo]);
+  useEffect(() => { fetchTransacciones(); }, [reloadTrigger, periodo]);
 
   return (
     <View style={[styles.card, { backgroundColor: colors.card, shadowColor: colors.shadow, borderColor: colors.border }]}>
@@ -690,7 +568,7 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
                     periodo === key && styles.filterOptionActive
                   ]}
                   onPress={() => {
-                    console.log('📅 [BalanceCard] Cambiando período de filtro:', { from: periodo, to: key });
+                    // removed verbose filter-change log
                     setPeriodo(key);
                     setMostrarFiltros(false);
                   }}
