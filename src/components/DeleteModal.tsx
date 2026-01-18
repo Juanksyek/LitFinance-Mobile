@@ -25,6 +25,12 @@ export default function DeleteModal({
   confirmBg = '#fef2f2',
 }: Props) {
   const colors = useThemeColors();
+  console.log('🗑️ [DeleteModal] render visible=', visible);
+
+  const handleConfirm = () => {
+    console.log('🗑️ [DeleteModal] confirm pressed at', new Date().toISOString());
+    onConfirm();
+  };
   return (
     <Modal visible={visible} animationType="fade" transparent>
       <View style={styles.overlay}>
@@ -34,7 +40,8 @@ export default function DeleteModal({
           <Text style={[styles.message, { color: colors.textSecondary }]}>{message}</Text>
 
           <View style={styles.actions}>
-            <TouchableOpacity style={[styles.button, styles.cancel, { backgroundColor: colors.cardSecondary, borderColor: colors.border }]} onPress={onCancel}>
+            <TouchableOpacity
+              style={[styles.button, styles.cancel, { backgroundColor: colors.cardSecondary, borderColor: colors.border }]} onPress={onCancel}>
               <Text style={[styles.buttonText, { color: colors.text }]}>Cancelar</Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -45,7 +52,7 @@ export default function DeleteModal({
                   backgroundColor: confirmBg,
                 },
               ]}
-              onPress={onConfirm}
+              onPress={handleConfirm}
             >
               <Text style={[styles.buttonText, { color: confirmColor }]}>{confirmText}</Text>
             </TouchableOpacity>
