@@ -42,6 +42,7 @@ const Header = () => {
   const insets = useSafeAreaInsets();
   const { isDark } = useTheme();
   const colors = useThemeColors();
+  console.log('🏠 [DashboardHeader] render', { expanded });
 
   // Mostrar sólo la primera línea del nombre y evitar que nombres muy largos hagan wrap
   const displayName = React.useMemo(() => {
@@ -82,6 +83,7 @@ const Header = () => {
   const toggleExpand = () => {
     const expanding = !expanded;
     setExpanded(expanding);
+    console.log('🏠 [DashboardHeader] toggleExpand ->', expanding);
 
     Animated.timing(animatedHeight, {
       toValue: expanding ? 220 : 100,
