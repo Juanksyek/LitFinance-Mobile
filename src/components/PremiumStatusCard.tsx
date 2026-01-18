@@ -17,6 +17,8 @@ export default function PremiumStatusCard({ premiumSubscriptionStatus, premiumUn
       (premiumUntil && new Date(premiumUntil) > new Date());
   }, [premiumSubscriptionStatus, premiumUntil]);
 
+  console.log('⭐ [PremiumStatusCard] computed', { isPremium, isSubscription });
+
   const daysRemaining = useMemo(() => {
     if (!premiumUntil) return 0;
     const diff = new Date(premiumUntil).getTime() - Date.now();
@@ -34,7 +36,10 @@ export default function PremiumStatusCard({ premiumSubscriptionStatus, premiumUn
 
   const isSubscription = premiumSubscriptionStatus === 'active' || premiumSubscriptionStatus === 'trialing';
 
-  if (!isPremium) return null;
+  if (!isPremium) {
+    console.log('⭐ [PremiumStatusCard] not premium, rendering null');
+    return null;
+  }
 
   return (
     <View style={[styles.container, { backgroundColor: colors.cardSecondary, borderColor: '#f59e0b' }]}>
