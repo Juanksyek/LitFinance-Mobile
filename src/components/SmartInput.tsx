@@ -93,6 +93,8 @@ const SmartInput: React.FC<SmartInputProps> = ({
   const numericInput = getNumericHook();
   const colors = useThemeColors();
 
+  console.log('🔢 [SmartInput] init', { type, placeholder, displayValue: numericInput.displayValue });
+
   const getInputColor = () => {
     if (disabled) return colors.placeholder;
     if (!numericInput.hasBeenTouched) return colors.textSecondary;
