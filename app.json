@@ -2,6 +2,7 @@
   "expo": {
     "name": "LitFinance",
     "slug": "LitFinance-Mobile",
+    "scheme": "litfinance",
     "version": "1.0.0",
     "sdkVersion": "54.0.0",
     "orientation": "portrait",
@@ -23,7 +24,14 @@
       },
       "edgeToEdgeEnabled": true,
       "useNextNotificationsApi": true,
-      "package": "com.litfinance.app"
+      "package": "com.litfinance.app",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "category": ["BROWSABLE", "DEFAULT"],
+          "data": [{ "scheme": "litfinance" }]
+        }
+      ]
     },
     "web": {
       "favicon": "./assets/favicon-512.png"

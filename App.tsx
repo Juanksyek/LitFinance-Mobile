@@ -1,8 +1,8 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { NavigationContainerRef } from '@react-navigation/native';
 import AppNavigator from './src/navigation/AppNavigator';
-import Toast from 'react-native-toast-message';
+import Toast, { BaseToast } from 'react-native-toast-message';
 import { ThemeProvider } from './src/theme/ThemeContext';
 import { setupNotificationListeners } from './src/services/notificationService';
 import { authService } from './src/services/authService';
@@ -10,13 +10,37 @@ import type { RootStackParamList } from './src/navigation/AppNavigator';
 import { StripeProvider } from '@stripe/stripe-react-native';
 import { STRIPE_PUBLISHABLE_KEY } from './src/constants/stripe';
 import { applyStoredAppIconVariant } from './src/services/appIconService';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { KeyboardAvoidingView, Platform, View, StyleSheet, AppState, AppStateStatus } from 'react-native';
+import { useThemeColors } from './src/theme/useThemeColors';
+import { useTheme } from './src/theme/ThemeContext';
+import * as NavigationBar from 'expo-navigation-bar';
+import * as SystemUI from 'expo-system-ui';
+import { userProfileService } from './src/services/userProfileService';
+import { apiRateLimiter } from './src/services/apiRateLimiter';
+import UpgradeModal from './src/components/UpgradeModal';
 
 export default function App() {
   const navigationRef = useRef<NavigationContainerRef<RootStackParamList>>(null);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [upgradeMessage, setUpgradeMessage] = useState<string | undefined>();
+  const appState = useRef(AppState.currentState);
 
   useEffect(() => {
     // Apply stored launcher icon (Android)
     applyStoredAppIconVariant().catch(() => {});
+
+    // Register upgrade modal controller with apiRateLimiter
+    apiRateLimiter.setUpgradeModalController((show: boolean, message?: string) => {
+      setShowUpgradeModal(show);
+      setUpgradeMessage(message);
+    });
+
+    // Refresh user profile on app start
+    refreshUserProfile();
+
+    // Listen to app state changes (foreground/background)
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
 
     // Register logout handler: navigate to Login when session expires
     const unregisterLogout = authService.onLogout(() => {
@@ -62,8 +86,29 @@ export default function App() {
     return () => {
       cleanup();
       unregisterLogout();
+      subscription?.remove();
     };
   }, []);
+
+  const refreshUserProfile = async () => {
+    try {
+      const token = await authService.getAccessToken();
+      if (token) {
+        console.log('🔄 [App] Refrescando perfil de usuario...');
+        await userProfileService.fetchAndUpdateProfile();
+      }
+    } catch (error) {
+      console.warn('⚠️ [App] Error refrescando perfil:', error);
+    }
+  };
+
+  const handleAppStateChange = (nextAppState: AppStateStatus) => {
+    if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
+      console.log('📱 [App] App volvió a foreground, refrescando perfil...');
+      refreshUserProfile();
+    }
+    appState.current = nextAppState;
+  };
 
   // Manejar navegación según tipo de notificación
   const handleNotificationNavigation = (data: any) => {
@@ -97,8 +142,23 @@ export default function App() {
           break;
 
         case 'analytics':
-          // Navegar a Analytics
-          navigationRef.current.navigate('Analytics');
+          // Check premium before navigating to Analytics
+          (async () => {
+            try {
+              const profile = await userProfileService.getCachedProfile();
+              const canSee = userProfileService.canSeeAdvanced(profile);
+              if (!canSee) {
+                setUpgradeMessage('Las gráficas avanzadas están disponibles solo para usuarios premium. Actualiza tu plan.');
+                setShowUpgradeModal(true);
+                return;
+              }
+              navigationRef.current?.navigate('Analytics');
+            } catch (e) {
+              // Fallback: show modal
+              setUpgradeMessage('Acceso a Analytics restringido. Actualiza tu plan para continuar.');
+              setShowUpgradeModal(true);
+            }
+          })();
           break;
 
         case 'soporte':
@@ -129,11 +189,73 @@ export default function App() {
   return (
     <StripeProvider publishableKey={STRIPE_PUBLISHABLE_KEY}>
       <ThemeProvider>
-        <NavigationContainer ref={navigationRef}>
-          <AppNavigator />
-        </NavigationContainer>
-        <Toast />
+        <SafeAreaProvider>
+          <NavigationContainer ref={navigationRef}>
+            <AppRootLayout>
+              <AppNavigator />
+            </AppRootLayout>
+            <UpgradeModal
+              visible={showUpgradeModal}
+              onClose={() => setShowUpgradeModal(false)}
+              message={upgradeMessage}
+            />
+          </NavigationContainer>
+        </SafeAreaProvider>
+        <Toast
+          config={{
+            // Provide a simple mapping for 'warning' so older calls don't crash
+            warning: (props: any) => (
+              <BaseToast
+                {...props}
+                style={[{ borderLeftColor: '#F59E0B' }, props.style]}
+                text1Style={{ fontSize: 14, fontWeight: '700' }}
+              />
+            ),
+          }}
+        />
       </ThemeProvider>
     </StripeProvider>
   );
 }
+
+function AppRootLayout({ children }: { children: React.ReactNode }) {
+  const insets = useSafeAreaInsets();
+  const colors = useThemeColors();
+  const { isDark } = useTheme();
+
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+
+    // With edge-to-edge enabled, the system navigation bar area can show the
+    // default (often white) window background unless we set it explicitly.
+    SystemUI.setBackgroundColorAsync(colors.background).catch(() => {});
+    NavigationBar.setBackgroundColorAsync(colors.background).catch(() => {});
+    NavigationBar.setBorderColorAsync(colors.background).catch(() => {});
+    NavigationBar.setButtonStyleAsync(isDark ? 'light' : 'dark').catch(() => {});
+  }, [colors.background, isDark]);
+
+  return (
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      style={[styles.flex, { backgroundColor: colors.background }]}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+    >
+      <View
+        style={[
+          styles.flex,
+          {
+            // Avoid double bottom-inset padding on Android (screens already handle insets where needed).
+            paddingBottom: Platform.OS === 'ios' ? insets.bottom : 0,
+            backgroundColor: colors.background,
+          },
+        ]}
+      >
+        {children}
+      </View>
+    </KeyboardAvoidingView>
+  );
+}
+
+const styles = StyleSheet.create({
+  flex: { flex: 1 },
+});
