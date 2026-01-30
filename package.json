@@ -27,9 +27,11 @@
     "expo-dev-client": "~6.0.20",
     "expo-device": "~8.0.10",
     "expo-linear-gradient": "~15.0.8",
+    "expo-navigation-bar": "^5.0.10",
     "expo-notifications": "~0.32.14",
     "expo-secure-store": "~15.0.8",
     "expo-status-bar": "~3.0.8",
+    "expo-system-ui": "^6.0.9",
     "jwt-decode": "^4.0.0",
     "p-queue": "^9.1.0",
     "react": "19.1.0",
@@ -44,7 +46,8 @@
     "react-native-shadow-2": "^7.1.2",
     "react-native-svg": "^15.15.0",
     "react-native-toast-message": "^2.3.0",
-    "react-native-worklets": "0.5.1"
+    "react-native-worklets": "0.5.1",
+    "@react-native-community/datetimepicker": "8.4.4"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
