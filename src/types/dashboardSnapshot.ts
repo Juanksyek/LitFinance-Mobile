@@ -1,4 +1,4 @@
-export type DashboardRange = 'day' | 'week' | 'month' | '3months' | '6months' | 'year';
+export type DashboardRange = 'day' | 'week' | 'month' | '3months' | '6months' | 'year' | 'all';
 
 export type DashboardRangeOption = {
   key: string;
@@ -36,6 +36,23 @@ export type DashboardSnapshot = {
     ranges?: {
       selected: DashboardRange;
       available: DashboardRangeOption[];
+    };
+
+    // Dashboard plan enforcement (optional; present when backend computes which items
+    // should be considered paused due to plan limits).
+    planEnforcement?: {
+      subcuentas: {
+        limit: number; // -1 => unlimited
+        total: number;
+        overLimit: boolean;
+        toPauseOnThisPage: string[];
+      };
+      recurrentes: {
+        limit: number; // -1 => unlimited
+        total: number;
+        overLimit: boolean;
+        toPauseOnThisPage: string[];
+      };
     };
   };
 
@@ -129,6 +146,18 @@ export type DashboardSnapshot = {
     start: string;
     end: string;
     points: Array<{ x: string; in: number; out: number }>;
+  };
+
+  // Global (non-paginated) totals to support multi-currency UX.
+  // Note: `total` is a direct sum (may mix currencies); `byCurrency` is reliable.
+  subaccountsTotals?: {
+    active: { total: number; count: number; byCurrency: Array<{ moneda: string; total: number; count: number }> };
+    paused: { total: number; count: number; byCurrency: Array<{ moneda: string; total: number; count: number }> };
+  };
+
+  recurrentesTotals?: {
+    active: { total: number; count: number; byCurrency: Array<{ moneda: string; total: number; count: number }> };
+    paused: { total: number; count: number; byCurrency: Array<{ moneda: string; total: number; count: number }> };
   };
 };
 
