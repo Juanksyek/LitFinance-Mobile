@@ -128,8 +128,14 @@ export interface AnalisisTemporal {
   };
 }
 
+export interface AnalisisTemporalNormalized {
+  range?: string;
+  points: Array<{ x: string; in: number; out: number }>;
+  raw?: AnalisisTemporal;
+}
+
 export interface AnalyticsFilters {
-  rangoTiempo?: 'dia' | 'semana' | 'mes' | '3meses' | '6meses' | 'año' | 'personalizado';
+  rangoTiempo?: 'dia' | 'semana' | 'mes' | '3meses' | '6meses' | 'año' | 'desdeSiempre' | 'personalizado';
   fechaInicio?: string;
   fechaFin?: string;
   subcuentas?: string[];
@@ -196,6 +202,29 @@ class AnalyticsService {
 
   async getAnalisisTemporal(filters?: AnalyticsFilters, signal?: AbortSignal): Promise<AnalisisTemporal> {
     return this.makeRequest<AnalisisTemporal>('/analisis-temporal', filters, signal);
+  }
+
+  /**
+   * Nueva variante que normaliza la respuesta para el nuevo contrato { range, points }
+   * Permite mantener compatibilidad con consumidores antiguos que usan `AnalisisTemporal`.
+   */
+  async getAnalisisTemporalNormalized(filters?: AnalyticsFilters, signal?: AbortSignal): Promise<AnalisisTemporalNormalized | AnalisisTemporal> {
+    const res: any = await this.makeRequest<any>('/analisis-temporal', filters, signal);
+
+    if (res && Array.isArray(res.points)) {
+      return {
+        range: res.range,
+        points: res.points.map((p: any) => ({ x: String(p.x), in: Number(p.in || 0), out: Number(p.out || 0) })),
+        raw: res,
+      } as AnalisisTemporalNormalized;
+    }
+
+    if (res && Array.isArray(res.datos)) {
+      const points = res.datos.map((d: any) => ({ x: String(d.fecha), in: Number(d.ingresos || 0), out: Number(d.gastos || 0) }));
+      return { range: res.periodoAnalisis || undefined, points, raw: res } as AnalisisTemporalNormalized;
+    }
+
+    return res as AnalisisTemporal;
   }
 
   /**

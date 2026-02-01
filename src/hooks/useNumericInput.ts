@@ -36,24 +36,45 @@ export const useNumericInput = (options: UseNumericInputOptions = {}) => {
   const lastInitialValueRef = useRef(initialValue);
   const lastContextRef = useRef(context);
 
-  // Solo actualizar cuando context o initialValue cambian de manera explícita
-  if (lastContextRef.current !== context) {
-    lastContextRef.current = context;
-    lastInitialValueRef.current = initialValue;
-    // Reset solo si el contexto cambió (nuevo modal/edición)
-    if (displayValue !== initialValue.toString()) {
-      setDisplayValue(initialValue.toString());
-      setHasBeenTouched(false);
-      setIsFocused(false);
+  // Solo actualizar cuando context o initialValue cambian de manera explícita.
+  // IMPORTANTE: esto debe vivir en useEffect (no durante render) para evitar loops.
+  useEffect(() => {
+    const contextChanged = lastContextRef.current !== context;
+    const initialChanged = lastInitialValueRef.current !== initialValue;
+
+    if (contextChanged) {
+      lastContextRef.current = context;
+      lastInitialValueRef.current = initialValue;
+
+      // Reset solo si el contexto cambió (nuevo modal/edición)
+      const next = initialValue.toString();
+      if (displayValue !== next) {
+        setDisplayValue(next);
+      }
+      // Siempre resetear flags al cambiar el contexto
+      if (hasBeenTouched) setHasBeenTouched(false);
+      if (isFocused) setIsFocused(false);
+      return;
     }
-  } else if (!hasBeenTouched && !isFocused && lastInitialValueRef.current !== initialValue) {
-    lastInitialValueRef.current = initialValue;
-    setDisplayValue(initialValue.toString());
-  }
+
+    if (!hasBeenTouched && !isFocused && initialChanged) {
+      lastInitialValueRef.current = initialValue;
+      const next = initialValue.toString();
+      if (displayValue !== next) {
+        setDisplayValue(next);
+      }
+    }
+  }, [context, initialValue, displayValue, hasBeenTouched, isFocused]);
 
   const validation = useMemo(() => {
     if (!hasBeenTouched && displayValue === initialValue.toString()) {
       return { isValid: true, errors: [], numericValue: initialValue };
+    }
+
+    // Considerar campo vacío o solo '-' como *no requerido* por defecto.
+    // Esto evita que borrar un campo (p. ej. "Cantidad inicial") muestre "Campo requerido".
+    if (displayValue === '' || displayValue === '-') {
+      return { isValid: true, errors: [], numericValue: undefined };
     }
 
     const baseValidation = validateNumericInput(displayValue, context);
@@ -185,7 +206,9 @@ export const useNumericInput = (options: UseNumericInputOptions = {}) => {
 
   const clear = useCallback(() => {
     setDisplayValue('');
-    setHasBeenTouched(true);
+    // Cuando el usuario limpia el campo, no marcarlo como "tocado"
+    // para evitar estados de validación (verde/rojo) inmediatos.
+    setHasBeenTouched(false);
   }, []);
 
   // Formatear para mostrar (con separadores de miles, etc.)

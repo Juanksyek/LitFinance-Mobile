@@ -3,6 +3,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { authService } from './authService';
 import { sanitizeObjectStrings } from '../utils/fixMojibake';
 
+// Import userProfileService dynamically to avoid circular deps
+let userProfileService: any = null;
+let upgradeModalController: ((show: boolean, message?: string) => void) | null = null;
+
 /**
  * ApiRateLimiter - Servicio estricto de rate limiting para evitar saturar el backend
  * 
@@ -44,6 +48,7 @@ class ApiRateLimiter {
   private readonly MIN_INTERVAL = 500; // 500ms entre peticiones (más rápido pero aún protegido)
   private readonly CACHE_DURATION = 60000; // 60 segundos de cache
   private readonly MAX_REQUESTS_PER_MINUTE = 20; // Máximo 20 peticiones por minuto
+  private profileRefreshAttempts: Map<string, number> = new Map(); // Track 403 retry attempts
 
   constructor() {
     // Cola normal para GETs
@@ -206,6 +211,98 @@ class ApiRateLimiter {
   }
 
   private refreshing: Promise<string | null> | null = null;
+
+  /**
+   * Register a callback to show upgrade modal
+   */
+  setUpgradeModalController(controller: (show: boolean, message?: string) => void): void {
+    upgradeModalController = controller;
+  }
+
+  /**
+   * Get the upgrade modal controller (for external access)
+   */
+  get upgradeModalController() {
+    return upgradeModalController;
+  }
+
+  /**
+   * Handle 403 Forbidden responses
+   * Attempts to refresh user profile once per request, then shows upgrade modal if still 403
+   */
+  private async handle403Response(url: string, options: RequestInit, response: Response, requestKey: string): Promise<Response | null> {
+    console.warn('🚫 [ApiRateLimiter] 403 Forbidden recibido para:', url);
+
+    // Only treat PREMIUM_REQUIRED as an upgrade-gated 403.
+    // Other 403s should be returned to the caller to handle normally.
+    try {
+      const parsed = await response.clone().json();
+      const code = parsed?.code;
+      if (code && code !== 'PREMIUM_REQUIRED') {
+        console.warn('🚫 [ApiRateLimiter] 403 no es PREMIUM_REQUIRED, devolviendo al caller:', { url, code });
+        this.profileRefreshAttempts.delete(requestKey);
+        return response;
+      }
+    } catch {
+      // If body is not JSON, fall through to existing behavior.
+    }
+
+    // Check if we already tried to refresh profile for this request
+    const attempts = this.profileRefreshAttempts.get(requestKey) || 0;
+    
+    if (attempts === 0) {
+      // First 403: try refreshing user profile
+      console.log('🔄 [ApiRateLimiter] Primer 403, intentando refrescar perfil de usuario...');
+      this.profileRefreshAttempts.set(requestKey, 1);
+
+      try {
+        // Lazy load userProfileService to avoid circular deps
+        if (!userProfileService) {
+          userProfileService = await import('./userProfileService').then(m => m.default || m.userProfileService);
+        }
+
+        // Fetch and update profile
+        await userProfileService.fetchAndUpdateProfile();
+        console.log('✅ [ApiRateLimiter] Perfil actualizado, reintentando petición...');
+
+        // Retry the original request
+        const retryResponse = await fetch(url, options);
+        
+        // Clean up attempt counter on success or different error
+        if (retryResponse.status !== 403) {
+          this.profileRefreshAttempts.delete(requestKey);
+        }
+        
+        return retryResponse;
+      } catch (error) {
+        console.error('❌ [ApiRateLimiter] Error actualizando perfil:', error);
+        this.profileRefreshAttempts.delete(requestKey);
+      }
+    }
+
+    // Second 403 or profile refresh failed: show upgrade modal
+    console.log('🔒 [ApiRateLimiter] 403 persistente, mostrando modal de upgrade');
+    this.profileRefreshAttempts.delete(requestKey);
+
+    // Extract message from response
+    let message = 'Esta función requiere LitFinance Premium. Actualiza tu plan.';
+    try {
+      const data = await response.clone().json();
+      if (data?.message) {
+        message = data.message;
+      }
+    } catch {
+      // Use default message
+    }
+
+    // Show upgrade modal if controller is registered
+    if (upgradeModalController) {
+      upgradeModalController(true, message);
+    }
+
+    // Return original 403 response
+    return null;
+  }
 
   private async performRefreshOnce(): Promise<string | null> {
     if (this.refreshing) return this.refreshing;
@@ -505,6 +602,28 @@ class ApiRateLimiter {
             console.error('🔐 [ApiRateLimiter] Refresh/Retry falló:', refreshErr);
             throw refreshErr;
           }
+        }
+
+        // Handle 403 Forbidden: refresh profile and retry once
+        if (response.status === 403) {
+          const retryResponse = await this.handle403Response(url, options, response, key);
+          if (retryResponse) {
+            // Profile refresh worked, retry succeeded or returned different status
+            if (retryResponse.ok && method === 'GET' && !skipCache) {
+              try {
+                const sharedRetryForCache = await this.toSharedResponse(retryResponse);
+                const cacheRes = this.fromSharedResponse(sharedRetryForCache);
+                const dataRetry = await cacheRes.json();
+                this.saveToCache(key, dataRetry);
+                return sharedRetryForCache;
+              } catch (cacheErr) {
+                console.warn('⚠️ [ApiRateLimiter] Error caching retry response:', cacheErr);
+                return await this.toSharedResponse(retryResponse);
+              }
+            }
+            return await this.toSharedResponse(retryResponse);
+          }
+          // If handle403Response returns null, continue with original 403 response
         }
 
         // Detectar 429 (Too Many Requests)

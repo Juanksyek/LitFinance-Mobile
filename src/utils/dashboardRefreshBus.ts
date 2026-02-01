@@ -1,4 +1,4 @@
-type EventName = 'recurrentes:changed' | 'subcuentas:changed';
+type EventName = 'recurrentes:changed' | 'subcuentas:changed' | 'viewer:changed';
 
 type Listener = () => void;
 
@@ -6,6 +6,7 @@ class DashboardRefreshBus {
   private listeners: Record<EventName, Set<Listener>> = {
     'recurrentes:changed': new Set<Listener>(),
     'subcuentas:changed': new Set<Listener>(),
+    'viewer:changed': new Set<Listener>(),
   };
 
   on(event: EventName, listener: Listener) {
@@ -28,3 +29,4 @@ export const dashboardRefreshBus = new DashboardRefreshBus();
 
 export const emitRecurrentesChanged = () => dashboardRefreshBus.emit('recurrentes:changed');
 export const emitSubcuentasChanged = () => dashboardRefreshBus.emit('subcuentas:changed');
+export const emitViewerChanged = () => dashboardRefreshBus.emit('viewer:changed');
