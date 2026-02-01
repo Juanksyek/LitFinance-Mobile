@@ -68,6 +68,87 @@ export function takeFirstGrapheme(s?: string) {
   return Array.from(trimmed)[0] ?? trimmed;
 }
 
+export function latin1BytesToUtf8(str: string): string {
+  const bytes = new Uint8Array(Array.from(str, (c) => c.charCodeAt(0)));
+
+  const TextDecoderCtor = (globalThis as any)?.TextDecoder;
+  if (typeof TextDecoderCtor !== 'function') return str;
+
+  try {
+    const dec = new TextDecoderCtor('utf-8', { fatal: false });
+    const out = dec.decode(bytes);
+    return out;
+  } catch {
+    return str;
+  }
+}
+
+export function looksLikeMojibake(s: string): boolean {
+  return /ð|Ã|â|Â|�/.test(s);
+}
+
+export function hasEmojiLike(s: string): boolean {
+  try {
+    // eslint-disable-next-line no-misleading-character-class
+    return /\p{Extended_Pictographic}/u.test(s);
+  } catch {
+    // fallback viejo (menos preciso)
+    return /[\u2190-\u21FF\u2600-\u27BF\uD83C-\uDBFF\uDC00-\uDFFF]/.test(s);
+  }
+}
+
+export function normalizeEmojiStrict(raw: any, fallback = '📌'): string {
+  const original = typeof raw === 'string' ? raw : '';
+  const s = original.trim();
+  if (!s) return fallback;
+
+  // 1) intento con fixMojibake existente
+  let a = s;
+  try {
+    a = fixMojibake(s);
+  } catch {
+    a = s;
+  }
+
+  // 2) si aún huele a mojibake, intenta Latin1->UTF8 sobre original y sobre a
+  let b = a;
+  if (looksLikeMojibake(a) || looksLikeMojibake(s)) {
+    const b1 = latin1BytesToUtf8(s);
+    const b2 = latin1BytesToUtf8(a);
+
+    const candidates = [a, b1, b2].filter((v) => typeof v === 'string' && v.length > 0) as string[];
+    candidates.sort((x, y) => {
+      const score = (v: string) => {
+        let sc = 0;
+        if (hasEmojiLike(v)) sc += 5;
+        if (!looksLikeMojibake(v)) sc += 3;
+        if (/[^\u0000-\u007F]/.test(v)) sc += 1;
+        return sc;
+      };
+      return score(y) - score(x);
+    });
+
+    b = candidates[0] || a;
+  }
+
+  // 3) primer grapheme
+  let first = '';
+  try {
+    first = takeFirstGrapheme(b);
+  } catch {
+    first = Array.from(b)[0] ?? b;
+  }
+
+  const out = (first || '').trim();
+
+  // 4) si sigue siendo basura, JAMÁS la muestres
+  if (!out) return fallback;
+  if (looksLikeMojibake(out)) return fallback;
+  if (out === '�') return fallback;
+
+  return out;
+}
+
 // Emoji font hint for React Native components — export so components can reuse.
 import { Platform } from 'react-native';
 export const emojiFontFix = Platform.select({
