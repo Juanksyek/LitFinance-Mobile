@@ -10,7 +10,7 @@ import type { RootStackParamList } from './src/navigation/AppNavigator';
 import { StripeProvider } from '@stripe/stripe-react-native';
 import { STRIPE_PUBLISHABLE_KEY } from './src/constants/stripe';
 import { applyStoredAppIconVariant } from './src/services/appIconService';
-import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaProvider, useSafeAreaInsets, initialWindowMetrics } from 'react-native-safe-area-context';
 import { KeyboardAvoidingView, Platform, View, StyleSheet, AppState, AppStateStatus } from 'react-native';
 import { useThemeColors } from './src/theme/useThemeColors';
 import { useTheme } from './src/theme/ThemeContext';
@@ -36,8 +36,8 @@ export default function App() {
       setUpgradeMessage(message);
     });
 
-    // Refresh user profile on app start
-    refreshUserProfile();
+    // Bootstrap tokens (load from storage + refresh if near-expiry), then refresh profile.
+    bootstrapSession();
 
     // Listen to app state changes (foreground/background)
     const subscription = AppState.addEventListener('change', handleAppStateChange);
@@ -102,10 +102,23 @@ export default function App() {
     }
   };
 
+  const bootstrapSession = async () => {
+    try {
+      // This will load stored token, re-arm proactive refresh timers, and refresh if expiring.
+      await authService.getAccessToken({ allowRefresh: true });
+    } catch (e) {
+      // authService handles logout triggering internally if refresh fails.
+      console.warn('⚠️ [App] Error bootstrapping session:', e);
+    } finally {
+      refreshUserProfile();
+    }
+  };
+
   const handleAppStateChange = (nextAppState: AppStateStatus) => {
     if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
       console.log('📱 [App] App volvió a foreground, refrescando perfil...');
-      refreshUserProfile();
+      // Try to refresh tokens on resume to prevent surprise 401s.
+      bootstrapSession();
     }
     appState.current = nextAppState;
   };
@@ -189,9 +202,9 @@ export default function App() {
   return (
     <StripeProvider publishableKey={STRIPE_PUBLISHABLE_KEY}>
       <ThemeProvider>
-        <SafeAreaProvider>
+        <SafeAreaProvider initialMetrics={initialWindowMetrics}>
           <NavigationContainer ref={navigationRef}>
-            <AppRootLayout>
+            <AppRootLayout routeName={navigationRef.current?.getCurrentRoute?.()?.name}>
               <AppNavigator />
             </AppRootLayout>
             <UpgradeModal
@@ -218,7 +231,7 @@ export default function App() {
   );
 }
 
-function AppRootLayout({ children }: { children: React.ReactNode }) {
+function AppRootLayout({ children, routeName }: { children: React.ReactNode; routeName?: string }) {
   const insets = useSafeAreaInsets();
   const colors = useThemeColors();
   const { isDark } = useTheme();
@@ -226,25 +239,26 @@ function AppRootLayout({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (Platform.OS !== 'android') return;
 
-    // With edge-to-edge enabled, the system navigation bar area can show the
-    // default (often white) window background unless we set it explicitly.
     SystemUI.setBackgroundColorAsync(colors.background).catch(() => {});
     NavigationBar.setBackgroundColorAsync(colors.background).catch(() => {});
     NavigationBar.setBorderColorAsync(colors.background).catch(() => {});
     NavigationBar.setButtonStyleAsync(isDark ? 'light' : 'dark').catch(() => {});
   }, [colors.background, isDark]);
 
+  // ✅ Regla:
+  // - Android: NO KeyboardAvoidingView global (evita jump)
+  // - iOS: sí, PERO NO en Dashboard (evita que el dock “salte” detrás del modal)
+  const enableGlobalKAV = Platform.OS === 'ios' && routeName !== 'Dashboard';
+
+  const Container: any = enableGlobalKAV ? KeyboardAvoidingView : View;
+  const containerProps: any = enableGlobalKAV ? { behavior: 'padding' } : {};
+
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={[styles.flex, { backgroundColor: colors.background }]}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
-    >
+    <Container {...containerProps} style={[styles.flex, { backgroundColor: colors.background }]}> 
       <View
         style={[
           styles.flex,
           {
-            // Avoid double bottom-inset padding on Android (screens already handle insets where needed).
             paddingBottom: Platform.OS === 'ios' ? insets.bottom : 0,
             backgroundColor: colors.background,
           },
@@ -252,7 +266,7 @@ function AppRootLayout({ children }: { children: React.ReactNode }) {
       >
         {children}
       </View>
-    </KeyboardAvoidingView>
+    </Container>
   );
 }
 
