@@ -11,7 +11,8 @@ import { StripeProvider } from '@stripe/stripe-react-native';
 import { STRIPE_PUBLISHABLE_KEY } from './src/constants/stripe';
 import { applyStoredAppIconVariant } from './src/services/appIconService';
 import { SafeAreaProvider, useSafeAreaInsets, initialWindowMetrics } from 'react-native-safe-area-context';
-import { KeyboardAvoidingView, Platform, View, StyleSheet, AppState, AppStateStatus } from 'react-native';
+import { KeyboardAvoidingView, Platform, View, StyleSheet, AppState, AppStateStatus, Keyboard } from 'react-native';
+import { TextInput } from 'react-native';
 import { useThemeColors } from './src/theme/useThemeColors';
 import { useTheme } from './src/theme/ThemeContext';
 import * as NavigationBar from 'expo-navigation-bar';
@@ -27,6 +28,46 @@ export default function App() {
   const appState = useRef(AppState.currentState);
 
   useEffect(() => {
+    // Apply conservative default props to all TextInputs to reduce keyboard suggestion/autofill UI
+    try {
+      const TextInputAny: any = TextInput as any;
+      if (!TextInputAny.defaultProps) TextInputAny.defaultProps = {} as any;
+      Object.assign(TextInputAny.defaultProps, {
+        autoComplete: 'off',
+        autoCorrect: false,
+        spellCheck: false,
+        textContentType: 'none',
+        importantForAutofill: 'no',
+        contextMenuHidden: true,
+        // disable suggestions and auto-fill as a best-effort
+        disableFullscreenUI: true,
+      });
+    } catch (e) {
+      // ignore if environment doesn't support these props
+    }
+
+    // Attempt to load expo-clipboard at runtime. We use eval('require') so Metro
+    // can't statically analyze the dependency and fail bundling when it's not installed.
+    let showSub: { remove: () => void } = { remove: () => {} };
+    try {
+      const _require: any = eval("require");
+      const Clipboard = _require('expo-clipboard');
+      if (Clipboard && Clipboard.setStringAsync) {
+        const onShow = async () => {
+          try {
+            // Always clear clipboard while keyboard is visible to prevent
+            // Android IME (e.g. Gboard) from showing clipboard suggestions.
+            await Clipboard.setStringAsync('');
+          } catch {
+            // ignore
+          }
+        };
+        showSub = Keyboard.addListener('keyboardDidShow', onShow);
+      }
+    } catch (e) {
+      // expo-clipboard not installed or require blocked: silently ignore
+    }
+
     // Apply stored launcher icon (Android)
     applyStoredAppIconVariant().catch(() => {});
 
@@ -87,6 +128,9 @@ export default function App() {
       cleanup();
       unregisterLogout();
       subscription?.remove();
+      try {
+        showSub.remove();
+      } catch {}
     };
   }, []);
 
