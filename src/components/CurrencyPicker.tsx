@@ -7,6 +7,7 @@ import Toast from "react-native-toast-message";
 import userService from "../services/userService";
 import { API_BASE_URL } from "../constants/api";
 import { useThemeColors } from '../theme/useThemeColors';
+import { emitViewerChanged } from "../utils/dashboardRefreshBus";
 
 if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -61,7 +62,6 @@ export const CurrencyPicker: React.FC<CurrencyPickerProps> = ({
   maxListHeight = 360,
 }) => {
   const colors = useThemeColors();
-  console.log('💱 [CurrencyPicker] render', { visible });
   const [data, setData] = useState<MonedasResponse>({
     favoritas: [],
     otras: [],
@@ -91,7 +91,6 @@ export const CurrencyPicker: React.FC<CurrencyPickerProps> = ({
   const fetchMonedas = useCallback(async () => {
     try {
       setLoading(true);
-      console.log('💱 [CurrencyPicker] fetchMonedas start');
       const headers = await getHeaders();
       const res = await fetch(`${API_BASE_URL}/monedas`, { headers });
       if (!res.ok) throw new Error(await res.text());
@@ -197,6 +196,7 @@ export const CurrencyPicker: React.FC<CurrencyPickerProps> = ({
         // Use centralized userService which wraps apiRateLimiter
         const resp = await userService.toggleMonedaFavorita(codigoMoneda);
         Toast.show({ type: "success", text1: resp.message || "Actualizado" });
+        emitViewerChanged();
       } catch (err: any) {
         console.error(err);
         LayoutAnimation.configureNext(ease);
