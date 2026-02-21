@@ -9,6 +9,8 @@ import SmartNumber from "./SmartNumber";
 import Toast from "react-native-toast-message";
 import { useThemeColors } from "../theme/useThemeColors";
 import apiRateLimiter from "../services/apiRateLimiter"; 
+import { dashboardService } from "../services/dashboardService";
+import type { DashboardSnapshot } from "../types/dashboardSnapshot";
 
 interface Transaccion {
   tipo: 'ingreso' | 'egreso';
@@ -18,6 +20,7 @@ interface Transaccion {
 interface BalanceCardProps {
   reloadTrigger: number;
   onCurrencyChange?: () => void;
+  dashboardSnapshot?: DashboardSnapshot | null;
 }
 
 interface CuentaData {
@@ -29,7 +32,7 @@ if (Platform.OS === 'android') {
   UIManager.setLayoutAnimationEnabledExperimental?.(true);
 }
 
-const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChange }) => {
+const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChange, dashboardSnapshot }) => {
   const colors = useThemeColors();
   
   const [saldo, setSaldo] = useState(0);
@@ -51,8 +54,12 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
   const isMountedRef = useRef(true);
   const abortControllerRef = useRef<AbortController | null>(null);
   const abortTxControllerRef = useRef<AbortController | null>(null);
+  const abortBalanceControllerRef = useRef<AbortController | null>(null);
   const lastFetchRef = useRef<number>(0);
   const lastTxFetchRef = useRef<number>(0);
+  const lastTxPeriodRef = useRef<string | null>(null);
+  const lastBalanceFetchRef = useRef<number>(0);
+  const lastBalancePeriodoRef = useRef<string | null>(null);
   const cuentaRequestIdRef = useRef(0);
   const txRequestIdRef = useRef(0);
 
@@ -87,10 +94,30 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
       if (abortTxControllerRef.current) {
         abortTxControllerRef.current.abort();
       }
+      if (abortBalanceControllerRef.current) {
+        abortBalanceControllerRef.current.abort();
+      }
     };
   }, []);
 
   const FILTER_MAX_HEIGHT = 180; // Ajusta según el contenido
+
+  // Dashboard context is indicated by the prop being provided (even if null while loading)
+  const isDashboardContext = dashboardSnapshot !== undefined;
+  const snapshotMode = dashboardSnapshot != null;
+
+  // Si hay snapshot del dashboard, usarlo como source of truth para evitar requests extra
+  useEffect(() => {
+    if (!dashboardSnapshot) return;
+    const summary = dashboardSnapshot.accountSummary;
+    if (!summary) return;
+
+    if (isMountedRef.current) {
+      setSaldo(Number(summary.saldo ?? 0));
+      setMonedaActual(String(summary.moneda ?? 'MXN'));
+      setIsLoadingFresh(false);
+    }
+  }, [dashboardSnapshot]);
 
   useEffect(() => {
     const loadNumberPreference = async () => {
@@ -255,11 +282,13 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
   };
 
   const fetchTransacciones = async () => {
-    if (isFetching) return;
-
     const now = Date.now();
-    const minInterval = 1000; // 1 segundo para permitir refrescos más rápidos
-    if (now - lastTxFetchRef.current < minInterval) {
+    const minInterval = 600; // evitar spam, pero permitir cambios de filtro
+
+    const didPeriodChange = lastTxPeriodRef.current !== periodo;
+    lastTxPeriodRef.current = periodo;
+
+    if (!didPeriodChange && now - lastTxFetchRef.current < minInterval) {
       Toast.show({
         type: 'info',
         text1: 'Espera un momento',
@@ -275,17 +304,20 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
     
     setIsFetching(true);
     
-    // Crear nuevo AbortController para esta petición
-    if (abortTxControllerRef.current) {
-      abortTxControllerRef.current.abort();
-    }
+    // Crear nuevo AbortController para esta petición (si hay una en vuelo, abortarla)
+    if (abortTxControllerRef.current) abortTxControllerRef.current.abort();
     abortTxControllerRef.current = new AbortController();
     const signal = abortTxControllerRef.current.signal;
     const requestId = ++txRequestIdRef.current;
     
     try {
       const token = await authService.getAccessToken();
-      const url = `${API_BASE_URL}/transacciones?rango=${periodo}`;
+      const params = new URLSearchParams();
+      params.append('rango', String(periodo));
+      params.append('withTotals', 'true');
+      if (monedaActual) params.append('moneda', monedaActual);
+
+      const url = `${API_BASE_URL}/transacciones${params.toString() ? `?${params}` : ''}`;
 
       const res = await apiRateLimiter.fetch(url, {
         method: 'GET',
@@ -309,14 +341,38 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
         throw error;
       }
 
-      const transacciones = Array.isArray(data) ? data : (data?.data || []);
+      // Backend may return either an array or { data: [], totals: { ingresos, egresos } }
+      let ingresoTotal = 0;
+      let egresoTotal = 0;
 
-      const ingresoTotal: number = transacciones
-        .filter((t: Transaccion): t is Transaccion => t.tipo === 'ingreso')
-        .reduce((acc: number, t: Transaccion): number => acc + t.monto, 0);
-      const egresoTotal: number = transacciones
-        .filter((t: Transaccion): t is Transaccion => t.tipo === 'egreso')
-        .reduce((acc: number, t: Transaccion): number => acc + t.monto, 0);
+      if (data && data.totals && typeof data.totals === 'object') {
+        // Backend puede devolver diferentes keys; aceptar aliases y normalizar egresos a positivo
+        const t = data.totals;
+        ingresoTotal = Number(t.ingresos ?? t.totalIngresos ?? t.income ?? 0);
+        egresoTotal = Number(t.egresos ?? t.totalEgresos ?? t.out ?? 0);
+      } else if (data && data.totales && typeof data.totales === 'object') {
+        const t = data.totales;
+        ingresoTotal = Number(t.ingresos ?? t.totalIngresos ?? 0);
+        egresoTotal = Number(t.egresos ?? t.totalEgresos ?? 0);
+      } else {
+        const transacciones = Array.isArray(data) ? data : (data?.data || []);
+        ingresoTotal = transacciones
+          .filter((t: Transaccion): t is Transaccion => t.tipo === 'ingreso')
+          .reduce((acc: number, t: Transaccion): number => acc + t.monto, 0);
+        egresoTotal = transacciones
+          .filter((t: Transaccion): t is Transaccion => t.tipo === 'egreso')
+          .reduce((acc: number, t: Transaccion): number => acc + t.monto, 0);
+      }
+
+      // Normalizar egresos a valor absoluto para mostrar como positivo en UI
+      try {
+        egresoTotal = Math.abs(Number(egresoTotal) || 0);
+        ingresoTotal = Number(ingresoTotal) || 0;
+      } catch {}
+
+      if (__DEV__) {
+        console.log('🔁 [BalanceCard] /transacciones response preview', { periodo, moneda: monedaActual, raw: data, ingresoTotal, egresoTotal });
+      }
 
       // totals calculated
 
@@ -351,12 +407,73 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
       if (isMountedRef.current) {
         Toast.show({
           type: err?.statusCode === 429 ? 'warning' : 'error',
-          text1: err?.statusCode === 429 ? '⚠️ Demasiadas peticiones' : 'Error al obtener transacciones',
+          text1: err?.statusCode === 429 ? 'Demasiadas peticiones' : 'Error al obtener transacciones',
           text2: err?.statusCode === 429 ? 'Espera 10 segundos e intenta de nuevo' : undefined,
         });
       }
     } finally {
+      if (isMountedRef.current && requestId === txRequestIdRef.current) {
+        setIsFetching(false);
+      }
+    }
+  };
+
+  const fetchBalanceCardDashboard = async () => {
+    const now = Date.now();
+    const minInterval = 350;
+
+    const didPeriodChange = lastBalancePeriodoRef.current !== periodo;
+    lastBalancePeriodoRef.current = periodo;
+
+    if (!didPeriodChange && now - lastBalanceFetchRef.current < minInterval) {
+      return;
+    }
+    lastBalanceFetchRef.current = now;
+
+    if (!isMountedRef.current) return;
+
+    setIsFetching(true);
+
+    if (abortBalanceControllerRef.current) abortBalanceControllerRef.current.abort();
+    abortBalanceControllerRef.current = new AbortController();
+    const signal = abortBalanceControllerRef.current.signal;
+
+    try {
+      if (isMountedRef.current) setIsLoadingFresh(true);
+
+      const res = await dashboardService.getBalanceCard(
+        {
+          periodo,
+          moneda: monedaActual ? String(monedaActual) : undefined,
+        },
+        signal
+      );
+
+      if (signal.aborted || !isMountedRef.current) return;
+
+      setSaldo(Number(res?.account?.saldo ?? 0));
+      setMonedaActual(String(res?.account?.moneda ?? monedaActual ?? 'MXN'));
+      setIngresos(Number(res?.totals?.ingresos ?? 0));
+      setEgresos(Number(res?.totals?.egresos ?? 0));
+    } catch (err: any) {
+      if (err?.name === 'AbortError' || signal.aborted) return;
+
+      if (err?.statusCode === 429 || String(err?.message || '').includes('429') || String(err?.message || '').includes('Too Many')) {
+        const retry = Number(err?.retryAfterSeconds || 0);
+        Toast.show({
+          type: 'warning',
+          text1: 'Demasiadas peticiones',
+          text2: retry > 0 ? `Espera ${retry}s e intenta de nuevo` : 'Espera un momento e intenta de nuevo',
+          position: 'bottom',
+          visibilityTime: 3500,
+        });
+        return;
+      }
+
+      console.error('❌ [BalanceCard] Error /dashboard/balance-card:', err);
+    } finally {
       if (isMountedRef.current) {
+        setIsLoadingFresh(false);
         setIsFetching(false);
       }
     }
@@ -365,10 +482,14 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
   const reloadAllData = async () => {
     // removed verbose debug log
     try {
-      await Promise.all([
-        fetchDatosCuenta(),
-        fetchTransacciones()
-      ]);
+      if (isDashboardContext) {
+        await fetchBalanceCardDashboard();
+      } else {
+        await Promise.all([
+          fetchDatosCuenta(),
+          fetchTransacciones()
+        ]);
+      }
       // removed verbose success log
     } catch (error) {
       console.error('❌ [BalanceCard] Error en recarga completa:', error);
@@ -449,9 +570,20 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
     setRefreshPreferences(prev => prev + 1);
   };
 
-  useEffect(() => { fetchDatosCuenta(); }, [reloadTrigger]);
+  useEffect(() => {
+    if (isDashboardContext) return;
+    fetchDatosCuenta();
+  }, [reloadTrigger, snapshotMode, isDashboardContext]);
 
-  useEffect(() => { fetchTransacciones(); }, [reloadTrigger, periodo]);
+  useEffect(() => {
+    if (isDashboardContext) {
+      fetchBalanceCardDashboard();
+      return;
+    }
+
+    // Non-dashboard: solicitar totales de transacciones cuando cambia el periodo, la moneda o se solicita recarga.
+    fetchTransacciones();
+  }, [reloadTrigger, periodo, monedaActual, isDashboardContext]);
 
   return (
     <View style={[styles.card, { backgroundColor: colors.card, shadowColor: colors.shadow, borderColor: colors.border }]}>
