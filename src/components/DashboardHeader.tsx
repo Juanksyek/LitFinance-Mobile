@@ -6,8 +6,10 @@ import { useNavigation } from "@react-navigation/native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "../theme/ThemeContext";
 import { useThemeColors } from "../theme/useThemeColors";
+import type { DashboardSnapshot } from '../types/dashboardSnapshot';
 import { unregisterPushNotifications } from "../services/notificationService";
 import { authService } from '../services/authService';
+import { userProfileService } from '../services/userProfileService';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 const isTablet = screenWidth >= 700;
@@ -22,15 +24,15 @@ const getResponsiveSpacing = () => {
   };
 };
 
-const DashboardWidget = () => {
+const DashboardWidget = ({ dashboardSnapshot }: { dashboardSnapshot?: DashboardSnapshot | null }) => {
   return (
     <View style={styles.container}>
-      <Header />
+      <Header dashboardSnapshot={dashboardSnapshot} />
     </View>
   );
 };
 
-const Header = () => {
+const Header = ({ dashboardSnapshot }: { dashboardSnapshot?: DashboardSnapshot | null }) => {
   const [expanded, setExpanded] = useState(false);
   const [nombre, setNombre] = useState("Usuario");
   const [showLogoutModal, setShowLogoutModal] = useState(false);
@@ -42,7 +44,6 @@ const Header = () => {
   const insets = useSafeAreaInsets();
   const { isDark } = useTheme();
   const colors = useThemeColors();
-  console.log('🏠 [DashboardHeader] render', { expanded });
 
   // Mostrar sólo la primera línea del nombre y evitar que nombres muy largos hagan wrap
   const displayName = React.useMemo(() => {
@@ -57,21 +58,58 @@ const Header = () => {
   }, [nombre]);
 
   useEffect(() => {
-    const fetchNombre = async () => {
+    let mounted = true;
+
+    const applyNombre = async (raw: any) => {
+      const next = (raw?.nombre || raw?.name || '').toString().trim();
+      if (!next) return;
       try {
-        const userData = await AsyncStorage.getItem("userData");
-        if (userData) {
-          const parsed = JSON.parse(userData);
-          if (parsed?.nombre) {
-            setNombre(parsed.nombre);
-          }
-        }
-      } catch {
-        setNombre("Error al cargar nombre");
+        await AsyncStorage.setItem('userDisplayName', next);
+      } catch (e) {
+        // ignore storage errors
       }
+      if (mounted) setNombre(next);
     };
-    fetchNombre();
-  }, []);
+
+    // Preferir nombre desde dashboard snapshot (viewer) si está disponible
+    (async () => {
+      try {
+        const viewerName = dashboardSnapshot?.viewer?.nombreCompleto;
+        if (viewerName && mounted) {
+          setNombre(viewerName);
+          try {
+            await AsyncStorage.setItem('userDisplayName', viewerName.toString());
+          } catch {}
+        }
+      } catch {}
+    })();
+
+    const refreshNombre = async () => {
+      // First try local storage for instant display
+      try {
+        const stored = await AsyncStorage.getItem('userDisplayName');
+        if (stored && mounted) setNombre(stored);
+      } catch {}
+
+      try {
+        const cached = await userProfileService.getCachedProfile();
+        if (cached) await applyNombre(cached);
+      } catch {}
+
+      try {
+        const updated = await userProfileService.fetchAndUpdateProfile();
+        if (updated) await applyNombre(updated);
+      } catch {}
+    };
+
+    refreshNombre();
+    const unsubscribe = (navigation as any)?.addListener?.('focus', refreshNombre);
+
+    return () => {
+      mounted = false;
+      if (typeof unsubscribe === 'function') unsubscribe();
+    };
+  }, [navigation]);
 
   const topPad =
     insets.top > 0
@@ -118,6 +156,9 @@ const Header = () => {
 
       await authService.clearAll();
       await AsyncStorage.removeItem("userData");
+      try {
+        await AsyncStorage.removeItem('userDisplayName');
+      } catch {}
       Toast.show({
         type: "success",
         text1: "Sesión cerrada",
