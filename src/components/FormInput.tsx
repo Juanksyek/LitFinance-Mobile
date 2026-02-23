@@ -1,6 +1,7 @@
 import React from 'react';
-import { TextInput, StyleSheet, View, TextInputProps, TouchableOpacity, useColorScheme } from 'react-native';
+import { StyleSheet, View, TextInputProps, TouchableOpacity, useColorScheme } from 'react-native';
 import { useThemeColors } from '../theme/useThemeColors';
+import AppTextInput from './AppTextInput';
 
 interface FormInputProps extends TextInputProps {
   rightIcon?: React.ReactNode;
@@ -31,7 +32,7 @@ const FormInput: React.FC<FormInputProps> = ({
         style,
       ]}
     >
-      <TextInput
+      <AppTextInput
         style={[styles.input, { color: colors.text }]}
         placeholderTextColor={colors.placeholder}
         {...props}

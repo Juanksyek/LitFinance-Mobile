@@ -211,7 +211,22 @@ const EditSubaccountModal: React.FC<Props> = ({
             {...getLimitesSubcuenta()}
             onValueChange={handleCantidadChange}
             onValidationChange={handleCantidadValidation}
-            style={styles.input}
+            showValidIcon={false}
+            style={StyleSheet.flatten([
+              { marginBottom: 10, backgroundColor: colors.inputBackground, borderRadius: 10 },
+            ])}
+            inputContainerStyle={StyleSheet.flatten([
+              {
+                borderRadius: 10,
+                borderWidth: 1,
+                borderColor: colors.border,
+                height: 44,
+                paddingHorizontal: 12,
+              },
+            ])}
+            inputStyle={StyleSheet.flatten([
+              { fontSize: 14, fontWeight: '500', color: colors.inputText },
+            ])}
             autoFix
           />
         </View>
@@ -220,15 +235,15 @@ const EditSubaccountModal: React.FC<Props> = ({
           <View style={styles.warningContainer}>
             <Ionicons name="warning-outline" size={20} color="#F59E0B" />
             <View style={styles.warningContent}>
-              <Text style={styles.warningTitle}>Cantidad muy grande</Text>
+              <Text style={styles.warningTitle}>Cantidad alta</Text>
               <Text style={styles.warningText}>
-                Cantidad:{" "}
+                Cantidad: {" "}
                 <SmartNumber
                   value={cantidadNumerica || 0}
                   options={{ context: "modal", symbol: simbolo }}
                 />
               </Text>
-              <Text style={styles.warningSubtext}>{erroresCantidad[0]}</Text>
+              <Text style={styles.warningSubtext}>Revisa el monto antes de continuar.</Text>
             </View>
           </View>
         )}

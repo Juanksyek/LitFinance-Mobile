@@ -3,6 +3,7 @@ import { Modal, View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'rea
 import { Ionicons } from "@expo/vector-icons";
 import SmartNumber from './SmartNumber';
 import { useThemeColors } from '../theme/useThemeColors';
+import { fixEncoding } from '../utils/fixEncoding';
 
 type Detalles = {
   origen?: string;
@@ -119,20 +120,20 @@ const HistorialDetalleModal = ({ visible, onClose, historialItem }: Props) => {
           <ScrollView showsVerticalScrollIndicator={false}>
             <View style={styles.section}>
               <Text style={[styles.label, { color: colors.textSecondary }]}>Descripción</Text>
-              <Text style={[styles.value, { color: colors.text }]}>{descripcion}</Text>
+              <Text style={[styles.value, { color: colors.text }]}>{fixEncoding(descripcion)}</Text>
             </View>
 
             {conceptoId && (
               <View style={styles.section}>
                 <Text style={[styles.label, { color: colors.textSecondary }]}>Concepto ID</Text>
-                <Text style={[styles.value, { color: colors.text }]}>{conceptoId}</Text>
+                <Text style={[styles.value, { color: colors.text }]}>{fixEncoding(conceptoId)}</Text>
               </View>
             )}
 
             {detalles.conceptoNombre && (
               <View style={styles.section}>
                 <Text style={[styles.label, { color: colors.textSecondary }]}>Concepto</Text>
-                <Text style={[styles.value, { color: colors.text }]}>{detalles.conceptoNombre}</Text>
+                <Text style={[styles.value, { color: colors.text }]}>{fixEncoding(detalles.conceptoNombre)}</Text>
               </View>
             )}
 
@@ -146,7 +147,7 @@ const HistorialDetalleModal = ({ visible, onClose, historialItem }: Props) => {
                   <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
                     <Ionicons name="business" size={16} color={colors.textSecondary} style={{ marginRight: 6 }} />
                     <Text style={[styles.label, { color: colors.textSecondary }]}>Plataforma: </Text>
-                    <Text style={[styles.value, { color: colors.text, fontSize: 15 }]}>{detalles.plataforma}</Text>
+                    <Text style={[styles.value, { color: colors.text, fontSize: 15 }]}>{fixEncoding(detalles.plataforma)}</Text>
                   </View>
                   {detalles.monedaOriginal && detalles.monedaOriginal !== 'MXN' && (
                     <View style={{ marginTop: 8, padding: 10, backgroundColor: colors.inputBackground, borderRadius: 8 }}>
@@ -193,7 +194,7 @@ const HistorialDetalleModal = ({ visible, onClose, historialItem }: Props) => {
                 <Text style={[styles.label, { color: colors.textSecondary }]}>Motivo</Text>
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                 <Ionicons name="chatbox-ellipses-outline" size={16} color={colors.text} style={{ marginRight: 6 }} />
-                <Text style={[styles.value, { color: colors.text }]}>{motivo}</Text>
+                <Text style={[styles.value, { color: colors.text }]}>{fixEncoding(motivo)}</Text>
                 </View>
             </View>
             )}
@@ -225,34 +226,34 @@ const HistorialDetalleModal = ({ visible, onClose, historialItem }: Props) => {
 
             <View style={styles.section}>
               <Text style={[styles.label, { color: colors.textSecondary }]}>Cuenta</Text>
-              <Text style={[styles.value, { color: colors.text }]}>{cuentaId}</Text>
+              <Text style={[styles.value, { color: colors.text }]}>{fixEncoding(cuentaId)}</Text>
             </View>
 
             {subcuentaId && (
               <View style={styles.section}>
                 <Text style={[styles.label, { color: colors.textSecondary }]}>Subcuenta</Text>
-                <Text style={[styles.value, { color: colors.text }]}>{subcuentaId}</Text>
+                <Text style={[styles.value, { color: colors.text }]}>{fixEncoding(subcuentaId)}</Text>
               </View>
             )}
 
             {detalles.origen && (
               <View style={styles.section}>
                 <Text style={[styles.label, { color: colors.textSecondary }]}>Origen</Text>
-                <Text style={[styles.value, { color: colors.text }]}>{detalles.origen}</Text>
+                <Text style={[styles.value, { color: colors.text }]}>{fixEncoding(detalles.origen)}</Text>
               </View>
             )}
 
             {detalles.etiqueta && (
               <View style={styles.section}>
                 <Text style={[styles.label, { color: colors.textSecondary }]}>Etiqueta</Text>
-                <Text style={[styles.value, { color: colors.text }]}>{detalles.etiqueta}</Text>
+                <Text style={[styles.value, { color: colors.text }]}>{fixEncoding(detalles.etiqueta)}</Text>
               </View>
             )}
 
             {detalles.resumen && (
               <View style={styles.section}>
                 <Text style={[styles.label, { color: colors.textSecondary }]}>Resumen</Text>
-                <Text style={[styles.value, { color: colors.text }]}>{detalles.resumen}</Text>
+                <Text style={[styles.value, { color: colors.text }]}>{fixEncoding(detalles.resumen)}</Text>
               </View>
             )}
           </ScrollView>
