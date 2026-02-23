@@ -25,7 +25,7 @@ export default function DeleteModal({
   confirmBg = '#fef2f2',
 }: Props) {
   const colors = useThemeColors();
-  console.log('🗑️ [DeleteModal] render visible=', visible);
+  // console.log('🗑️ [DeleteModal] render visible=', visible);
 
   const handleConfirm = () => {
     console.log('🗑️ [DeleteModal] confirm pressed at', new Date().toISOString());
