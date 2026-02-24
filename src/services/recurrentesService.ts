@@ -1,6 +1,5 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { authService } from './authService';
 import { API_BASE_URL } from '../constants/api';
+import { apiRateLimiter } from './apiRateLimiter';
 
 export interface EstadisticasRecurrentes {
   totalCobrado: number;
@@ -26,27 +25,12 @@ class RecurrentesService {
    */
   async obtenerEstadisticas(filtro: FiltroEstadisticas = 'mes'): Promise<EstadisticasRecurrentes> {
     try {
-      const token = await authService.getAccessToken();
-      if (!token) {
-        throw new Error('No auth token found');
-      }
-
-      const response = await fetch(
+      const response = await apiRateLimiter.fetch(
         `${API_BASE_URL}/recurrentes/historial/estadisticas?filtro=${filtro}`,
-        {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        }
+        { method: 'GET', headers: { 'Content-Type': 'application/json' } }
       );
 
       if (!response.ok) {
-        if (response.status === 401) {
-          await authService.clearAll();
-          throw new Error('Session expired');
-        }
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
@@ -63,27 +47,12 @@ class RecurrentesService {
    */
   async obtenerHistorialRecurrente(recurrenteId: string, page: number = 1, limit: number = 10) {
     try {
-      const token = await authService.getAccessToken();
-      if (!token) {
-        throw new Error('No auth token found');
-      }
-
-      const response = await fetch(
+      const response = await apiRateLimiter.fetch(
         `${API_BASE_URL}/recurrentes/${recurrenteId}/historial?page=${page}&limit=${limit}`,
-        {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        }
+        { method: 'GET', headers: { 'Content-Type': 'application/json' } }
       );
 
       if (!response.ok) {
-        if (response.status === 401) {
-          await authService.clearAll();
-          throw new Error('Session expired');
-        }
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 

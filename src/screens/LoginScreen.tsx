@@ -26,11 +26,7 @@ const LoginScreen: React.FC = () => {
 
   const handleLogin = async () => {
     if (!email || !password) {
-      Toast.show({
-        type: "error",
-        text1: "Campos requeridos",
-        text2: "Ingresa tu correo y contraseña.",
-      });
+      Toast.show({ type: "error", text1: "Campos requeridos", text2: "Ingresa tu correo y contraseña." });
       return;
     }
 
@@ -56,8 +52,23 @@ const LoginScreen: React.FC = () => {
       }
 
       const responseData = await response.json();
-      const { accessToken, refreshToken, user, message } = responseData;
-
+      // Be tolerant to backend response shapes
+      const accessToken =
+        responseData?.accessToken ||
+        responseData?.token ||
+        responseData?.data?.accessToken ||
+        responseData?.data?.token ||
+        null;
+      const refreshToken =
+        responseData?.refreshToken ||
+        responseData?.refresh_token ||
+        responseData?.data?.refreshToken ||
+        responseData?.data?.refresh_token ||
+        responseData?.tokens?.refreshToken ||
+        responseData?.tokens?.refresh_token ||
+        null;
+      const user = responseData?.user || responseData?.data?.user || responseData?.usuario || responseData?.data?.usuario || null;
+      const message = responseData?.message || responseData?.data?.message;
 
       console.log('🔑 accessToken:', accessToken);
       console.log('👤 user recibido:', user);
@@ -98,7 +109,7 @@ const LoginScreen: React.FC = () => {
         if (user.id) await AsyncStorage.setItem('userId', String(user.id));
         if (user.cuentaId) await AsyncStorage.setItem('cuentaId', String(user.cuentaId));
       } catch {}
-    
+
       Toast.show({
         type: "success",
         text1: message || "Inicio de sesión exitoso",
@@ -113,7 +124,7 @@ const LoginScreen: React.FC = () => {
         console.warn('⚠️ Error registrando notificaciones:', notifError);
         // No bloquear el login si falla el registro de notificaciones
       }
-  
+
       // Navegar a Dashboard (la pantalla se encarga de inicializar ids y sincronizar en background)
       navigation.dispatch(StackActions.replace("Dashboard"));
     } catch (error: any) {
@@ -123,30 +134,32 @@ const LoginScreen: React.FC = () => {
 
       // Normalize message/status for backend variations (401, 404, 'Unauthorized', 'not found')
       try {
+        // Priorizar códigos estructurados desde backend
+        const code = error?.data?.code || (error?.response && error.response.data && error.response.data.code);
         const status = error?.status || (error?.response && error.response.status) || null;
         const rawMsg = (error?.message || (error?.response && error.response.data && error.response.data.message) || '').toString().toLowerCase();
 
-        // If backend explicitly indicates user not found / not registered or returns 404/unauthorized
-        if (
-          status === 404 ||
-          rawMsg.includes('not found') ||
-          rawMsg.includes('not registered') ||
-          rawMsg.includes('usuario no registrado') ||
-          rawMsg.includes('unauthorized')
-        ) {
+        if (code === 'ACCOUNT_NOT_ACTIVATED') {
+          title = 'Cuenta no activada';
+          message = 'Tu cuenta aún no ha sido activada. Revisa tu correo para confirmar la cuenta.';
+          Toast.show({ type: 'info', text1: title, text2: message, visibilityTime: 8000 });
+          setLoading(false);
+          return;
+        } else if (code === 'USER_NOT_FOUND' || code === 'USER_NOT_REGISTERED' || code === 'ACCOUNT_NOT_FOUND' || status === 404 || rawMsg.includes('not registered') || rawMsg.includes('usuario no registrado') || rawMsg.includes('not found')) {
+          // Caso claro: usuario no registrado
           title = 'Usuario no registrado';
           message = 'No estás registrado. Regístrate para continuar.';
-          // keep password as-is (no need to clear)
-        } else if (status === 401) {
-          title = "Credenciales incorrectas";
-          message = "Correo o contraseña incorrectos. Verifica e inténtalo de nuevo.";
+        } else if (code === 'INVALID_CREDENTIALS' || status === 401 || rawMsg.includes('invalid credentials') || rawMsg.includes('invalid password') || rawMsg.includes('correo o contraseña')) {
+          // Credenciales inválidas
+          title = 'Credenciales incorrectas';
+          message = 'Correo o contraseña incorrectos. Verifica e inténtalo de nuevo.';
           setPassword("");
         } else if (status >= 500) {
-          title = "Error del servidor";
-          message = "No se pudo conectar con el servidor. Intenta más tarde.";
+          title = 'Error del servidor';
+          message = 'No se pudo conectar con el servidor. Intenta más tarde.';
         } else if (status === 429) {
-          title = "Demasiados intentos";
-          message = "Has intentado iniciar sesión muchas veces. Intenta de nuevo más tarde.";
+          title = 'Demasiados intentos';
+          message = 'Has intentado iniciar sesión muchas veces. Intenta de nuevo más tarde.';
         } else if (error?.data && typeof error.data.message === 'string') {
           message = error.data.message;
         }

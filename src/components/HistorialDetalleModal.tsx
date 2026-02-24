@@ -54,13 +54,19 @@ const HistorialDetalleModal = ({ visible, onClose, historialItem }: Props) => {
     detalles = {},
     metadata = {},
     motivo,
-    conceptoId, // <-- agregar aquí
   } = historialItem;
 
   const formatAmountPlain = (amount: number) =>
     Math.abs(amount).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   const meta: any = metadata ?? {};
+  const conceptoDisplay = (() => {
+    const concepto = String(meta?.concepto ?? detalles?.conceptoNombre ?? '').trim();
+    if (concepto) return concepto;
+    const conceptoId = String((historialItem as any)?.conceptoId ?? meta?.conceptoId ?? '').trim();
+    return conceptoId || '';
+  })();
+
   const conversion = (() => {
     const montoOriginal = meta.montoOriginal ?? detalles.montoOriginal;
     const monedaOrigen = meta.monedaOrigen ?? meta.monedaOriginal ?? detalles.monedaOriginal;
@@ -122,20 +128,6 @@ const HistorialDetalleModal = ({ visible, onClose, historialItem }: Props) => {
               <Text style={[styles.label, { color: colors.textSecondary }]}>Descripción</Text>
               <Text style={[styles.value, { color: colors.text }]}>{fixEncoding(descripcion)}</Text>
             </View>
-
-            {conceptoId && (
-              <View style={styles.section}>
-                <Text style={[styles.label, { color: colors.textSecondary }]}>Concepto ID</Text>
-                <Text style={[styles.value, { color: colors.text }]}>{fixEncoding(conceptoId)}</Text>
-              </View>
-            )}
-
-            {detalles.conceptoNombre && (
-              <View style={styles.section}>
-                <Text style={[styles.label, { color: colors.textSecondary }]}>Concepto</Text>
-                <Text style={[styles.value, { color: colors.text }]}>{fixEncoding(detalles.conceptoNombre)}</Text>
-              </View>
-            )}
 
             {tipo === 'recurrente' && detalles.plataforma && (
               <View style={[styles.section, styles.recurrenteSection]}>
@@ -213,6 +205,13 @@ const HistorialDetalleModal = ({ visible, onClose, historialItem }: Props) => {
                 />
               </Text>
             </View>
+
+            {conceptoDisplay ? (
+              <View style={styles.section}>
+                <Text style={[styles.label, { color: colors.textSecondary }]}>Concepto</Text>
+                <Text style={[styles.value, { color: colors.text }]}>{fixEncoding(conceptoDisplay)}</Text>
+              </View>
+            ) : null}
 
             <View style={styles.section}>
               <Text style={[styles.label, { color: colors.textSecondary }]}>Tipo</Text>
