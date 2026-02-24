@@ -55,7 +55,10 @@ class SupportService {
       console.log("📤 [SupportService] getMyTickets - Iniciando...");
       const url = `${API_BASE_URL}/support-tickets`;
       console.log("🌐 [SupportService] getMyTickets - URL:", url);
-      const response = await apiRateLimiter.fetch(url);
+      // Tickets list should feel real-time (status/messages). Bypass aggressive cache.
+      const response = await apiRateLimiter.fetch(url, {
+        headers: { 'X-Skip-Cache': '1' },
+      });
       console.log("📥 [SupportService] getMyTickets - Respuesta:", { status: response.status, ok: response.ok });
 
       if (!response.ok) {
@@ -83,7 +86,10 @@ class SupportService {
       console.log("📤 [SupportService] getTicketDetail - Iniciando...", { ticketId });
       const url = `${API_BASE_URL}/support-tickets/${ticketId}`;
       console.log("🌐 [SupportService] getTicketDetail - URL:", url);
-      const response = await apiRateLimiter.fetch(url);
+      // Ticket detail is chat-like; must not be served from stale cache.
+      const response = await apiRateLimiter.fetch(url, {
+        headers: { 'X-Skip-Cache': '1' },
+      });
       console.log("📥 [SupportService] getTicketDetail - Respuesta:", { status: response.status, ok: response.ok });
 
       if (!response.ok) {
