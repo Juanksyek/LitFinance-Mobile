@@ -1,6 +1,23 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, ScrollView, Dimensions, Animated, TouchableOpacity, TextInput, Alert, Platform, KeyboardAvoidingView, SafeAreaView, StatusBar, Keyboard } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ActivityIndicator,
+  ScrollView,
+  FlatList,
+  Dimensions,
+  Animated,
+  TouchableOpacity,
+  TextInput,
+  Alert,
+  Platform,
+  StatusBar,
+  Keyboard,
+  Modal,
+} from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import apiRateLimiter from '../services/apiRateLimiter';
 import { authService } from '../services/authService';
 import { API_BASE_URL } from '../constants/api';
@@ -40,12 +57,17 @@ interface Usuario {
 }
 
 const { width } = Dimensions.get('window');
-const HEADER_H = Platform.OS === 'ios' ? 88 : 76;
-const ANDROID_STATUSBAR = Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0;
 
 const MainAccountScreen = () => {
   const colors = useThemeColors();
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
+
+  const [stableBottomInset, setStableBottomInset] = useState(insets.bottom);
+  useEffect(() => {
+    setStableBottomInset((prev) => Math.max(prev, insets.bottom));
+  }, [insets.bottom]);
+
   const [cuenta, setCuenta] = useState<CuentaPrincipal | null>(null);
   const [usuario, setUsuario] = useState<Usuario | null>(null);
   const [loading, setLoading] = useState(true);
@@ -53,6 +75,41 @@ const MainAccountScreen = () => {
   const [saving, setSaving] = useState(false);
   const [infoModalVisible, setInfoModalVisible] = useState(false);
   const [formData, setFormData] = useState<Partial<Usuario>>({});
+  const [showProfessionSuggestions, setShowProfessionSuggestions] = useState(false);
+  const professionHideTimer = useRef<number | null>(null);
+  const [ocupacionesModalVisible, setOcupacionesModalVisible] = useState(false);
+  const [ocupSearch, setOcupSearch] = useState('');
+
+  useEffect(() => {
+    return () => {
+      if (professionHideTimer.current) {
+        clearTimeout(professionHideTimer.current as any);
+        professionHideTimer.current = null;
+      }
+    };
+  }, []);
+
+  // Use the provided occupations catalog
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const OCUPACIONES: string[] = (require('../constants/ocupaciones.json') as string[]) || [];
+
+  const filteredOcupaciones = React.useMemo(() => {
+    const q = ocupSearch.trim().toLowerCase();
+    if (!q) return OCUPACIONES;
+    return OCUPACIONES.filter((o) => o.toLowerCase().includes(q));
+  }, [ocupSearch]);
+
+  const selectOcupacion = (o: string) => {
+    handleChange('ocupacion', o);
+    setOcupacionesModalVisible(false);
+    setOcupSearch('');
+  };
+
+  const professionMatches = React.useMemo(() => {
+    const q = (formData.ocupacion || '').toString().trim().toLowerCase();
+    if (!q) return OCUPACIONES.slice(0, 8);
+    return OCUPACIONES.filter((p) => p.toLowerCase().includes(q)).slice(0, 8);
+  }, [formData.ocupacion]);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(10)).current;
@@ -60,6 +117,85 @@ const MainAccountScreen = () => {
   const profileSlideAnim = useRef(new Animated.Value(15)).current;
   const gridItemsAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(1)).current;
+
+  const scrollRef = useRef<ScrollView | null>(null);
+
+  // =========================
+  // ✅ FIX: evita "jump to top" al enfocar inputs
+  // =========================
+  const keyboardVisibleRef = useRef(false);
+  const pendingFocusTargetRef = useRef<number | null>(null);
+  const focusScrollLockRef = useRef(false);
+
+  const scrollToFocused = (target: number) => {
+    if (!scrollRef.current) return;
+
+    // evita loops (algunas builds disparan focus/keyboard varias veces)
+    if (focusScrollLockRef.current) return;
+    focusScrollLockRef.current = true;
+
+    requestAnimationFrame(() => {
+      try {
+        // @ts-ignore
+        scrollRef.current?.scrollResponderScrollNativeHandleToKeyboard(
+          target,
+          110,
+          true
+        );
+      } catch {}
+      setTimeout(() => {
+        focusScrollLockRef.current = false;
+      }, 250);
+    });
+  };
+
+  const handleInputFocus = (e: any) => {
+    // RN a veces trae el handle en e.target y otras en e.nativeEvent.target
+    const target: number | undefined =
+      (typeof e?.target === 'number' ? e.target : undefined) ??
+      (typeof e?.nativeEvent?.target === 'number' ? e.nativeEvent.target : undefined);
+
+    if (typeof target !== 'number') return;
+
+    pendingFocusTargetRef.current = target;
+
+    // ✅ En Android: NO hacemos este auto-scroll (con "resize" no lo necesitas y evita brincos)
+    if (Platform.OS !== 'ios') return;
+
+    // Si el teclado ya está visible, scrollea en el siguiente frame
+    if (keyboardVisibleRef.current) {
+      setTimeout(() => scrollToFocused(target), 40);
+    }
+  };
+
+  useEffect(() => {
+    const showEvt = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvt = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+    const subShow = Keyboard.addListener(showEvt, () => {
+      keyboardVisibleRef.current = true;
+
+      // iOS: cuando el teclado empieza a aparecer, scrollea al input pendiente
+      if (Platform.OS === 'ios') {
+        const t = pendingFocusTargetRef.current;
+        if (typeof t === 'number') {
+          setTimeout(() => scrollToFocused(t), 60);
+        }
+      }
+    });
+
+    const subHide = Keyboard.addListener(hideEvt, () => {
+      keyboardVisibleRef.current = false;
+      pendingFocusTargetRef.current = null;
+      focusScrollLockRef.current = false;
+    });
+
+    return () => {
+      subShow.remove();
+      subHide.remove();
+    };
+  }, []);
+  // =========================
 
   const fetchCuentaPrincipal = async () => {
     try {
@@ -74,17 +210,18 @@ const MainAccountScreen = () => {
         method: 'GET',
         headers,
       });
+
       const raw = await res.json().catch(() => ({}));
       if (res.ok) {
-        // Normalizar distintas formas de payload (data, cuenta, etc.)
         const payload = raw?.data ?? raw?.cuenta ?? raw ?? {};
         setCuenta(payload);
+
         Animated.parallel([
           Animated.timing(fadeAnim, { toValue: 1, duration: 400, useNativeDriver: true }),
           Animated.timing(slideAnim, { toValue: 0, duration: 300, useNativeDriver: true }),
         ]).start();
       } else {
-        console.warn('[MainAccount] /cuenta/principal returned non-ok', { status: res.status, body: raw });
+        console.warn('[MainAccount] /cuenta/principal non-ok', { status: res.status, body: raw });
         setCuenta(null);
       }
     } catch {
@@ -95,20 +232,21 @@ const MainAccountScreen = () => {
   const fetchUsuario = async () => {
     try {
       const token = await authService.getAccessToken();
-      const headers2: Record<string, string> = { 'X-Skip-Cache': '1' };
-      if (token) headers2.Authorization = `Bearer ${token}`;
+      const headers: Record<string, string> = { 'X-Skip-Cache': '1' };
+      if (token) headers.Authorization = `Bearer ${token}`;
 
       const res = await apiRateLimiter.fetch(`${API_BASE_URL}/user/profile`, {
         method: 'GET',
-        headers: headers2,
+        headers,
       });
+
       const raw = await res.json().catch(() => ({}));
       if (res.ok) {
         const payload = raw?.data ?? raw ?? {};
         setUsuario(payload);
         setFormData(payload);
       } else {
-        console.warn('[MainAccount] /user/profile returned non-ok', { status: res.status, body: raw });
+        console.warn('[MainAccount] /user/profile non-ok', { status: res.status, body: raw });
       }
     } catch {}
   };
@@ -116,61 +254,59 @@ const MainAccountScreen = () => {
   const fetchData = async () => {
     await Promise.all([fetchCuentaPrincipal(), fetchUsuario()]);
     setLoading(false);
-    
-    // Animate profile section
+
     Animated.parallel([
       Animated.timing(profileFadeAnim, { toValue: 1, duration: 500, delay: 100, useNativeDriver: true }),
       Animated.timing(profileSlideAnim, { toValue: 0, duration: 400, delay: 100, useNativeDriver: true }),
     ]).start();
 
-    // Animate grid items
     Animated.timing(gridItemsAnim, { toValue: 1, duration: 400, delay: 200, useNativeDriver: true }).start();
-  };
-
-  // Scroll helpers to keep inputs visible when keyboard opens
-  const scrollRef = React.useRef<ScrollView | null>(null);
-  const inputPositionsRef = React.useRef<Record<string, number>>({});
-  const onInputLayout = (key: string) => (e: any) => {
-    inputPositionsRef.current[key] = e.nativeEvent.layout.y;
-  };
-  const focusField = (key: string) => {
-    const y = inputPositionsRef.current[key];
-    if (typeof y === 'number' && scrollRef.current) {
-      const offset = Math.max(0, y - HEADER_H - 20);
-      scrollRef.current.scrollTo({ y: offset, animated: true });
-    }
   };
 
   const handleUpdateProfile = async () => {
     try {
       setSaving(true);
-      // Nunca mandamos ningún campo de moneda en el payload, solo datos personales
+
+      const token = await authService.getAccessToken();
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers.Authorization = `Bearer ${token}`;
+
       const { monedaPreferencia, ...rest } = formData;
       const cleanPayload = Object.fromEntries(
         Object.entries(rest).filter(([key]) => !key.toLowerCase().includes('moneda'))
       );
+
       const response = await apiRateLimiter.fetch(`${API_BASE_URL}/user/update`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(cleanPayload),
       });
+
+      const raw = await response.json().catch(() => ({}));
+
       if (response.ok) {
-        const updatedProfile = await response.json();
+        const updatedProfile = raw?.data ?? raw ?? {};
         setUsuario(updatedProfile);
         setFormData(updatedProfile);
-        // ensure keyboard is dismissed before leaving edit mode
+
         Keyboard.dismiss();
         setEditMode(false);
+
         Toast.show({ type: 'success', text1: 'Perfil actualizado' });
-        // give system a moment to resize after keyboard dismissal, then scroll to top
-        await new Promise((res) => setTimeout(res, 80));
-        if (scrollRef.current) scrollRef.current.scrollTo({ y: 0, animated: true });
-        // refresh data in background
-        fetchData(); // Recargar datos para mostrar actualizados
+
+        setTimeout(() => {
+          try {
+            scrollRef.current?.scrollTo({ y: 0, animated: true });
+          } catch {}
+        }, 80);
+
+        fetchData();
       } else {
-        const errorData = await response.json();
-        console.error('Error updating profile:', errorData);
-        Toast.show({ type: 'error', text1: 'Error', text2: errorData.message || 'No se pudo actualizar' });
+        Toast.show({
+          type: 'error',
+          text1: 'Error',
+          text2: raw?.message || 'No se pudo actualizar',
+        });
       }
     } catch {
       Toast.show({ type: 'error', text1: 'Error de conexión' });
@@ -180,27 +316,31 @@ const MainAccountScreen = () => {
   };
 
   const handleChange = (field: keyof Usuario, value: any) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
   const handleCancel = () => {
     Alert.alert('Descartar cambios', '¿Quieres descartar los cambios?', [
       { text: 'No', style: 'cancel' },
-      { 
-        text: 'Sí, descartar', 
-        style: 'destructive', 
-        onPress: () => { 
+      {
+        text: 'Sí, descartar',
+        style: 'destructive',
+        onPress: () => {
           Keyboard.dismiss();
           setFormData(usuario || {});
           setEditMode(false);
-          // Animate exit
+
           Animated.sequence([
             Animated.timing(scaleAnim, { toValue: 0.98, duration: 100, useNativeDriver: true }),
             Animated.timing(scaleAnim, { toValue: 1, duration: 200, useNativeDriver: true }),
           ]).start();
-          // after dismissing, ensure scroll position resets so content isn't left scrolled
-          setTimeout(() => { if (scrollRef.current) scrollRef.current.scrollTo({ y: 0, animated: true }); }, 80);
-        } 
+
+          setTimeout(() => {
+            try {
+              scrollRef.current?.scrollTo({ y: 0, animated: true });
+            } catch {}
+          }, 80);
+        },
       },
     ]);
   };
@@ -218,8 +358,8 @@ const MainAccountScreen = () => {
 
   if (loading) {
     return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-        <View style={[styles.center, { backgroundColor: colors.background }]}> 
+      <SafeAreaView edges={['top', 'left', 'right']} style={{ flex: 1, backgroundColor: colors.background }}>
+        <View style={[styles.center, { backgroundColor: colors.background }]}>
           <ActivityIndicator size="small" color={colors.button} />
           <Text style={[styles.muted, { color: colors.textSecondary }]}>Cargando…</Text>
         </View>
@@ -229,8 +369,8 @@ const MainAccountScreen = () => {
 
   if (!cuenta) {
     return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-        <View style={[styles.center, { backgroundColor: colors.background }]}> 
+      <SafeAreaView edges={['top', 'left', 'right']} style={{ flex: 1, backgroundColor: colors.background }}>
+        <View style={[styles.center, { backgroundColor: colors.background }]}>
           <Ionicons name="warning-outline" size={24} color="#ef4444" />
           <Text style={[styles.titleSm, { color: colors.text }]}>No se pudo cargar la cuenta</Text>
           <Text style={[styles.muted, { color: colors.textSecondary }]}>Revisa tu conexión e inténtalo de nuevo</Text>
@@ -239,59 +379,69 @@ const MainAccountScreen = () => {
     );
   }
 
+  const BodyWrapper: any = Platform.OS === 'ios' ? require('react-native').KeyboardAvoidingView : View;
+  const bodyWrapperProps =
+    Platform.OS === 'ios'
+      ? { behavior: 'padding' as const, keyboardVerticalOffset: 0 }
+      : {};
+
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-      {/* Header con margen dinámico para Android */}
-      <View style={[
-        styles.headerWrap,
-        { backgroundColor: colors.background, paddingTop: Platform.OS === 'android' ? ANDROID_STATUSBAR + 10 : styles.headerWrap.paddingTop }
-      ]}>
-        <View style={[
-          styles.headerBar,
-          { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow, marginTop: Platform.OS === 'android' ? 4 : 0 }
-        ]}>
-          <TouchableOpacity 
+    <SafeAreaView edges={['top', 'left', 'right']} style={{ flex: 1, backgroundColor: colors.background }}>
+      <StatusBar barStyle="light-content" />
+
+      <View style={[styles.headerWrap, { backgroundColor: colors.background }]}>
+        <View
+          style={[
+            styles.headerBar,
+            { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow },
+          ]}
+        >
+          <TouchableOpacity
             onPress={() => navigation.goBack()}
             style={[styles.backButton, { backgroundColor: colors.inputBackground, borderColor: colors.border }]}
             activeOpacity={0.6}
           >
             <Ionicons name="chevron-back" size={20} color={colors.text} />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: colors.text }]} numberOfLines={1}>Cuenta Principal</Text>
-          <View style={[styles.headerChip, { backgroundColor: colors.inputBackground, borderColor: colors.border }]}> 
+
+          <Text style={[styles.headerTitle, { color: colors.text }]} numberOfLines={1}>
+            Cuenta Principal
+          </Text>
+
+          <View style={[styles.headerChip, { backgroundColor: colors.inputBackground, borderColor: colors.border }]}>
             <Ionicons name="cash-outline" size={14} color={colors.text} />
             <Text style={[styles.headerChipText, { color: colors.text }]}>{cuenta.moneda}</Text>
           </View>
         </View>
       </View>
 
-      <KeyboardAvoidingView
-        style={{ flex: 1, backgroundColor: 'transparent' }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={HEADER_H + (Platform.OS === 'android' ? ANDROID_STATUSBAR : 0)}
-      >
+      <BodyWrapper style={{ flex: 1 }} {...bodyWrapperProps}>
         <ScrollView
-          style={[styles.container, { backgroundColor: colors.background }]}
-          contentContainerStyle={{
-              paddingBottom: 24,
-              paddingTop: HEADER_H + (Platform.OS === 'android' ? ANDROID_STATUSBAR : 0) + 16,
-            }}
           ref={scrollRef}
+          style={{ flex: 1, backgroundColor: colors.background }}
+          contentContainerStyle={{
+            paddingHorizontal: 16,
+            paddingTop: 12,
+            paddingBottom: 24 + stableBottomInset,
+          }}
           keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="on-drag"
+          keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
           showsVerticalScrollIndicator={false}
+          contentInsetAdjustmentBehavior="never"
         >
-          <Animated.View style={[
-            styles.card, 
-            styles.mainCard,
-            { 
-              backgroundColor: colors.card, 
-              borderColor: colors.border, 
-              shadowColor: colors.shadow, 
-              opacity: fadeAnim, 
-              transform: [{ translateY: slideAnim }] 
-            }
-          ]}> 
+          <Animated.View
+            style={[
+              styles.card,
+              styles.mainCard,
+              {
+                backgroundColor: colors.card,
+                borderColor: colors.border,
+                shadowColor: colors.shadow,
+                opacity: fadeAnim,
+                transform: [{ translateY: slideAnim }],
+              },
+            ]}
+          >
             <View style={styles.rowBetween}>
               <View style={styles.rowCenter}>
                 <View style={[styles.iconChip, styles.iconChipLarge, { backgroundColor: '#eef2ff' }]}>
@@ -312,8 +462,11 @@ const MainAccountScreen = () => {
             <View style={styles.balanceContainer}>
               <View style={styles.balanceRow}>
                 <Text style={[styles.currency, { color: colors.textSecondary }]}>{cuenta.simbolo}</Text>
-                <Text style={[styles.amount, { color: colors.text }]}>{cuenta.cantidad.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>
+                <Text style={[styles.amount, { color: colors.text }]}>
+                  {cuenta.cantidad.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </Text>
               </View>
+
               <View style={[styles.chipSoft, { backgroundColor: '#ecfdf5', borderWidth: 1, borderColor: '#a7f3d0' }]}>
                 <Ionicons name="checkmark-circle" size={14} color="#059669" />
                 <Text style={styles.chipSoftText}>Principal</Text>
@@ -329,24 +482,32 @@ const MainAccountScreen = () => {
             </View>
           </Animated.View>
 
-          <Animated.View style={[
-            styles.grid,
-            { opacity: gridItemsAnim, transform: [{ translateY: gridItemsAnim.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) }] }
-          ]}>
+          <Animated.View
+            style={[
+              styles.grid,
+              { opacity: gridItemsAnim, transform: [{ translateY: gridItemsAnim.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) }] },
+            ]}
+          >
             <View style={[styles.cardSm, styles.gridCard, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow }]}>
               <View style={[styles.gridIconChip, { backgroundColor: '#fef3c7' }]}>
                 <Ionicons name="key-outline" size={16} color="#d97706" />
               </View>
               <Text style={[styles.label, { color: colors.placeholder }]}>ID Cuenta</Text>
-              <Text numberOfLines={1} ellipsizeMode="middle" style={[styles.valueMono, { color: colors.text }]}>{cuenta.id}</Text>
+              <Text numberOfLines={1} ellipsizeMode="middle" style={[styles.valueMono, { color: colors.text }]}>
+                {cuenta.id}
+              </Text>
             </View>
+
             <View style={[styles.cardSm, styles.gridCard, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow }]}>
               <View style={[styles.gridIconChip, { backgroundColor: '#ddd6fe' }]}>
                 <Ionicons name="person-outline" size={16} color="#7c3aed" />
               </View>
               <Text style={[styles.label, { color: colors.placeholder }]}>Usuario</Text>
-              <Text numberOfLines={1} ellipsizeMode="middle" style={[styles.value, { color: colors.text }]}>{cuenta.userId}</Text>
+              <Text numberOfLines={1} ellipsizeMode="middle" style={[styles.value, { color: colors.text }]}>
+                {cuenta.userId}
+              </Text>
             </View>
+
             <View style={[styles.cardSm, styles.gridCard, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow }]}>
               <View style={[styles.gridIconChip, { backgroundColor: '#ccfbf1' }]}>
                 <Ionicons name="globe-outline" size={16} color="#0d9488" />
@@ -354,26 +515,31 @@ const MainAccountScreen = () => {
               <Text style={[styles.label, { color: colors.placeholder }]}>Moneda</Text>
               <Text style={[styles.value, { color: colors.text }]}>{cuenta.moneda}</Text>
             </View>
+
             <View style={[styles.cardSm, styles.gridCard, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow }]}>
               <View style={[styles.gridIconChip, { backgroundColor: '#fce7f3' }]}>
                 <Ionicons name="server-outline" size={16} color="#db2777" />
               </View>
               <Text style={[styles.label, { color: colors.placeholder }]}>DB ID</Text>
-              <Text numberOfLines={1} ellipsizeMode="middle" style={[styles.valueMono, { color: colors.text }]}>{cuenta._id}</Text>
+              <Text numberOfLines={1} ellipsizeMode="middle" style={[styles.valueMono, { color: colors.text }]}>
+                {cuenta._id}
+              </Text>
             </View>
           </Animated.View>
 
           {usuario && (
-            <Animated.View style={[
-              styles.card,
-              { 
-                backgroundColor: colors.card, 
-                borderColor: colors.border, 
-                shadowColor: colors.shadow,
-                opacity: profileFadeAnim,
-                transform: [{ translateY: profileSlideAnim }, { scale: scaleAnim }]
-              }
-            ]}>
+            <Animated.View
+              style={[
+                styles.card,
+                {
+                  backgroundColor: colors.card,
+                  borderColor: colors.border,
+                  shadowColor: colors.shadow,
+                  opacity: profileFadeAnim,
+                  transform: [{ translateY: profileSlideAnim }, { scale: scaleAnim }],
+                },
+              ]}
+            >
               <View style={styles.rowBetween}>
                 <View style={styles.rowCenter}>
                   <View style={[styles.iconChip, styles.iconChipLarge, { backgroundColor: '#f0fdf4' }]}>
@@ -381,14 +547,16 @@ const MainAccountScreen = () => {
                   </View>
                   <Text style={[styles.titleSm, { color: colors.text }]}>Mi perfil</Text>
                 </View>
+
                 <View style={styles.rowCenter}>
-                  <TouchableOpacity 
-                    onPress={() => setInfoModalVisible(true)} 
+                  <TouchableOpacity
+                    onPress={() => setInfoModalVisible(true)}
                     style={[styles.iconBtn, { backgroundColor: colors.inputBackground, borderWidth: 1, borderColor: colors.border }]}
                     activeOpacity={0.7}
                   >
                     <Ionicons name="help-circle-outline" size={18} color={colors.textSecondary} />
                   </TouchableOpacity>
+
                   <TouchableOpacity
                     onPress={() => {
                       setEditMode(!editMode);
@@ -397,7 +565,16 @@ const MainAccountScreen = () => {
                         Animated.timing(scaleAnim, { toValue: 1, duration: 200, useNativeDriver: true }),
                       ]).start();
                     }}
-                    style={[styles.btn, styles.btnLight, { backgroundColor: editMode ? colors.inputBackground : colors.button, borderColor: editMode ? colors.border : colors.button, height: 36, marginLeft: 8 }]}
+                    style={[
+                      styles.btn,
+                      styles.btnLight,
+                      {
+                        backgroundColor: editMode ? colors.inputBackground : colors.button,
+                        borderColor: editMode ? colors.border : colors.button,
+                        height: 36,
+                        marginLeft: 8,
+                      },
+                    ]}
                     activeOpacity={0.8}
                   >
                     <Ionicons name={editMode ? 'close' : 'pencil'} size={14} color={editMode ? colors.text : '#fff'} />
@@ -412,63 +589,66 @@ const MainAccountScreen = () => {
                 <>
                   <View style={[styles.divider, { backgroundColor: colors.border, marginVertical: 14 }]} />
 
-                  <View style={styles.fieldRow} onLayout={onInputLayout('nombreCompleto')}>
+                  <View style={styles.fieldRow}>
                     <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>
                       <Ionicons name="person-outline" size={12} /> Nombre completo
                     </Text>
-                    <TextInput 
-                      style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.border, color: colors.text }]} 
-                      value={formData.nombreCompleto || ''} 
-                      onChangeText={(t) => handleChange('nombreCompleto', t)} 
-                      placeholder="Tu nombre" 
-                      placeholderTextColor={colors.placeholder} 
-                      onFocus={() => focusField('nombreCompleto')}
+                    <TextInput
+                      style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.border, color: colors.text }]}
+                      value={formData.nombreCompleto || ''}
+                      onChangeText={(t) => handleChange('nombreCompleto', t)}
+                      placeholder="Tu nombre"
+                      placeholderTextColor={colors.placeholder}
+                      onFocus={handleInputFocus}
+                      returnKeyType="next"
                     />
                   </View>
 
-                  <View style={styles.fieldRow} onLayout={onInputLayout('email')}>
+                  <View style={styles.fieldRow}>
                     <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>
                       <Ionicons name="mail-outline" size={12} /> Email
                     </Text>
-                    <TextInput 
-                      style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.border, color: colors.text }]} 
-                      value={formData.email || ''} 
-                      onChangeText={(t) => handleChange('email', t)} 
-                      placeholder="correo@ejemplo.com" 
-                      placeholderTextColor={colors.placeholder} 
-                      keyboardType="email-address" 
-                      autoCapitalize="none" 
-                      onFocus={() => focusField('email')}
+                    <TextInput
+                      style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.border, color: colors.text }]}
+                      value={formData.email || ''}
+                      onChangeText={(t) => handleChange('email', t)}
+                      placeholder="correo@ejemplo.com"
+                      placeholderTextColor={colors.placeholder}
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                      onFocus={handleInputFocus}
+                      returnKeyType="next"
                     />
                   </View>
 
                   <View style={styles.inline}>
-                    <View style={[styles.fieldRow, styles.inlineItem]} onLayout={onInputLayout('edad')}>
+                    <View style={[styles.fieldRow, styles.inlineItem]}>
                       <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>
                         <Ionicons name="calendar-outline" size={12} /> Edad
                       </Text>
-                      <TextInput 
-                        style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.border, color: colors.text }]} 
-                        value={formData.edad?.toString() || ''} 
-                        onChangeText={(t) => handleChange('edad', parseInt(t) || 0)} 
-                        keyboardType="numeric" 
-                        placeholder="0" 
-                        placeholderTextColor={colors.placeholder} 
-                        onFocus={() => focusField('edad')}
+                      <TextInput
+                        style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.border, color: colors.text }]}
+                        value={formData.edad?.toString() || ''}
+                        onChangeText={(t) => handleChange('edad', parseInt(t) || 0)}
+                        keyboardType="numeric"
+                        placeholder="0"
+                        placeholderTextColor={colors.placeholder}
+                        onFocus={handleInputFocus}
+                        returnKeyType="next"
                       />
                     </View>
-                    <View style={[styles.fieldRow, styles.inlineItem]} onLayout={onInputLayout('ocupacion')}>
+
+                    <View style={[styles.fieldRow, styles.inlineItem]}> 
                       <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>
                         <Ionicons name="briefcase-outline" size={12} /> Ocupación
                       </Text>
-                      <TextInput 
-                        style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.border, color: colors.text }]} 
-                        value={formData.ocupacion || ''} 
-                        onChangeText={(t) => handleChange('ocupacion', t)} 
-                        placeholder="Tu ocupación" 
-                        placeholderTextColor={colors.placeholder} 
-                        onFocus={() => focusField('ocupacion')}
-                      />
+                      <TouchableOpacity
+                        activeOpacity={0.8}
+                        style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.border, paddingVertical: 12 }]}
+                        onPress={() => setOcupacionesModalVisible(true)}
+                      >
+                        <Text style={{ color: formData.ocupacion ? colors.text : colors.placeholder }}>{formData.ocupacion || 'Tu ocupación'}</Text>
+                      </TouchableOpacity>
                     </View>
                   </View>
 
@@ -490,36 +670,70 @@ const MainAccountScreen = () => {
                       <Ionicons name="shield-checkmark-outline" size={13} /> Datos personales
                     </Text>
 
-                    <View style={styles.fieldRow} onLayout={onInputLayout('telefono')}>
+                    <View style={styles.fieldRow}>
                       <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>
                         <Ionicons name="call-outline" size={12} /> Teléfono
                       </Text>
-                        <TextInput style={[styles.input, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]} value={formData.telefono || ''} onChangeText={(t) => handleChange('telefono', t)} keyboardType="phone-pad" placeholder="Ej. 55 1234 5678" placeholderTextColor={colors.placeholder} onFocus={() => focusField('telefono')} />
+                      <TextInput
+                        style={[styles.input, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]}
+                        value={formData.telefono || ''}
+                        onChangeText={(t) => handleChange('telefono', t)}
+                        keyboardType="phone-pad"
+                        placeholder="Ej. 55 1234 5678"
+                        placeholderTextColor={colors.placeholder}
+                        onFocus={handleInputFocus}
+                        returnKeyType="next"
+                      />
                     </View>
 
-                    <View style={styles.fieldRow} onLayout={onInputLayout('pais')}>
+                    <View style={styles.fieldRow}>
                       <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>
                         <Ionicons name="earth-outline" size={12} /> País
                       </Text>
-                        <TextInput style={[styles.input, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]} value={formData.pais || ''} onChangeText={(t) => handleChange('pais', t)} placeholder="Ej. México" placeholderTextColor={colors.placeholder} onFocus={() => focusField('pais')} />
+                      <TextInput
+                        style={[styles.input, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]}
+                        value={formData.pais || ''}
+                        onChangeText={(t) => handleChange('pais', t)}
+                        placeholder="Ej. México"
+                        placeholderTextColor={colors.placeholder}
+                        onFocus={handleInputFocus}
+                        returnKeyType="next"
+                      />
                     </View>
 
                     <View style={styles.inline}>
-                      <View style={[styles.fieldRow, styles.inlineItem]} onLayout={onInputLayout('estado')}>
+                      <View style={[styles.fieldRow, styles.inlineItem]}>
                         <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>
                           <Ionicons name="map-outline" size={12} /> Estado
                         </Text>
-                        <TextInput style={[styles.input, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]} value={formData.estado || ''} onChangeText={(t) => handleChange('estado', t)} placeholder="Ej. Jalisco" placeholderTextColor={colors.placeholder} onFocus={() => focusField('estado')} />
+                        <TextInput
+                          style={[styles.input, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]}
+                          value={formData.estado || ''}
+                          onChangeText={(t) => handleChange('estado', t)}
+                          placeholder="Ej. Jalisco"
+                          placeholderTextColor={colors.placeholder}
+                          onFocus={handleInputFocus}
+                          returnKeyType="next"
+                        />
                       </View>
-                      <View style={[styles.fieldRow, styles.inlineItem]} onLayout={onInputLayout('ciudad')}>
+
+                      <View style={[styles.fieldRow, styles.inlineItem]}>
                         <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>
                           <Ionicons name="location-outline" size={12} /> Ciudad
                         </Text>
-                        <TextInput style={[styles.input, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]} value={formData.ciudad || ''} onChangeText={(t) => handleChange('ciudad', t)} placeholder="Ej. Guzmán" placeholderTextColor={colors.placeholder} onFocus={() => focusField('ciudad')} />
+                        <TextInput
+                          style={[styles.input, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]}
+                          value={formData.ciudad || ''}
+                          onChangeText={(t) => handleChange('ciudad', t)}
+                          placeholder="Ej. Guzmán"
+                          placeholderTextColor={colors.placeholder}
+                          onFocus={handleInputFocus}
+                          returnKeyType="next"
+                        />
                       </View>
                     </View>
 
-                    <View style={styles.fieldRow} onLayout={onInputLayout('bio')}>
+                    <View style={styles.fieldRow}>
                       <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>
                         <Ionicons name="document-text-outline" size={12} /> Biografía
                       </Text>
@@ -530,18 +744,24 @@ const MainAccountScreen = () => {
                         multiline
                         placeholder="Cuéntanos sobre ti…"
                         placeholderTextColor={colors.placeholder}
-                        onFocus={() => focusField('bio')}
+                        onFocus={handleInputFocus}
+                        returnKeyType="done"
                       />
                     </View>
                   </View>
 
                   <View style={styles.rowEnd}>
-                    <TouchableOpacity onPress={handleCancel} style={[styles.btn, styles.btnGhost, { borderWidth: 1, borderColor: colors.border }]} activeOpacity={0.7}>
+                    <TouchableOpacity
+                      onPress={handleCancel}
+                      style={[styles.btn, styles.btnGhost, { borderWidth: 1, borderColor: colors.border }]}
+                      activeOpacity={0.7}
+                    >
                       <Ionicons name="close-circle-outline" size={16} color={colors.textSecondary} />
                       <Text style={[styles.btnGhostText, { color: colors.textSecondary }]}>Descartar</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity 
-                      onPress={handleUpdateProfile} 
+
+                    <TouchableOpacity
+                      onPress={handleUpdateProfile}
                       style={[styles.btn, styles.btnPrimary, { backgroundColor: colors.button, shadowColor: colors.button }]}
                       activeOpacity={0.8}
                       disabled={saving}
@@ -567,7 +787,13 @@ const MainAccountScreen = () => {
                     <ItemRow icon="briefcase-outline" label="Ocupación" value={usuario.ocupacion} colors={colors} />
                     <ItemRow icon="cash-outline" label="Moneda preferida" value={usuario.monedaPreferencia} colors={colors} />
 
-                    <View style={[styles.neuInset, styles.personalDataSection, { backgroundColor: colors.inputBackground, borderColor: colors.border, shadowColor: colors.shadow, marginTop: 12 }]}>
+                    <View
+                      style={[
+                        styles.neuInset,
+                        styles.personalDataSection,
+                        { backgroundColor: colors.inputBackground, borderColor: colors.border, shadowColor: colors.shadow, marginTop: 12 },
+                      ]}
+                    >
                       <Text style={[styles.sectionMinor, { color: colors.textSecondary }]}>
                         <Ionicons name="shield-checkmark-outline" size={13} /> Datos personales
                       </Text>
@@ -598,7 +824,9 @@ const MainAccountScreen = () => {
                 <Text style={[styles.titleSm, { color: colors.text }]}>Estado de la cuenta</Text>
               </View>
             </View>
+
             <View style={[styles.divider, { backgroundColor: colors.border, marginVertical: 12 }]} />
+
             <View style={styles.stateRow}>
               <Dot color={cuenta.isPrincipal ? '#10b981' : '#ef4444'} />
               <Text style={[styles.value, { color: colors.text, fontSize: 15 }]}>
@@ -606,18 +834,85 @@ const MainAccountScreen = () => {
               </Text>
             </View>
           </View>
-
         </ScrollView>
-      </KeyboardAvoidingView>
+      </BodyWrapper>
 
       <DataPrivacyModal visible={infoModalVisible} onClose={() => setInfoModalVisible(false)} />
+          <Modal
+            visible={ocupacionesModalVisible}
+            animationType="fade"
+            transparent
+            onRequestClose={() => setOcupacionesModalVisible(false)}
+          >
+            <View style={styles.modalOverlay}>
+              <View style={[styles.modalContainer, styles.neumorphicModal, { backgroundColor: colors.card }]}>
+                <View style={[styles.modalHeaderContainer, { borderBottomColor: colors.border }]}>
+                  <View style={styles.modalHeaderRow}>
+                    <Text style={[styles.modalTitle, { color: colors.text }]}>Seleccionar Ocupación</Text>
+                    <TouchableOpacity 
+                      style={[styles.closeButton, { backgroundColor: colors.inputBackground }]}
+                      onPress={() => setOcupacionesModalVisible(false)}
+                    >
+                      <Ionicons name="close" size={24} color={colors.text} />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+                <View style={{ padding: 12 }}>
+                  <TextInput
+                    placeholder="Buscar ocupación..."
+                    value={ocupSearch}
+                    onChangeText={setOcupSearch}
+                    style={[styles.searchInput, { backgroundColor: colors.inputBackground, color: colors.text }]}
+                    placeholderTextColor={colors.placeholder}
+                  />
+                  <View style={styles.modalListWrapper}>
+                    <FlatList
+                      data={filteredOcupaciones}
+                      keyExtractor={(item: string) => item}
+                      contentContainerStyle={{ paddingBottom: 32 }}
+                      style={{ height: 320 }}
+                      ListEmptyComponent={() => (
+                        <View style={{ padding: 16 }}>
+                          <Text style={{ color: colors.placeholder }}>No se encontraron ocupaciones.</Text>
+                        </View>
+                      )}
+                      renderItem={({ item }: { item: string }) => (
+                        <TouchableOpacity
+                          onPress={() => selectOcupacion(item)}
+                          activeOpacity={0.8}
+                          style={[
+                            styles.ocupacionItem,
+                            { backgroundColor: colors.inputBackground },
+                            formData.ocupacion === item && { backgroundColor: colors.cardSecondary, borderColor: colors.border }
+                          ]}
+                        >
+                          <Text style={[styles.ocupacionText, { color: colors.text }]}>{item}</Text>
+                        </TouchableOpacity>
+                      )}
+                    />
+                    <LinearGradient
+                      colors={["transparent", "rgba(0,0,0,0.12)"]}
+                      style={styles.modalBottomGradient}
+                      pointerEvents="none"
+                    />
+                  </View>
+                </View>
+              </View>
+            </View>
+          </Modal>
     </SafeAreaView>
   );
 };
 
 /** -------------------- UI helpers -------------------- */
 const ItemRow = ({
-  icon, label, value, mono, truncate, multiline, colors,
+  icon,
+  label,
+  value,
+  mono,
+  truncate,
+  multiline,
+  colors,
 }: {
   icon: keyof typeof Ionicons.glyphMap;
   label: string;
@@ -636,8 +931,11 @@ const ItemRow = ({
         <Text style={[styles.itemLabel, { color: colors?.textSecondary || '#6b7280' }]}>{label}</Text>
         {!!value && (
           <Text
-            style={[mono ? [styles.valueMono, { color: colors?.text || '#0f172a' }] : [styles.value, { color: colors?.text || '#0f172a' }], multiline && { lineHeight: 18 }]}
-            numberOfLines={multiline ? 0 : truncate ? 1 : 2}
+            style={[
+              mono ? [styles.valueMono, { color: colors?.text || '#0f172a' }] : [styles.value, { color: colors?.text || '#0f172a' }],
+              multiline && { lineHeight: 18 },
+            ]}
+            numberOfLines={multiline ? undefined : truncate ? 1 : 2}
             ellipsizeMode={truncate ? 'middle' : 'tail'}
           >
             {value}
@@ -648,23 +946,15 @@ const ItemRow = ({
   );
 };
 
-const Dot = ({ color }: { color: string }) => (
-  <View style={[styles.dot, { backgroundColor: color }]} />
-);
+const Dot = ({ color }: { color: string }) => <View style={[styles.dot, { backgroundColor: color }]} />;
 
 /** -------------------- Styles -------------------- */
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    paddingHorizontal: 16,
-  },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8 },
 
   headerWrap: {
-    position: 'absolute',
-    top: 0, left: 0, right: 0,
-    paddingTop: Platform.OS === 'ios' ? 54 : 10,
-    zIndex: 100,
+    paddingTop: 10,
+    paddingBottom: 10,
   },
   headerBar: {
     flexDirection: 'row',
@@ -728,10 +1018,10 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
 
-  cardSm: { 
-    minHeight: 110, 
-    justifyContent: 'flex-start', 
-    flexBasis: (width - 16 * 2 - 12) / 2, 
+  cardSm: {
+    minHeight: 110,
+    justifyContent: 'flex-start',
+    flexBasis: (width - 16 * 2 - 12) / 2,
     flexGrow: 1,
   },
   gridCard: {
@@ -754,11 +1044,11 @@ const styles = StyleSheet.create({
   muted: { fontSize: 13, fontWeight: '500' },
   mutedXs: { fontSize: 12, fontWeight: '600' },
 
-  iconChip: { 
-    width: 32, 
-    height: 32, 
-    borderRadius: 10, 
-    alignItems: 'center', 
+  iconChip: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    alignItems: 'center',
     justifyContent: 'center',
   },
   iconChipLarge: {
@@ -775,12 +1065,12 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   chipOutline: {
-    flexDirection: 'row', 
+    flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1, 
+    borderWidth: 1,
     borderRadius: 999,
-    paddingVertical: 7, 
-    paddingHorizontal: 12, 
+    paddingVertical: 7,
+    paddingHorizontal: 12,
     gap: 6,
   },
   chipOutlinePrimary: {
@@ -791,12 +1081,12 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   chipText: { fontSize: 12, fontWeight: '800', letterSpacing: 0.3 },
-  chipSoft: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    borderRadius: 999, 
-    paddingVertical: 6, 
-    paddingHorizontal: 12, 
+  chipSoft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 999,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
     gap: 6,
   },
   chipSoftText: { fontSize: 12, color: '#059669', fontWeight: '800', letterSpacing: 0.3 },
@@ -808,25 +1098,25 @@ const styles = StyleSheet.create({
     marginTop: 16,
     marginBottom: 16,
   },
-  balanceRow: { 
-    flexDirection: 'row', 
+  balanceRow: {
+    flexDirection: 'row',
     alignItems: 'flex-end',
   },
   currency: { fontSize: 20, fontWeight: '700', marginRight: 6, marginBottom: 4 },
   amount: { fontSize: 36, fontWeight: '900', letterSpacing: -0.5 },
 
-  grid: { 
-    flexDirection: 'row', 
-    flexWrap: 'wrap', 
+  grid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 12,
     marginBottom: 16,
   },
 
-  label: { 
-    fontSize: 11, 
-    marginBottom: 6, 
+  label: {
+    fontSize: 11,
+    marginBottom: 6,
     marginTop: 4,
-    textTransform: 'uppercase', 
+    textTransform: 'uppercase',
     letterSpacing: 0.6,
     fontWeight: '700',
   },
@@ -839,43 +1129,147 @@ const styles = StyleSheet.create({
   },
 
   items: { marginTop: 0 },
-  itemRow: { 
-    flexDirection: 'row', 
-    alignItems: 'flex-start', 
-    gap: 12, 
+  itemRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
     paddingVertical: 8,
     paddingHorizontal: 2,
   },
   itemLabel: { fontSize: 11, marginBottom: 3, fontWeight: '700', letterSpacing: 0.3 },
 
   fieldRow: { marginTop: 12 },
-  inputLabel: { 
-    fontSize: 12, 
-    marginBottom: 8, 
+  inputLabel: {
+    fontSize: 12,
+    marginBottom: 8,
     fontWeight: '700',
     letterSpacing: 0.3,
   },
-  helperText: { 
-    fontSize: 11, 
-    marginTop: 6, 
+  helperText: {
+    fontSize: 11,
+    marginTop: 6,
     fontStyle: 'italic',
     lineHeight: 16,
   },
   input: {
-    borderWidth: 1.5, 
+    borderWidth: 1.5,
     borderRadius: 14,
-    paddingHorizontal: 14, 
-    paddingVertical: 12, 
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     fontSize: 14,
     fontWeight: '500',
-    shadowOffset: { width: 0, height: 2 }, 
-    shadowOpacity: 0.03, 
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03,
     shadowRadius: 6,
   },
   textArea: {
     minHeight: 100,
     textAlignVertical: 'top',
     paddingTop: 12,
+  },
+  professionSuggestions: {
+    marginTop: 8,
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 8,
+    position: 'absolute',
+    top: '100%',
+    left: 0,
+    right: 0,
+    zIndex: 50,
+    elevation: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+  },
+  professionContainer: {
+    position: 'relative',
+  },
+  professionItem: {
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    marginBottom: 6,
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    paddingHorizontal: 20,
+  },
+  modalContainer: {
+    width: '100%',
+    maxHeight: '70%',
+    borderRadius: 24,
+    padding: 24,
+  },
+  neumorphicModal: {
+    shadowColor: '#64748B',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2,
+    shadowRadius: 24,
+    elevation: 16,
+  },
+  modalHeaderContainer: {
+    marginBottom: 20,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+  },
+  modalHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    letterSpacing: -0.3,
+  },
+  closeButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  searchInput: {
+    height: 44,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    fontSize: 15,
+    fontWeight: '500',
+    marginBottom: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  modalListWrapper: {
+    height: 320,
+    position: 'relative',
+  },
+  ocupacionItem: {
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    marginBottom: 10,
+  },
+  ocupacionText: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  modalBottomGradient: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 36,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
   },
   currencyReadOnly: {
     marginTop: 16,
@@ -886,53 +1280,53 @@ const styles = StyleSheet.create({
   inline: { flexDirection: 'row', gap: 10 },
   inlineItem: { flex: 1 },
 
-  btn: { 
-    height: 42, 
-    paddingHorizontal: 18, 
-    borderRadius: 14, 
-    flexDirection: 'row', 
-    alignItems: 'center', 
+  btn: {
+    height: 42,
+    paddingHorizontal: 18,
+    borderRadius: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
   },
-  btnLight: { 
+  btnLight: {
     borderWidth: 1.5,
   },
   btnLightText: { fontWeight: '800', fontSize: 14, letterSpacing: 0.2 },
   btnGhost: { backgroundColor: 'transparent' },
   btnGhostText: { fontWeight: '700', fontSize: 14, letterSpacing: 0.2 },
   btnPrimary: {
-    shadowOffset: { width: 0, height: 6 }, 
-    shadowOpacity: 0.2, 
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.2,
     shadowRadius: 12,
     elevation: 4,
   },
   btnPrimaryText: { color: '#fff', fontWeight: '900', fontSize: 14, letterSpacing: 0.3 },
 
-  iconBtn: { 
-    width: 32, 
-    height: 32, 
-    borderRadius: 10, 
-    alignItems: 'center', 
+  iconBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    alignItems: 'center',
     justifyContent: 'center',
   },
 
-  sectionMinor: { 
-    fontSize: 12, 
-    fontWeight: '800', 
-    marginBottom: 12, 
-    textTransform: 'uppercase', 
+  sectionMinor: {
+    fontSize: 12,
+    fontWeight: '800',
+    marginBottom: 12,
+    textTransform: 'uppercase',
     letterSpacing: 0.6,
   },
 
-  stateRow: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
+  stateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 10,
   },
-  dot: { 
-    width: 10, 
-    height: 10, 
+  dot: {
+    width: 10,
+    height: 10,
     borderRadius: 5,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
