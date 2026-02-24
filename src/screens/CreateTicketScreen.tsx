@@ -13,6 +13,7 @@ import {
 import { useNavigation } from "@react-navigation/native";
 import { useThemeColors } from "../theme/useThemeColors";
 import supportService from "../services/supportService";
+import EventBus from "../utils/eventBus";
 import Toast from "react-native-toast-message";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -66,6 +67,13 @@ const CreateTicketScreen: React.FC = () => {
         titulo: titulo.trim(),
         descripcion: descripcion.trim(),
       });
+
+      // Notify listeners (e.g., SupportScreen) that a ticket was created
+      try {
+        EventBus.emit("ticketCreated", ticket);
+      } catch (e) {
+        console.warn("Failed to emit ticketCreated event", e);
+      }
 
       Toast.show({
         type: "success",
