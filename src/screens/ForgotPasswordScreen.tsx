@@ -1,60 +1,96 @@
-import React, { useState } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView, Image } from "react-native";
+import React, { useState, useRef, useEffect } from "react";
+import { View, Text, StyleSheet, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView, Image, Animated, ActivityIndicator } from "react-native";
 import FormInput from "../components/FormInput";
 import { useThemeColors } from "../theme/useThemeColors";
 import { useNavigation } from "@react-navigation/native";
 import type { NavigationProp } from "@react-navigation/native";
-import { apiRateLimiter } from "../services/apiRateLimiter";
 import Toast from "react-native-toast-message";
-import { API_BASE_URL } from "../constants/api";
 import { RootStackParamList } from "../navigation/AppNavigator";
+import { passwordResetService } from "../services/passwordResetService";
+import { fixEncoding } from "../utils/fixEncoding";
 
 const ForgotPasswordScreen: React.FC = () => {
   const colors = useThemeColors();
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const [email, setEmail] = useState("");
+  const [loading, setLoading] = useState(false);
+  
+  // Animaciones
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(30)).current;
+  const logoScale = useRef(new Animated.Value(0.8)).current;
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    // Animación de entrada
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 500,
+        useNativeDriver: true,
+      }),
+      Animated.spring(logoScale, {
+        toValue: 1,
+        tension: 50,
+        friction: 7,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    // Animación de pulso continua en el logo
+    const pulse = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.05,
+          duration: 1500,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 1500,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    pulse.start();
+
+    return () => pulse.stop();
+  }, []);
 
   const handleSubmit = async () => {
     if (!email.includes("@")) {
       return Toast.show({
         type: "error",
-        text1: "Correo inválido",
-        text2: "Por favor introduce un correo válido.",
+        text1: fixEncoding("Correo inválido"),
+        text2: fixEncoding("Por favor introduce un correo válido."),
       });
     }
 
+    setLoading(true);
     try {
-      const payload = { email };
-      console.log("📤 Enviando solicitud de recuperación:", payload);
-
-      const response = await apiRateLimiter.fetch(`${API_BASE_URL}/auth/forgot-password`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || 'No se pudo enviar el correo');
-      }
-
-      const data = await response.json();
-      console.log("✅ Respuesta del servidor:", data);
+      await passwordResetService.requestOtp(email);
 
       Toast.show({
         type: "success",
-        text1: "Correo enviado",
-        text2: "Revisa tu correo para recuperar tu cuenta.",
+        text1: fixEncoding("Código enviado"),
+        text2: fixEncoding("Si el correo existe, te enviaremos un código de verificación."),
       });
 
-      navigation.navigate("ResetPassword", { email });
+      navigation.navigate("VerifyOtp", { email });
     } catch (error: any) {
-      console.error("❌ Error al enviar recuperación:", error);
+      console.error("❌ Error al solicitar OTP:", error);
       Toast.show({
         type: "error",
-        text1: "Error",
-        text2: error.message || "No se pudo enviar el correo. Intenta más tarde.",
+        text1: fixEncoding("Error"),
+        text2: fixEncoding(error.message || "No se pudo enviar el código. Intenta más tarde."),
       });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -64,44 +100,86 @@ const ForgotPasswordScreen: React.FC = () => {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-        <View style={styles.header}>
-          {/* Logo Container con efecto neumorphic */}
-          <View style={[styles.logoContainer]}>
-            <Image source={require("../images/LitFinance.png")} style={styles.logo} />
-          </View>
-          
-          <Text style={[styles.title, { color: colors.text }]}>Recuperar contraseña</Text>
-          <Text style={[styles.subtitle, { color: colors.placeholder }]}>
-            Ingresa tu correo electrónico y te enviaremos instrucciones para recuperar tu cuenta.
-          </Text>
-        </View>
-
-        {/* Input Container con efecto neumorphic */}
-        <View style={[styles.inputWrapper, { backgroundColor: colors.background }]}>
-          <FormInput
-            placeholder="Correo electrónico"
-            keyboardType="email-address"
-            autoCapitalize="none"
-            value={email}
-            onChangeText={setEmail}
-            style={styles.input}
-          />
-        </View>
-
-        <TouchableOpacity
-          style={[styles.button, { backgroundColor: "#EF7725" }]}
-          onPress={handleSubmit}
-          activeOpacity={0.8}
+        <Animated.View 
+          style={[
+            styles.header,
+            {
+              opacity: fadeAnim,
+              transform: [{ translateY: slideAnim }]
+            }
+          ]}
         >
-          <Text style={styles.buttonText}>Enviar</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={[styles.backContainer, { backgroundColor: colors.inputBackground }]} onPress={() => navigation.goBack()}>
-          <Text style={[styles.backText, { color: colors.placeholder }]}>
-            ¿Ya la recordaste?{" "}
-            <Text style={{ color: "#EF7725", fontWeight: "bold" }}>Inicia sesión</Text>
+          {/* Logo Container con animación */}
+          <Animated.View 
+            style={[
+              styles.logoContainer,
+              {
+                transform: [
+                  { scale: Animated.multiply(logoScale, pulseAnim) }
+                ]
+              }
+            ]}
+          >
+            <View style={[styles.logoGlow, { backgroundColor: 'rgba(239, 119, 37, 0.15)' }]} />
+            <Image source={require("../images/LitFinance.png")} style={styles.logo} />
+          </Animated.View>
+          
+          <Text style={[styles.title, { color: colors.text }]}>{fixEncoding("Recuperar contraseña")}</Text>
+          <Text style={[styles.subtitle, { color: colors.placeholder }]}>
+            {fixEncoding("Ingresa tu correo electrónico y te enviaremos un código de verificación.")}
           </Text>
-        </TouchableOpacity>
+        </Animated.View>
+
+        <Animated.View 
+          style={[
+            { opacity: fadeAnim },
+            { transform: [{ translateY: slideAnim }] }
+          ]}
+        >
+          {/* Input Container con efecto neumorphic */}
+          <View style={[styles.inputWrapper, { backgroundColor: colors.background }]}>
+            <FormInput
+              placeholder={fixEncoding("Correo electrónico")}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              value={email}
+              onChangeText={setEmail}
+              style={styles.input}
+              editable={!loading}
+            />
+          </View>
+
+          <TouchableOpacity
+            style={[
+              styles.button, 
+              { backgroundColor: "#EF7725" },
+              loading && { opacity: 0.7 }
+            ]}
+            onPress={handleSubmit}
+            activeOpacity={0.8}
+            disabled={loading}
+          >
+            {loading ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator color="#fff" size="small" />
+                <Text style={[styles.buttonText, { marginLeft: 10 }]}>{fixEncoding("Enviando...")}</Text>
+              </View>
+            ) : (
+              <Text style={styles.buttonText}>{fixEncoding("Enviar código")}</Text>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={[styles.backContainer, { backgroundColor: colors.inputBackground }]} 
+            onPress={() => navigation.goBack()}
+            disabled={loading}
+          >
+            <Text style={[styles.backText, { color: colors.placeholder }]}>
+              {fixEncoding("¿Ya la recordaste? ")}{" "}
+              <Text style={{ color: "#EF7725", fontWeight: "bold" }}>{fixEncoding("Inicia sesión")}</Text>
+            </Text>
+          </TouchableOpacity>
+        </Animated.View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -112,9 +190,20 @@ const styles = StyleSheet.create({
   scroll: { flexGrow: 1, justifyContent: "center", paddingHorizontal: 24, paddingBottom: 40 },
   header: { alignItems: "center", marginBottom: 32 },
   logoContainer: {
-    width: 120, height: 120, borderRadius: 20, marginBottom: 12, justifyContent: 'center', alignItems: 'center',
+    width: 120, height: 120, borderRadius: 30, marginBottom: 12, justifyContent: 'center', alignItems: 'center',
   },
-  logo: { width: 100, height: 100, resizeMode: "contain" },
+  logoGlow: {
+    position: 'absolute',
+    width: 120,
+    height: 120,
+    borderRadius: 30,
+  },
+  logo: { width: 100, height: 100, resizeMode: "contain", zIndex: 1 },
+  loadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   title: { fontSize: 24, fontWeight: "700", marginBottom: 8, letterSpacing: -0.3 },
   subtitle: { fontSize: 14, textAlign: "center", marginBottom: 24, paddingHorizontal: 12, lineHeight: 20, fontWeight: '400' },
   inputWrapper: {
