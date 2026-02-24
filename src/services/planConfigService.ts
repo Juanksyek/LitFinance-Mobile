@@ -3,7 +3,7 @@ import { authService } from './authService';
 import { API_BASE_URL } from '../constants/api';
 
 export type PlanType = 'free_plan' | 'premium_plan';
-export type PlanAction = 'transaction' | 'recurrente' | 'subcuenta' | 'grafica';
+export type PlanAction = 'transaction' | 'recurrente' | 'subcuenta' | 'grafica' | 'reporte';
 
 export type CanPerformResponse = {
   allowed: boolean;
