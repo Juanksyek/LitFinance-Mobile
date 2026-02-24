@@ -1,5 +1,7 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
-import { View, StyleSheet, ScrollView, RefreshControl } from "react-native";
+import { View, StyleSheet, ScrollView, RefreshControl, Platform } from "react-native";
+import { useStableSafeInsets } from '../hooks/useStableSafeInsets';
+import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from "expo-status-bar";
 import DashboardHeader from "../components/DashboardHeader";
 import BalanceCard from "../components/BalanceCard";
@@ -8,6 +10,7 @@ import ExpensesChart from "../components/ExpensesChart";
 import TransactionHistory from "../components/TransactionHistory";
 import SubaccountsList from "../components/SubaccountList";
 import RecurrentesList from "../components/RecurrenteList";
+import MetasCard from "../components/MetasCard";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { authService } from "../services/authService";
 import { API_BASE_URL } from "../constants/api";
@@ -17,12 +20,17 @@ import { RootStackParamList } from "../navigation/AppNavigator";
 import { useThemeColors } from "../theme/useThemeColors";
 import { useTheme } from "../theme/ThemeContext";
 import { useSafeApi } from "../hooks/useSafeApi";
-import apiRateLimiter from "../services/apiRateLimiter";
 import { jwtDecode } from "../utils/jwtDecode";
 import { dashboardRefreshBus } from "../utils/dashboardRefreshBus";
+import { userProfileService } from "../services/userProfileService";
+import type { DashboardRange, DashboardSnapshot } from "../types/dashboardSnapshot";
+import { fetchDashboardSnapshot, getCachedDashboardSnapshot, setCachedDashboardSnapshot } from "../services/dashboardSnapshotService";
+import DashboardBottomDock, { DASHBOARD_DOCK_APPROX_HEIGHT } from "../components/DashboardBottomDock";
+import { getPlanTypeFromStorage } from '../services/planConfigService';
 
 export default function DashboardScreen() {
   const colors = useThemeColors();
+  const insets = useStableSafeInsets();
   const { isDark } = useTheme();
   const [cuentaId, setCuentaId] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
@@ -37,6 +45,20 @@ export default function DashboardScreen() {
   const isMountedRef = useRef(true);
   const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const previousPremiumStatusRef = useRef<boolean | null>(null);
+
+  const scrollRef = useRef<ScrollView>(null);
+  const actionButtonsYRef = useRef<number>(0);
+
+  const [snapshotRange, setSnapshotRange] = useState<DashboardRange>('month');
+  const [snapshotRecentLimit, setSnapshotRecentLimit] = useState<number>(15);
+  const [dashboardSnapshot, setDashboardSnapshot] = useState<DashboardSnapshot | null>(null);
+  const [dashboardEtag, setDashboardEtag] = useState<string | null>(null);
+  const [snapshotLoading, setSnapshotLoading] = useState<boolean>(false);
+  const snapshotFetchInFlightRef = useRef(false);
+  const snapshotRefreshQueuedRef = useRef<{ force?: boolean; silent?: boolean } | null>(null);
+
+  const [isPremium, setIsPremium] = useState<boolean>(false);
 
   // Cleanup al desmontar
   useEffect(() => {
@@ -55,14 +77,28 @@ export default function DashboardScreen() {
   // Refrescos dirigidos: solo la sección afectada
   useEffect(() => {
     const offRec = dashboardRefreshBus.on('recurrentes:changed', () => {
+      // Con snapshot: refrescamos el snapshot completo (1 request), no cada widget.
       setRecurrentesRefreshKey(Date.now());
+      void refreshSnapshot({ force: true });
     });
     const offSub = dashboardRefreshBus.on('subcuentas:changed', () => {
       setSubcuentasRefreshKey(Date.now());
+      void refreshSnapshot({ force: true });
+    });
+    const offTx = dashboardRefreshBus.on('transacciones:changed', () => {
+      const t = Date.now();
+      setRefreshKey(t);
+      setReloadTrigger(t);
+      void refreshSnapshot({ force: true });
+    });
+    const offViewer = dashboardRefreshBus.on('viewer:changed', () => {
+      void refreshSnapshot({ force: true });
     });
     return () => {
       offRec();
       offSub();
+      offTx();
+      offViewer();
     };
   }, []);
 
@@ -80,89 +116,172 @@ export default function DashboardScreen() {
     console.log('💱 [DashboardScreen] === FIN ACTUALIZACIÓN POR CAMBIO DE MONEDA ===');
   }, []);
 
-  const fetchCuentaId = async (signal?: AbortSignal) => {
+  const checkPremiumStatusChange = useCallback(async () => {
     try {
-      console.log('[Dashboard] Obteniendo datos de cuenta principal...');
-      const token = await authService.getAccessToken();
-      
-      if (!token) {
-        throw new Error('No hay token de autenticación');
-      }
-      
-      // Cancelar petición anterior si existe
-      if (abortControllerRef.current && !signal) {
-        abortControllerRef.current.abort();
-      }
+      const profile = await userProfileService.getCachedProfile();
+      if (!profile) return;
 
-      // Crear nuevo AbortController si no se proporcionó uno
-      const controller = signal ? null : new AbortController();
-      if (controller) {
-        abortControllerRef.current = controller;
-      }
-      const fetchSignal = signal || controller?.signal;
+      const currentIsPremium = profile.planType === 'premium_plan' || profile.isPremium === true;
+      const previousIsPremium = previousPremiumStatusRef.current;
 
-      const res = await apiRateLimiter.fetch(`${API_BASE_URL}/cuenta/principal`, {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Cache-Control': 'no-store',
-          'X-Skip-Cache': '1',
-        },
-        signal: fetchSignal,
-      });
-
-      if (fetchSignal?.aborted) {
-        console.log('[Dashboard] Petición cancelada');
+      // Primera vez que checamos, solo guardar el estado sin notificar
+      if (previousIsPremium === null) {
+        previousPremiumStatusRef.current = currentIsPremium;
         return;
       }
 
-      const data = await res.json();
-
-      if (!res.ok) {
-        const statusCode = data?.statusCode ?? res.status;
-        const message = data?.message || `Error ${res.status}`;
-        const error: any = new Error(message);
-        error.statusCode = statusCode;
-        throw error;
+      // Detectar cambio de premium a free
+      if (previousIsPremium && !currentIsPremium) {
+        Toast.show({
+          type: 'info',
+          text1: '🚨 Plan actualizado a Free',
+          text2: 'Tus recursos (subcuentas y recurrentes) han sido pausados automáticamente. Se reactivarán cuando actualices a Premium.',
+          visibilityTime: 10000,
+          onPress: () => {
+            navigation.navigate('Settings' as never);
+          },
+        });
+        // Refrescar listas después de que el backend procese el auto-pause
+        setTimeout(() => {
+          const t = Date.now();
+          setSubcuentasRefreshKey(t);
+          setRecurrentesRefreshKey(t);
+          setRefreshKey(t);
+          setReloadTrigger(t);
+          console.log('🔄 [Dashboard] Refrescando UI después de pérdida de premium');
+        }, 1500); // 1.5 segundos para dar tiempo al backend
       }
-      
-      // Solo actualizar estado si el componente está montado y no fue abortado
-      if (isMountedRef.current && !fetchSignal?.aborted) {
-        const nextCuentaId = data?.id || data?._id || data?.cuentaId || data?.cuentaPrincipalId || null;
-        const nextUserId = data?.userId || data?.usuarioId || data?.user?.id || null;
-        if (nextCuentaId) setCuentaId(nextCuentaId);
-        if (nextUserId) setUserId(nextUserId);
-        console.log('[Dashboard] Datos de cuenta obtenidos exitosamente');
+
+      // Detectar cambio de free a premium
+      if (!previousIsPremium && currentIsPremium) {
+        Toast.show({
+          type: 'success',
+          text1: '✨ ¡Bienvenido a Premium!',
+          text2: 'Tus recursos han sido reactivados automáticamente. Ahora puedes crear subcuentas y recurrentes ilimitados.',
+          visibilityTime: 8000,
+        });
+        // Refrescar listas después de que el backend procese el auto-resume
+        setTimeout(() => {
+          const t = Date.now();
+          setSubcuentasRefreshKey(t);
+          setRecurrentesRefreshKey(t);
+          setRefreshKey(t);
+          setReloadTrigger(t);
+          console.log('🔄 [Dashboard] Refrescando UI después de recuperación de premium');
+        }, 1500); // 1.5 segundos para dar tiempo al backend
+      }
+
+      // Actualizar el estado anterior
+      previousPremiumStatusRef.current = currentIsPremium;
+    } catch (error) {
+      console.warn('[Dashboard] Error checking premium status:', error);
+    }
+  }, [navigation]);
+
+  const refreshSnapshot = useCallback(async (opts?: { force?: boolean; silent?: boolean }) => {
+    if (snapshotFetchInFlightRef.current) {
+      // No perder refreshes (p. ej. al crear movimiento mientras hay un fetch en curso)
+      const prev = snapshotRefreshQueuedRef.current;
+      snapshotRefreshQueuedRef.current = {
+        force: Boolean(prev?.force || opts?.force),
+        silent: Boolean(prev?.silent && opts?.silent),
+      };
+      return;
+    }
+    snapshotFetchInFlightRef.current = true;
+
+    // Cancelar petición anterior si existe (solo para snapshot)
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
+    const signal = abortControllerRef.current.signal;
+
+    try {
+      if (!opts?.silent) setSnapshotLoading(true);
+
+      const res = await fetchDashboardSnapshot({
+        etag: opts?.force ? undefined : (dashboardEtag ?? undefined),
+        range: snapshotRange,
+        recentLimit: snapshotRecentLimit,
+        signal,
+      });
+
+      if (signal.aborted) return;
+
+      if (res.kind === 'not-modified') {
+        return;
+      }
+
+      setDashboardSnapshot(res.snapshot);
+      setDashboardEtag(res.etag);
+      setCuentaId(res.snapshot?.accountSummary?.cuentaId ?? null);
+
+      // Si el backend provee límites administrativos actualizados, sincronizarlos
+      const newRecentLimitFromMeta = res.snapshot?.meta?.limits?.historicoLimitadoDias ??
+        (res.snapshot?.meta?.limitsV2?.items?.find((it: any) => it.key === 'historicoLimitadoDias')?.limit ?? null);
+      const newRecentLimit = typeof newRecentLimitFromMeta === 'number' && newRecentLimitFromMeta > 0 ? Number(newRecentLimitFromMeta) : snapshotRecentLimit;
+      if (newRecentLimit !== snapshotRecentLimit) {
+        setSnapshotRecentLimit(newRecentLimit);
+      }
+
+      // Cache local por user/range/recentLimit (usar el límite provisto por el servidor si existe)
+      if (userId) {
+        await setCachedDashboardSnapshot({
+          userId,
+          range: snapshotRange,
+          recentLimit: newRecentLimit,
+          snapshot: res.snapshot,
+          etag: res.etag,
+        });
+      }
+
+      // Sincronizar referencia de premium para toasts
+      if (typeof res.snapshot?.meta?.plan?.isPremium === 'boolean' && previousPremiumStatusRef.current === null) {
+        previousPremiumStatusRef.current = res.snapshot.meta.plan.isPremium;
       }
     } catch (err: any) {
-      // Ignorar errores de abort
-      if (err.name === 'AbortError' || err.code === 'ERR_CANCELED') {
-        console.log('[Dashboard] Petición cancelada');
+      if (err?.name === 'AbortError' || err?.code === 'ERR_CANCELED') return;
+      if (!isMountedRef.current) return;
+
+      if (err?.code === 'RATE_LIMITED' && typeof err?.retryAfterSeconds === 'number') {
+        Toast.show({
+          type: 'warning',
+          text1: '⚠️ Demasiadas peticiones',
+          text2: `Espera ${Math.max(1, Math.round(err.retryAfterSeconds))}s e intenta de nuevo`,
+          visibilityTime: 4000,
+        });
         return;
       }
 
-      console.error('[Dashboard] Error fetching cuenta:', err);
-      
-      // Solo mostrar toast si el componente está montado
-      if (!isMountedRef.current) return;
-
-      let errorMessage = "Inicia sesión de nuevo o inténtalo más tarde";
-      
-      if (err.statusCode === 429 || err.message?.includes('Rate limit') || err.message?.includes('429') || err.message?.includes('Too Many')) {
-        errorMessage = "⚠️ Demasiadas peticiones. Espera 10 segundos e intenta de nuevo";
-        // Pausar todas las peticiones por 10 segundos
-        await new Promise(resolve => setTimeout(resolve, 10000));
-      } else if (err.statusCode === 401) {
-        errorMessage = "Sesión expirada. Inicia sesión nuevamente";
+      if (err?.code === 'UNAUTHORIZED') {
+        Toast.show({
+          type: 'error',
+          text1: 'Sesión expirada',
+          text2: 'Inicia sesión nuevamente',
+          visibilityTime: 4000,
+        });
+        return;
       }
-      
+
       Toast.show({
-        type: "error",
-        text1: "Error al recuperar la cuenta principal",
-        text2: errorMessage,
+        type: 'error',
+        text1: 'Error cargando dashboard',
+        text2: 'Intenta de nuevo en unos segundos',
       });
+    } finally {
+      snapshotFetchInFlightRef.current = false;
+      if (!opts?.silent) setSnapshotLoading(false);
+
+      const queued = snapshotRefreshQueuedRef.current;
+      snapshotRefreshQueuedRef.current = null;
+      if (queued) {
+        setTimeout(() => {
+          void refreshSnapshot({ force: queued.force, silent: queued.silent });
+        }, 0);
+      }
     }
-  };
+  }, [dashboardEtag, snapshotRange, snapshotRecentLimit, userId]);
 
   useEffect(() => {
     // Intentar inicializar `userId` y `cuentaId` desde el token inmediatamente
@@ -211,26 +330,56 @@ export default function DashboardScreen() {
       } catch (e) {
         console.warn('[Dashboard] Error inicializando ids:', e);
       } finally {
-        // Llamada de verificación en background para sincronizar con backend.
-        // Reintentar unos segundos si el token aún no está listo justo después del login.
-        const maxAttempts = 8;
-        for (let attempt = 0; attempt < maxAttempts; attempt++) {
-          try {
-            const token = await authService.getAccessToken();
-            if (!token) {
-              await new Promise(r => setTimeout(r, 250));
-              continue;
+        // Con snapshot: cargar cache local primero (stale-while-revalidate)
+        try {
+          const token = await authService.getAccessToken();
+          if (token) {
+            const decoded = jwtDecode(token as any);
+            const uid = decoded?.userId;
+            if (uid) {
+              const cached = await getCachedDashboardSnapshot({
+                userId: uid,
+                range: snapshotRange,
+                recentLimit: snapshotRecentLimit,
+              });
+              if (cached?.snapshot) {
+                setDashboardSnapshot(cached.snapshot);
+                setDashboardEtag(cached.etag);
+                setCuentaId(cached.snapshot?.accountSummary?.cuentaId ?? null);
+              }
             }
-            await fetchCuentaId();
-            break;
-          } catch {
-            await new Promise(r => setTimeout(r, 350));
           }
+        } catch {
+          // ignore cache miss
         }
-        // No forzar refresh global aquí: evita recargar todos los widgets al mismo tiempo.
+
+        // Revalidar en background (1 request)
+        void refreshSnapshot({ silent: true });
       }
     })();
-  }, []);
+  }, [refreshSnapshot, snapshotRange, snapshotRecentLimit]);
+
+  useEffect(() => {
+    const fromSnapshot = dashboardSnapshot?.meta?.plan?.isPremium;
+    if (typeof fromSnapshot === 'boolean') {
+      setIsPremium(fromSnapshot);
+      return;
+    }
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const plan = await getPlanTypeFromStorage();
+        if (!cancelled) setIsPremium(plan === 'premium_plan');
+      } catch {
+        if (!cancelled) setIsPremium(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [dashboardSnapshot]);
 
   // Removido: `route.params.updated` ya no dispara recargas globales
 
@@ -264,14 +413,13 @@ export default function DashboardScreen() {
     
     try {
       console.log('[Dashboard] Iniciando refresh de datos...');
-      
-      await fetchCuentaId();
+
+      await refreshSnapshot({ force: true });
       
       if (isMountedRef.current) {
         const t = Date.now();
         setReloadTrigger(t);
         setRefreshKey(t);
-        // También disparar refresh dirigidos para listas específicas
         setRecurrentesRefreshKey(t);
         setSubcuentasRefreshKey(t);
         
@@ -304,6 +452,9 @@ export default function DashboardScreen() {
     }
   }, [lastRefreshTime, isRefreshing]);
 
+  // Use stable insets that don't change with keyboard/modals
+  const dockInset = insets.bottom + (Platform.OS === 'android' ? 2 : 0);
+
   // Nota: removimos auto-refresh en focus y el refresh automático por `route.params.updated`
   // para evitar múltiples fetches y recargas costosas. El refresh queda en:
   // - Pull-to-refresh (manual)
@@ -313,36 +464,101 @@ export default function DashboardScreen() {
     <View style={[styles.wrapper, { backgroundColor: colors.background }]}>
       <StatusBar style={isDark ? "light" : "dark"} />
       <View style={[styles.topHeaderContainer, { backgroundColor: colors.background }]}>
-        <DashboardHeader />
+        <DashboardHeader dashboardSnapshot={dashboardSnapshot} />
       </View>
 
       <ScrollView
-        contentContainerStyle={styles.contentContainer}
+        ref={scrollRef}
+        style={{ backgroundColor: colors.background }}
+        contentContainerStyle={[
+          styles.contentContainer,
+          {
+            paddingBottom: 20 + dockInset + DASHBOARD_DOCK_APPROX_HEIGHT,
+            backgroundColor: colors.background,
+          },
+        ]}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} />
         }
       >
 
-        <BalanceCard reloadTrigger={reloadTrigger} onCurrencyChange={handleCurrencyChange} />
+        <BalanceCard reloadTrigger={reloadTrigger} onCurrencyChange={handleCurrencyChange} dashboardSnapshot={dashboardSnapshot} />
 
-        <ActionButtons 
-          cuentaId={cuentaId || undefined} 
-          userId={userId || undefined} 
-          onRefresh={handleRefresh} 
-        />
+        <View
+          onLayout={(e) => {
+            actionButtonsYRef.current = e.nativeEvent.layout.y;
+          }}
+        >
+          <ActionButtons 
+            cuentaId={cuentaId || undefined} 
+            userId={userId || undefined} 
+            onRefresh={handleRefresh} 
+            dashboardSnapshot={dashboardSnapshot}
+          />
+        </View>
 
         {userId && (
-          <RecurrentesList userId={userId} refreshKey={recurrentesRefreshKey} />
+          <RecurrentesList userId={userId} refreshKey={recurrentesRefreshKey} dashboardSnapshot={dashboardSnapshot} />
         )}
+
+        <MetasCard onPress={() => navigation.navigate('Metas' as never)} />
 
         {userId && (
-          <SubaccountsList userId={userId} refreshKey={subcuentasRefreshKey} />
+          <SubaccountsList userId={userId} refreshKey={subcuentasRefreshKey} dashboardSnapshot={dashboardSnapshot} />
         )}
 
-        <ExpensesChart refreshKey={refreshKey} />
-        <TransactionHistory refreshKey={refreshKey} />
+        <ExpensesChart refreshKey={refreshKey} dashboardSnapshot={dashboardSnapshot} selectedRange={snapshotRange} onRequestRangeChange={(r) => { setSnapshotRange(r); void refreshSnapshot({ force: true }); }} />
+        <TransactionHistory refreshKey={refreshKey} dashboardSnapshot={dashboardSnapshot} />
       </ScrollView>
+
+      {/* Bottom fade to hide clipped content when scrolling near nav bar */}
+      <LinearGradient
+        colors={[
+          'transparent',
+          `${colors.background}33`,
+          `${colors.background}99`,
+          colors.background,
+        ]}
+        locations={[0, 0.45, 0.82, 1]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
+        pointerEvents="none"
+        style={{
+          position: 'absolute',
+          left: 0,
+          right: 0,
+          bottom: 0,
+          height: dockInset + DASHBOARD_DOCK_APPROX_HEIGHT,
+        }}
+      />
+
+      <DashboardBottomDock
+        active="home"
+        onPressHome={() => {
+          scrollRef.current?.scrollTo({ y: 0, animated: true });
+        }}
+        onPressAnalytics={() => {
+          // @ts-ignore
+          navigation.navigate('Analytics' as never);
+        }}
+        onPressReports={() => {
+          // Always navigate to ReportesExport screen; the screen will perform
+          // a server-side profile sync and show clear guidance if the server
+          // still rejects the request. This avoids duplicate gating logic.
+          // @ts-ignore
+          navigation.navigate('ReportesExport' as never);
+        }}
+        onPressSettings={() => {
+          // @ts-ignore
+          navigation.navigate('Settings' as never);
+        }}
+        onPressCenter={() => {
+          const y = Math.max(0, actionButtonsYRef.current - 12);
+          scrollRef.current?.scrollTo({ y, animated: true });
+        }}
+        reportsLocked={!isPremium}
+      />
     </View>
   );
 }
@@ -350,6 +566,7 @@ export default function DashboardScreen() {
 const styles = StyleSheet.create({
   wrapper: {
     flex: 1,
+    position: 'relative',
   },
   topHeaderContainer: {
     width: "100%",
