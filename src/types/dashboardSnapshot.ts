@@ -140,6 +140,24 @@ export type DashboardSnapshot = {
       metadata: Record<string, any> | null;
     }>;
   };
+  metasSummary?: {
+    total: number;
+    page: number;
+    limit: number;
+    data: Array<{
+      id: string; // metaId
+      nombre: string;
+      moneda: string;
+      estado: string;
+      saldo: number;
+      objetivo: number;
+      progreso: number; // 0..1
+      mode: 'independent' | 'legacy';
+      legacySubcuentaId?: string | null;
+      prioridad?: number | null;
+      updatedAt?: string | null;
+    }>;
+  };
   chartAggregates: {
     range: DashboardRange;
     granularity?: 'hour' | 'day' | 'month';
