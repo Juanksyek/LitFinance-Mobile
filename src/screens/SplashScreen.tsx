@@ -4,6 +4,7 @@ import { useNavigation } from "@react-navigation/native";
 import { useThemeColors } from "../theme/useThemeColors";
 import { authService } from "../services/authService";
 import Toast from 'react-native-toast-message';
+import { jwtDecode } from "../utils/jwtDecode";
 
 const SplashScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -26,6 +27,22 @@ const SplashScreen: React.FC = () => {
       try {
         const refreshToken = await authService.getRefreshToken();
         if (!refreshToken) {
+          // Fallback: if we still have a valid access token, we can enter the app.
+          // This prevents forcing login every launch when backend doesn't return refreshToken.
+          try {
+            const access = await authService.getAccessToken();
+            const decoded = access ? jwtDecode(access as any) : null;
+            const expMs = decoded?.exp ? Number(decoded.exp) * 1000 : 0;
+            const stillValid = Number.isFinite(expMs) && expMs > Date.now() + 30_000;
+            if (stillValid) {
+              if (!mounted) return;
+              navigation.reset({ index: 0, routes: [{ name: "Dashboard" as never }] });
+              return;
+            }
+          } catch {
+            // ignore and fall back to login
+          }
+
           if (!mounted) return;
           navigation.reset({ index: 0, routes: [{ name: "Login" as never }] });
           return;
