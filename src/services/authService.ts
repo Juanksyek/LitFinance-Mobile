@@ -10,6 +10,21 @@ class AuthService {
   private logoutHandlers: Set<LogoutHandler> = new Set();
   private accessTokenInMemory: string | null = null;
   private refreshTimer: any = null;
+  private refreshingAccess: Promise<string> | null = null;
+  private readonly REFRESH_SKEW_MS = 2 * 60 * 1000; // refresh if expiring within 2 minutes
+
+  // Temporary debug toggle — set to `true` to increase console logs for diagnosing session issues
+  private DEBUG = false;
+
+  private maskToken(t?: string | null) {
+    try {
+      if (!t) return null;
+      if (t.length <= 8) return '****';
+      return `****${t.slice(-6)}`;
+    } catch {
+      return null;
+    }
+  }
 
   /**
    * Register a callback to be called when session expires and user needs to logout.
@@ -71,21 +86,49 @@ class AuthService {
     await AsyncStorage.removeItem(key);
   }
 
-  async getAccessToken(): Promise<string | null> {
+  async getAccessToken(opts?: { allowRefresh?: boolean }): Promise<string | null> {
+    const allowRefresh = opts?.allowRefresh !== false;
+
     // Prefer in-memory token for performance
-    if (this.accessTokenInMemory) return this.accessTokenInMemory;
-    try {
-      const secure = await this.secureGet(this.ACCESS_KEY);
-      if (secure) {
-        this.accessTokenInMemory = secure;
-        return secure;
+    let token: string | null = this.accessTokenInMemory;
+
+    if (!token) {
+      try {
+        const secure = await this.secureGet(this.ACCESS_KEY);
+        if (secure) token = secure;
+        if (!token) token = await AsyncStorage.getItem(this.ACCESS_KEY);
+      } catch {
+        token = null;
       }
-      const stored = await AsyncStorage.getItem(this.ACCESS_KEY);
-      if (stored) this.accessTokenInMemory = stored;
-      return stored;
-    } catch {
-      return null;
+
+      if (token) {
+        this.accessTokenInMemory = token;
+        // Important: if token was loaded from storage (app relaunch), re-arm proactive refresh.
+        this.scheduleRefreshForToken(token);
+        if (this.DEBUG) console.debug('[AuthService] loaded access token from storage, msUntilExp:', this.msUntilExp(token));
+      }
     }
+
+    if (!token) return null;
+
+    // If token is expired or near-expiry, attempt a refresh once.
+    if (allowRefresh) {
+      const ms = this.msUntilExp(token);
+      if (this.DEBUG) console.debug('[AuthService] getAccessToken msUntilExp:', ms, 'REFRESH_SKEW_MS:', this.REFRESH_SKEW_MS);
+      if (ms !== null && ms <= this.REFRESH_SKEW_MS) {
+        try {
+          if (this.DEBUG) console.debug('[AuthService] token near expiry; attempting refresh once');
+          const refreshed = await this.refreshTokensOnce();
+          if (this.DEBUG) console.debug('[AuthService] refreshTokensOnce returned (masked):', this.maskToken(refreshed));
+          return refreshed;
+        } catch {
+          // refreshTokensOnce will triggerLogout on failure.
+          return null;
+        }
+      }
+    }
+
+    return token;
   }
 
   async setAccessToken(token: string): Promise<void> {
@@ -94,9 +137,15 @@ class AuthService {
     await this.secureSet(this.ACCESS_KEY, token);
     // Schedule proactive refresh before expiry
     this.scheduleRefreshForToken(token);
+    if (this.DEBUG) console.debug('[AuthService] setAccessToken scheduled refresh, msUntilExp:', this.msUntilExp(token));
   }
 
   async clearAccessToken(): Promise<void> {
+    this.accessTokenInMemory = null;
+    if (this.refreshTimer) {
+      clearTimeout(this.refreshTimer);
+      this.refreshTimer = null;
+    }
     await this.secureDelete(this.ACCESS_KEY);
   }
 
@@ -143,32 +192,62 @@ class AuthService {
 
     // Ensure we have a deviceId for sliding refresh
     const deviceId = await this.getOrCreateDeviceId();
+    if (this.DEBUG) console.debug('[AuthService] refreshTokens starting', {
+      deviceId,
+      refreshTokenMask: this.maskToken(refreshToken),
+    });
 
     const res = await fetch(`${API_BASE_URL}/auth/refresh`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ refreshToken, deviceId }),
     });
-
     if (!res.ok) {
+      const txt = await res.text().catch(() => null);
+      if (this.DEBUG) console.warn('[AuthService] refreshTokens failed response:', res.status, txt);
       // Clear tokens and trigger logout to force re-login
       await this.triggerLogout();
       throw new Error(`Refresh failed: ${res.status}`);
     }
 
-    const data = await res.json();
+    const data = await res.json().catch(() => null);
+    if (this.DEBUG) console.debug('[AuthService] refreshTokens response data (partial):', {
+      status: res.status,
+      hasAccess: Boolean(data?.accessToken || data?.token),
+      hasRefresh: Boolean(data?.refreshToken),
+    });
+
     const newAccess = data?.accessToken || data?.token || null;
     const newRefresh = data?.refreshToken || null;
 
     if (!newAccess) {
+      if (this.DEBUG) console.warn('[AuthService] refreshTokens missing access token in response, forcing logout');
       await this.triggerLogout();
       throw new Error('Refresh response missing access token');
     }
 
     await this.setAccessToken(newAccess);
-    if (newRefresh) await this.setRefreshToken(newRefresh);
+    if (newRefresh) {
+      await this.setRefreshToken(newRefresh);
+      if (this.DEBUG) console.debug('[AuthService] refreshTokens stored new refresh token (masked):', this.maskToken(newRefresh));
+    }
 
     return newAccess;
+  }
+
+  /**
+   * Ensure only one refresh runs at a time (prevents refresh storms on app resume).
+   */
+  private async refreshTokensOnce(): Promise<string> {
+    if (this.refreshingAccess) return this.refreshingAccess;
+    this.refreshingAccess = (async () => {
+      try {
+        return await this.refreshTokens();
+      } finally {
+        this.refreshingAccess = null;
+      }
+    })();
+    return this.refreshingAccess;
   }
 
   /**
@@ -243,14 +322,18 @@ class AuthService {
       }
 
       const ms = this.msUntilExp(token);
+      if (this.DEBUG) console.debug('[AuthService] scheduleRefreshForToken msUntilExp:', ms);
       if (!ms || ms <= 0) return;
       // Refresh 60s before expiry, but at least after 5s
       const refreshIn = Math.max(5000, ms - 60000);
+      if (this.DEBUG) console.debug('[AuthService] scheduleRefreshForToken refreshIn (ms):', refreshIn);
       this.refreshTimer = setTimeout(async () => {
         try {
+          if (this.DEBUG) console.debug('[AuthService] proactive refresh timer fired — calling refreshTokens');
           await this.refreshTokens();
         } catch (e) {
           // if refresh fails, force logout
+          if (this.DEBUG) console.warn('[AuthService] proactive refresh failed, triggering logout', e);
           await this.triggerLogout();
         }
       }, refreshIn);
@@ -263,14 +346,30 @@ class AuthService {
     try {
       const parts = jwt.split('.');
       if (parts.length < 2) return null;
-      const payload = parts[1].replace(/-/g, '+').replace(/_/g, '/');
-      const decoded = decodeURIComponent(
-        atob(payload)
-          .split('')
-          .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-          .join('')
-      );
-      const obj = JSON.parse(decoded);
+
+      // Base64url -> Base64 + padding
+      let payload = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+      const padLen = payload.length % 4;
+      if (padLen) payload += '='.repeat(4 - padLen);
+
+      let decoded: string;
+      // Prefer atob when available; fallback to Buffer when running in RN.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const anyGlobal: any = globalThis as any;
+      if (typeof anyGlobal.atob === 'function') {
+        decoded = anyGlobal.atob(payload);
+      } else if (typeof Buffer !== 'undefined') {
+        decoded = Buffer.from(payload, 'base64').toString('utf8');
+      } else {
+        return null;
+      }
+
+      // atob returns binary string; ensure proper UTF-8 parsing
+      const json = decoded
+        .split('')
+        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('');
+      const obj = JSON.parse(decodeURIComponent(json));
       if (!obj.exp) return null;
       return obj.exp * 1000 - Date.now();
     } catch {
