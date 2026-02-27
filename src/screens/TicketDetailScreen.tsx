@@ -11,16 +11,18 @@ import {
   Platform,
   Alert,
   Modal,
-  ScrollView,
   Keyboard,
+  StatusBar,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { useThemeColors } from "../theme/useThemeColors";
 import supportService from "../services/supportService";
 import { Ticket, Mensaje } from "../types/support";
 import Toast from "react-native-toast-message";
 import { Ionicons } from "@expo/vector-icons";
+import { fixEncoding } from "../utils/fixEncoding";
+import EventBus from "../utils/eventBus";
 
 interface RouteParams {
   ticketId: string;
@@ -30,6 +32,7 @@ const TicketDetailScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const route = useRoute();
   const colors = useThemeColors();
+  const insets = useSafeAreaInsets();
   const { ticketId } = route.params as RouteParams;
 
   const [ticket, setTicket] = useState<Ticket | null>(null);
@@ -43,8 +46,16 @@ const TicketDetailScreen: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [showStatusModal, setShowStatusModal] = useState(false);
   const flatListRef = useRef<FlatList>(null);
-  const [keyboardHeight, setKeyboardHeight] = useState(0);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // ✅ altura real del composer para padding del listado
+  const [composerHeight, setComposerHeight] = useState(0);
+
+  // ✅ estabiliza bottom inset (evita recortes/jumps al abrir/cerrar teclado)
+  const [stableBottomInset, setStableBottomInset] = useState(insets.bottom);
+  useEffect(() => {
+    setStableBottomInset((prev) => Math.max(prev, insets.bottom));
+  }, [insets.bottom]);
 
   useEffect(() => {
     loadTicket();
@@ -52,87 +63,59 @@ const TicketDetailScreen: React.FC = () => {
       loadTicket(true);
     }, 15000);
 
-    // Keyboard listeners to adjust FlatList padding and scroll to end
-    const showSub = Keyboard.addListener('keyboardDidShow', (e) => {
-      const h = e.endCoordinates?.height || 0;
-      setKeyboardHeight(h);
-      // allow layout to settle then scroll
+    // Solo para scroll al abrir teclado (sin tocar paddings manuales)
+    const showSub = Keyboard.addListener("keyboardDidShow", () => {
       setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 80);
-    });
-    const hideSub = Keyboard.addListener('keyboardDidHide', () => {
-      setKeyboardHeight(0);
     });
 
     (async () => {
       try {
-        const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
-        const raw = await AsyncStorage.getItem('userData');
+        const AsyncStorage = (await import("@react-native-async-storage/async-storage")).default;
+        const raw = await AsyncStorage.getItem("userData");
         if (raw) {
           const u = JSON.parse(raw);
-          const role = (u && (u.rol || u.role || u.roleName)) || '';
-          setIsStaffOrAdmin(role === 'admin' || role === 'staff');
+          const role = (u && (u.rol || u.role || u.roleName)) || "";
+          setIsStaffOrAdmin(role === "admin" || role === "staff");
         }
-      } catch (e) {
-        // ignore
-      }
+      } catch {}
     })();
 
     return () => {
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current);
-      }
+      if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
       showSub.remove();
-      hideSub.remove();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ticketId]);
 
   const loadTicket = async (silent = false) => {
     try {
       if (!silent) {
         setLoading(true);
-        console.log("🔄 [TicketDetail] loadTicket - Iniciando carga...", { ticketId, silent });
+        setRefreshing(true);
       }
-      
-      console.log("🔍 [TicketDetail] loadTicket - Llamando a supportService.getTicketDetail...");
       const data = await supportService.getTicketDetail(ticketId);
-      
-      console.log("✅ [TicketDetail] loadTicket - Ticket cargado:", { 
-        ticketId: data.ticketId,
-        estado: data.estado,
-        mensajesCount: data.mensajes?.length || 0,
-        titulo: data.titulo
-      });
-      
-      if (data.mensajes && data.mensajes.length > 0) {
-        console.log("💬 [TicketDetail] loadTicket - Mensajes del ticket:", 
-          data.mensajes.map(m => ({
-            id: m.id,
-            esStaff: m.esStaff,
-            preview: m.mensaje.substring(0, 50)
-          }))
-        );
+
+      if (updatingStatusRef.current) {
+        // no pisar estado optimista
       } else {
-        console.log("⚠️ [TicketDetail] loadTicket - No hay mensajes en el ticket");
+        const hasPendingSends = sendingQueueRef.current.length > 0;
+        if (hasPendingSends) {
+          setTicket((current) => {
+            if (!current) return data;
+            const currentCount = (current.mensajes || []).length;
+            const incomingCount = (data.mensajes || []).length;
+            if (incomingCount < currentCount) return current;
+            return data;
+          });
+        } else {
+          setTicket(data);
+        }
       }
-      
-      // If we're mid-status-update, avoid clobbering optimistic state
-      if (!updatingStatusRef.current) {
-        setTicket(data);
-      } else {
-        console.log('🔄 [TicketDetail] loadTicket - Skipping update because status update in progress');
-      }
-      
+
       if (data.mensajes && data.mensajes.length > 0) {
-        setTimeout(() => {
-          console.log("📄 [TicketDetail] loadTicket - Scrolling to end...");
-          flatListRef.current?.scrollToEnd({ animated: true });
-        }, 100);
+        setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 120);
       }
     } catch (error: any) {
-      console.error("❌ [TicketDetail] loadTicket - Error:", { 
-        message: error.message,
-        stack: error.stack 
-      });
       if (!silent) {
         Toast.show({
           type: "error",
@@ -148,19 +131,9 @@ const TicketDetailScreen: React.FC = () => {
   };
 
   const handleSendMessage = async () => {
-    console.log("📤 [TicketDetail] handleSendMessage - Iniciando...", { 
-      mensajeLength: mensaje.length,
-      mensajeTrim: mensaje.trim().length,
-      ticketEstado: ticket?.estado 
-    });
-    
-    if (!mensaje.trim()) {
-      console.log("⚠️ [TicketDetail] handleSendMessage - Mensaje vacío, cancelando");
-      return;
-    }
+    if (!mensaje.trim()) return;
 
     if (ticket?.estado === "cerrado") {
-      console.log("⚠️ [TicketDetail] handleSendMessage - Ticket cerrado, cancelando");
       Toast.show({
         type: "error",
         text1: "Ticket cerrado",
@@ -170,7 +143,6 @@ const TicketDetailScreen: React.FC = () => {
     }
 
     if (mensaje.length > 2000) {
-      console.log("⚠️ [TicketDetail] handleSendMessage - Mensaje muy largo, cancelando");
       Toast.show({
         type: "error",
         text1: "Mensaje muy largo",
@@ -180,12 +152,7 @@ const TicketDetailScreen: React.FC = () => {
     }
 
     const mensajeAEnviar = mensaje.trim();
-    console.log("📝 [TicketDetail] handleSendMessage - Preparando envío:", { 
-      mensajeAEnviar: mensajeAEnviar.substring(0, 100),
-      ticketId 
-    });
-    
-    // Optimistic: append message locally and send in background to allow rapid sends
+
     const tempId = `temp-${Date.now()}`;
     const optimisticMsg = {
       id: tempId,
@@ -195,7 +162,6 @@ const TicketDetailScreen: React.FC = () => {
     } as any;
 
     setMensaje("");
-    // append optimistic message
     setTicket((t) => {
       if (!t) return t;
       return { ...t, mensajes: [...(t.mensajes || []), optimisticMsg] } as Ticket;
@@ -204,29 +170,21 @@ const TicketDetailScreen: React.FC = () => {
     const sendPromise = (async () => {
       try {
         const updatedTicket = await supportService.addMessage(ticketId, { mensaje: mensajeAEnviar });
-        // replace optimistic message with server response
-        setTicket((t) => {
-          if (!t) return updatedTicket;
-          return updatedTicket;
-        });
-
-        Toast.show({ type: 'success', text1: 'Mensaje enviado' });
-        setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+        setTicket(updatedTicket);
+        EventBus.emit("ticketUpdated", updatedTicket);
+        Toast.show({ type: "success", text1: "Mensaje enviado" });
+        setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 120);
       } catch (err: any) {
-        console.error('❌ [TicketDetail] optimistic addMessage failed', err);
-        // rollback optimistic message
         setTicket((t) => {
           if (!t) return t;
           return { ...t, mensajes: (t.mensajes || []).filter((m: any) => m.id !== tempId) } as Ticket;
         });
         setMensaje(mensajeAEnviar);
-        Toast.show({ type: 'error', text1: 'Error', text2: err?.message || 'No se pudo enviar el mensaje' });
+        Toast.show({ type: "error", text1: "Error", text2: err?.message || "No se pudo enviar el mensaje" });
       }
     })();
 
-    // keep track of pending sends
     sendingQueueRef.current.push(sendPromise);
-    // remove when done
     sendPromise.finally(() => {
       sendingQueueRef.current = sendingQueueRef.current.filter((p) => p !== sendPromise);
     });
@@ -243,9 +201,7 @@ const TicketDetailScreen: React.FC = () => {
           style: "destructive",
           onPress: async () => {
             try {
-              console.log("🗑️ [TicketDetail] handleDeleteTicket - Eliminando...", { ticketId });
               await supportService.deleteTicket(ticketId);
-              console.log("✅ [TicketDetail] handleDeleteTicket - Ticket eliminado");
               Toast.show({
                 type: "success",
                 text1: "Ticket eliminado",
@@ -253,7 +209,6 @@ const TicketDetailScreen: React.FC = () => {
               });
               navigation.goBack();
             } catch (error: any) {
-              console.error("❌ [TicketDetail] handleDeleteTicket - Error:", error);
               Toast.show({
                 type: "error",
                 text1: "Error",
@@ -267,35 +222,29 @@ const TicketDetailScreen: React.FC = () => {
   };
 
   const handleChangeStatus = async (newStatus: "abierto" | "en_progreso" | "resuelto" | "cerrado") => {
-    // Optimistic status update: set locally and send request in background
     if (!ticket) return;
-    const previous = ticket.estado;
     try {
-      console.log('🔄 [TicketDetail] handleChangeStatus - Optimistic update', { ticketId, previous, newStatus });
       setUpdatingStatus(true);
       updatingStatusRef.current = true;
-      // optimistic
-      setTicket((t) => t ? ({ ...t, estado: newStatus } as Ticket) : t);
+
+      setTicket((t) => (t ? ({ ...t, estado: newStatus } as Ticket) : t));
       setShowStatusModal(false);
 
       const updatedTicket = await supportService.updateTicketStatus(ticketId, { estado: newStatus });
-      console.log('✅ [TicketDetail] handleChangeStatus - Server confirmed', { estado: updatedTicket.estado });
       setTicket(updatedTicket);
-      Toast.show({ type: 'success', text1: 'Estado actualizado', text2: `El ticket ahora está ${newStatus.replace('_', ' ')}` });
-    } catch (error: any) {
-      console.error('❌ [TicketDetail] handleChangeStatus - Error:', error);
-      const raw = (error && (error.message || String(error))) || '';
-      const msg = raw.toLowerCase();
-      let friendly = 'No se pudo actualizar el estado. Intenta de nuevo más tarde.';
-      if (msg.includes('network') || msg.includes('timeout') || msg.includes('failed to fetch')) {
-        friendly = 'No se pudo conectar al servidor. Revisa tu conexión a internet.';
-      } else if (msg.includes('unauthorized') || msg.includes('401') || msg.includes('forbidden') || msg.includes('403')) {
-        friendly = 'No tienes permisos para cambiar el estado del ticket.';
-      } else if (msg.includes('not found') || msg.includes('404')) {
-        friendly = 'El ticket no fue encontrado. Actualiza la pantalla e intenta de nuevo.';
-      }
+      EventBus.emit("ticketUpdated", updatedTicket);
 
-      Toast.show({ type: 'error', text1: 'No fue posible cambiar el estado', text2: friendly });
+      Toast.show({
+        type: "success",
+        text1: "Estado actualizado",
+        text2: `El ticket ahora está ${newStatus.replace("_", " ")}`,
+      });
+    } catch (error: any) {
+      Toast.show({
+        type: "error",
+        text1: "No fue posible cambiar el estado",
+        text2: "Intenta de nuevo más tarde.",
+      });
     } finally {
       setUpdatingStatus(false);
       updatingStatusRef.current = false;
@@ -305,7 +254,7 @@ const TicketDetailScreen: React.FC = () => {
   const getEstadoBadge = () => {
     if (!ticket) return null;
 
-    const config = {
+    const config: any = {
       abierto: { color: "#E53935", text: "Abierto", icon: "alert-circle" },
       en_progreso: { color: "#FB8C00", text: "En progreso", icon: "time" },
       resuelto: { color: "#43A047", text: "Resuelto", icon: "checkmark-circle" },
@@ -316,7 +265,7 @@ const TicketDetailScreen: React.FC = () => {
 
     return (
       <View style={[styles.badge, { backgroundColor: color + "20" }]}>
-        <Ionicons name={icon as any} size={14} color={color} />
+        <Ionicons name={icon} size={14} color={color} />
         <Text style={[styles.badgeText, { color }]}>{text}</Text>
       </View>
     );
@@ -324,10 +273,7 @@ const TicketDetailScreen: React.FC = () => {
 
   const formatMessageTime = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleTimeString("es-ES", {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+    return date.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
   };
 
   const formatMessageDate = (dateString: string) => {
@@ -336,17 +282,9 @@ const TicketDetailScreen: React.FC = () => {
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
 
-    if (date.toDateString() === today.toDateString()) {
-      return "Hoy";
-    } else if (date.toDateString() === yesterday.toDateString()) {
-      return "Ayer";
-    } else {
-      return date.toLocaleDateString("es-ES", {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-      });
-    }
+    if (date.toDateString() === today.toDateString()) return "Hoy";
+    if (date.toDateString() === yesterday.toDateString()) return "Ayer";
+    return date.toLocaleDateString("es-ES", { day: "2-digit", month: "short", year: "numeric" });
   };
 
   const renderMessage = ({ item, index }: { item: Mensaje; index: number }) => {
@@ -360,19 +298,13 @@ const TicketDetailScreen: React.FC = () => {
       <>
         {showDateSeparator && (
           <View style={styles.dateSeparator}>
-            <View style={styles.dateLine} />
-            <Text style={[styles.dateText, { color: colors.placeholder }]}>
-              {formatMessageDate(item.createdAt)}
-            </Text>
-            <View style={styles.dateLine} />
+            <View style={[styles.dateLine, { backgroundColor: colors.placeholder + "30" }]} />
+            <Text style={[styles.dateText, { color: colors.placeholder }]}>{formatMessageDate(item.createdAt)}</Text>
+            <View style={[styles.dateLine, { backgroundColor: colors.placeholder + "30" }]} />
           </View>
         )}
-        <View
-          style={[
-            styles.messageContainer,
-            isStaff ? styles.staffMessage : styles.userMessage,
-          ]}
-        >
+
+        <View style={[styles.messageContainer, isStaff ? styles.staffMessage : styles.userMessage]}>
           <View style={styles.messageHeader}>
             <View style={styles.senderInfo}>
               <Ionicons
@@ -380,32 +312,22 @@ const TicketDetailScreen: React.FC = () => {
                 size={16}
                 color={isStaff ? colors.button : colors.text}
               />
-              <Text
-                style={[
-                  styles.senderName,
-                  { color: isStaff ? colors.button : colors.text },
-                ]}
-              >
+              <Text style={[styles.senderName, { color: isStaff ? colors.button : colors.text }]}>
                 {isStaff ? "Soporte" : "Tú"}
               </Text>
             </View>
-            <Text style={[styles.messageTime, { color: colors.placeholder }]}>
-              {formatMessageTime(item.createdAt)}
-            </Text>
+            <Text style={[styles.messageTime, { color: colors.placeholder }]}>{formatMessageTime(item.createdAt)}</Text>
           </View>
+
           <View
             style={[
               styles.messageBubble,
               {
-                backgroundColor: isStaff
-                  ? colors.button + "15"
-                  : colors.inputBackground,
+                backgroundColor: isStaff ? colors.button + "15" : colors.inputBackground,
               },
             ]}
           >
-            <Text style={[styles.messageText, { color: colors.text }]}>
-              {item.mensaje}
-            </Text>
+            <Text style={[styles.messageText, { color: colors.text }]}>{fixEncoding(item.mensaje)}</Text>
           </View>
         </View>
       </>
@@ -414,69 +336,67 @@ const TicketDetailScreen: React.FC = () => {
 
   const renderHeader = () => {
     if (!ticket) return null;
-
     return (
-      <View style={styles.ticketInfo}>
+      <View style={[styles.ticketInfo, { backgroundColor: colors.button + "10" }]}>
         <View style={styles.ticketHeader}>
-          <Text style={[styles.ticketTitle, { color: colors.text }]}>
-            {ticket.titulo}
-          </Text>
+          <Text style={[styles.ticketTitle, { color: colors.text }]}>{ticket.titulo}</Text>
           {getEstadoBadge()}
         </View>
-        <Text
-          style={[styles.ticketDescription, { color: colors.placeholder }]}
-        >
-          {ticket.descripcion}
-        </Text>
-        <Text style={[styles.ticketId, { color: colors.placeholder }]}>
-          ID: {ticket.ticketId}
-        </Text>
+        <Text style={[styles.ticketDescription, { color: colors.placeholder }]}>{fixEncoding(ticket.descripcion)}</Text>
+        <Text style={[styles.ticketId, { color: colors.placeholder }]}>ID: {ticket.ticketId}</Text>
       </View>
     );
   };
 
+  // SafeAreaView already applies the top inset; only add Android status bar height.
+  const topPad = Platform.OS === "android" ? (StatusBar.currentHeight || 0) : 0;
+
+  // ✅ En Android evitamos KAV (aquí era el que dejaba el recuadro blanco)
+  const BodyWrapper: any = Platform.OS === "ios" ? KeyboardAvoidingView : View;
+  const bodyWrapperProps =
+    Platform.OS === "ios"
+      ? { behavior: "padding" as const, keyboardVerticalOffset: 0 }
+      : {};
+
   if (loading) {
     return (
-      <View
-        style={[styles.container, { backgroundColor: colors.background }]}
-      >
-        <View style={styles.header}>
+      <SafeAreaView edges={["top", "left", "right"]} style={{ flex: 1, backgroundColor: colors.background }}>
+        <View style={[styles.header, { paddingTop: 12 + topPad }]}>
           <TouchableOpacity onPress={() => navigation.goBack()}>
             <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>
-            Ticket
-          </Text>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>Ticket</Text>
           <View style={{ width: 24 }} />
         </View>
+
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.button} />
         </View>
-      </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <KeyboardAvoidingView
-      style={[styles.container, { backgroundColor: colors.background }]}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 60 : 80}
-    >
-      <View style={styles.header}>
+    <SafeAreaView edges={["top", "left", "right"]} style={{ flex: 1, backgroundColor: colors.background }}>
+      <View style={[styles.header, { paddingTop: 12 + topPad }]}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>
-          Ticket
-        </Text>
+
+        <Text style={[styles.headerTitle, { color: colors.text }]}>Ticket</Text>
+
         <View style={styles.headerActions}>
           {isStaffOrAdmin && (
-            <TouchableOpacity 
+            <TouchableOpacity
               onPress={() => setShowStatusModal(true)}
               style={{ marginRight: 16 }}
               disabled={updatingStatus}
             >
-              <Ionicons name="swap-horizontal" size={24} color={updatingStatus ? colors.placeholder : colors.button} />
+              <Ionicons
+                name="swap-horizontal"
+                size={24}
+                color={updatingStatus ? colors.placeholder : colors.button}
+              />
             </TouchableOpacity>
           )}
           <TouchableOpacity onPress={handleDeleteTicket}>
@@ -485,74 +405,92 @@ const TicketDetailScreen: React.FC = () => {
         </View>
       </View>
 
-      <FlatList
-        ref={flatListRef}
-        data={ticket?.mensajes || []}
-        renderItem={renderMessage}
-        keyExtractor={(item) => item.id}
-        ListHeaderComponent={renderHeader}
-        contentContainerStyle={[styles.messagesList, { paddingBottom: Math.max(80, 16 + keyboardHeight) }]}
-        onRefresh={loadTicket}
-        refreshing={refreshing}
-        onContentSizeChange={() =>
-          flatListRef.current?.scrollToEnd({ animated: true })
-        }
-      />
-
-      {ticket?.estado !== "cerrado" && (
-        <View
-          style={[
-            styles.inputContainer,
-            { backgroundColor: colors.inputBackground, borderTopColor: colors.placeholder + "30" },
+      <BodyWrapper style={{ flex: 1, backgroundColor: colors.background }} {...bodyWrapperProps}>
+        <FlatList
+          ref={flatListRef}
+          data={ticket?.mensajes || []}
+          renderItem={renderMessage}
+          keyExtractor={(item) => item.id}
+          ListHeaderComponent={renderHeader}
+          style={{ flex: 1, backgroundColor: colors.background }}
+          contentInsetAdjustmentBehavior="never"
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
+          contentContainerStyle={[
+            styles.messagesList,
+            {
+              paddingBottom: Math.max(16, composerHeight) + stableBottomInset + 12,
+            },
           ]}
-        >
-          <TextInput
+          refreshing={refreshing}
+          onRefresh={() => loadTicket(false)}
+          onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
+        />
+
+        {ticket?.estado !== "cerrado" && (
+          <View
             style={[
-              styles.input,
+              styles.inputContainer,
               {
-                backgroundColor: colors.background,
-                color: colors.text,
-                borderColor: colors.placeholder,
+                backgroundColor: colors.background, // ✅ pinta el área inferior (adiós blanco)
+                borderTopColor: colors.placeholder + "30",
+                paddingBottom: 12 + stableBottomInset, // ✅ safe area bottom estable
               },
             ]}
-            placeholder="Escribe tu mensaje..."
-            placeholderTextColor={colors.placeholder}
-            value={mensaje}
-            onChangeText={setMensaje}
-            onFocus={() => {
-              // ensure messages are visible when typing
-              setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 50);
-            }}
-            multiline
-            maxLength={2000}
-            editable={!sending}
-          />
-          <TouchableOpacity
-            style={[
-              styles.sendButton,
-              { backgroundColor: colors.button },
-              (!mensaje.trim() || sending) && styles.sendButtonDisabled,
-            ]}
-            onPress={handleSendMessage}
-            disabled={!mensaje.trim() || sending}
+            onLayout={(e) => setComposerHeight(e.nativeEvent.layout.height)}
           >
-            {sending ? (
-              <ActivityIndicator size="small" color="#FFF" />
-            ) : (
-              <Ionicons name="send" size={20} color="#FFF" />
-            )}
-          </TouchableOpacity>
-        </View>
-      )}
+            <View
+              style={[
+                styles.composerInner,
+                { backgroundColor: colors.inputBackground, borderColor: colors.placeholder + "30" },
+              ]}
+            >
+              <TextInput
+                style={[
+                  styles.input,
+                  {
+                    backgroundColor: colors.background,
+                    color: colors.text,
+                    borderColor: colors.placeholder + "40",
+                  },
+                ]}
+                placeholder="Escribe tu mensaje..."
+                placeholderTextColor={colors.placeholder}
+                value={mensaje}
+                onChangeText={setMensaje}
+                onFocus={() => setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 60)}
+                multiline
+                maxLength={2000}
+                editable={!sending}
+              />
+              <TouchableOpacity
+                style={[
+                  styles.sendButton,
+                  { backgroundColor: colors.button },
+                  (!mensaje.trim() || sending) && styles.sendButtonDisabled,
+                ]}
+                onPress={handleSendMessage}
+                disabled={!mensaje.trim() || sending}
+              >
+                {sending ? (
+                  <ActivityIndicator size="small" color="#FFF" />
+                ) : (
+                  <Ionicons name="send" size={20} color="#FFF" />
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
 
-      {ticket?.estado === "cerrado" && (
-        <View style={[styles.closedBanner, { backgroundColor: "#9E9E9E20" }]}>
-          <Ionicons name="lock-closed" size={16} color="#9E9E9E" />
-          <Text style={[styles.closedText, { color: "#9E9E9E" }]}>
-            Este ticket está cerrado. No se pueden agregar más mensajes.
-          </Text>
-        </View>
-      )}
+        {ticket?.estado === "cerrado" && (
+          <View style={[styles.closedBanner, { backgroundColor: "#9E9E9E20", paddingBottom: 10 + stableBottomInset }]}>
+            <Ionicons name="lock-closed" size={16} color="#9E9E9E" />
+            <Text style={[styles.closedText, { color: "#9E9E9E" }]}>
+              Este ticket está cerrado. No se pueden agregar más mensajes.
+            </Text>
+          </View>
+        )}
+      </BodyWrapper>
 
       {/* Modal de cambio de estatus */}
       <Modal
@@ -561,30 +499,24 @@ const TicketDetailScreen: React.FC = () => {
         animationType="fade"
         onRequestClose={() => setShowStatusModal(false)}
       >
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.modalOverlay}
           activeOpacity={1}
           onPress={() => setShowStatusModal(false)}
         >
-          <View 
+          <View
             style={[styles.modalContent, { backgroundColor: colors.background }]}
             onStartShouldSetResponder={() => true}
           >
-            <Text style={[styles.modalTitle, { color: colors.text }]}>
-              Cambiar estado del ticket
-            </Text>
-            
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Cambiar estado del ticket</Text>
+
             <TouchableOpacity
               style={[styles.statusOption, { borderBottomColor: colors.placeholder + "30" }]}
               onPress={() => handleChangeStatus("abierto")}
             >
               <Ionicons name="alert-circle" size={20} color="#E53935" />
-              <Text style={[styles.statusOptionText, { color: colors.text }]}>
-                Abierto
-              </Text>
-              {ticket?.estado === "abierto" && (
-                <Ionicons name="checkmark" size={20} color={colors.button} />
-              )}
+              <Text style={[styles.statusOptionText, { color: colors.text }]}>Abierto</Text>
+              {ticket?.estado === "abierto" && <Ionicons name="checkmark" size={20} color={colors.button} />}
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -592,12 +524,8 @@ const TicketDetailScreen: React.FC = () => {
               onPress={() => handleChangeStatus("en_progreso")}
             >
               <Ionicons name="time" size={20} color="#FB8C00" />
-              <Text style={[styles.statusOptionText, { color: colors.text }]}>
-                En progreso
-              </Text>
-              {ticket?.estado === "en_progreso" && (
-                <Ionicons name="checkmark" size={20} color={colors.button} />
-              )}
+              <Text style={[styles.statusOptionText, { color: colors.text }]}>En progreso</Text>
+              {ticket?.estado === "en_progreso" && <Ionicons name="checkmark" size={20} color={colors.button} />}
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -605,12 +533,8 @@ const TicketDetailScreen: React.FC = () => {
               onPress={() => handleChangeStatus("resuelto")}
             >
               <Ionicons name="checkmark-circle" size={20} color="#43A047" />
-              <Text style={[styles.statusOptionText, { color: colors.text }]}>
-                Resuelto
-              </Text>
-              {ticket?.estado === "resuelto" && (
-                <Ionicons name="checkmark" size={20} color={colors.button} />
-              )}
+              <Text style={[styles.statusOptionText, { color: colors.text }]}>Resuelto</Text>
+              {ticket?.estado === "resuelto" && <Ionicons name="checkmark" size={20} color={colors.button} />}
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -618,62 +542,43 @@ const TicketDetailScreen: React.FC = () => {
               onPress={() => handleChangeStatus("cerrado")}
             >
               <Ionicons name="close-circle" size={20} color="#9E9E9E" />
-              <Text style={[styles.statusOptionText, { color: colors.text }]}>
-                Cerrado
-              </Text>
-              {ticket?.estado === "cerrado" && (
-                <Ionicons name="checkmark" size={20} color={colors.button} />
-              )}
+              <Text style={[styles.statusOptionText, { color: colors.text }]}>Cerrado</Text>
+              {ticket?.estado === "cerrado" && <Ionicons name="checkmark" size={20} color={colors.button} />}
             </TouchableOpacity>
 
             <TouchableOpacity
               style={[styles.cancelButton, { backgroundColor: colors.placeholder + "20" }]}
               onPress={() => setShowStatusModal(false)}
             >
-              <Text style={[styles.cancelButtonText, { color: colors.text }]}>
-                Cancelar
-              </Text>
+              <Text style={[styles.cancelButtonText, { color: colors.text }]}>Cancelar</Text>
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
       </Modal>
-    </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
+  container: { flex: 1 },
+
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 20,
-    paddingTop: 60,
-    paddingBottom: 20,
+    paddingBottom: 14,
   },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: "600",
-  },
-  headerActions: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  messagesList: {
-    padding: 16,
-    paddingBottom: 8,
-  },
+  headerTitle: { fontSize: 20, fontWeight: "600" },
+  headerActions: { flexDirection: "row", alignItems: "center" },
+
+  loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
+
+  messagesList: { padding: 16, paddingBottom: 8 },
+
   ticketInfo: {
     padding: 16,
     borderRadius: 12,
-    backgroundColor: "#EF6C0010",
     marginBottom: 24,
   },
   ticketHeader: {
@@ -683,11 +588,8 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     gap: 12,
   },
-  ticketTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    flex: 1,
-  },
+  ticketTitle: { fontSize: 18, fontWeight: "600", flex: 1 },
+
   badge: {
     flexDirection: "row",
     alignItems: "center",
@@ -696,43 +598,19 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     gap: 4,
   },
-  badgeText: {
-    fontSize: 11,
-    fontWeight: "600",
-  },
-  ticketDescription: {
-    fontSize: 14,
-    lineHeight: 20,
-    marginBottom: 8,
-  },
-  ticketId: {
-    fontSize: 11,
-    fontFamily: Platform.OS === "ios" ? "Courier" : "monospace",
-  },
-  dateSeparator: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginVertical: 16,
-    gap: 12,
-  },
-  dateLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: "#E0E0E0",
-  },
-  dateText: {
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  messageContainer: {
-    marginBottom: 16,
-  },
-  staffMessage: {
-    alignItems: "flex-start",
-  },
-  userMessage: {
-    alignItems: "flex-end",
-  },
+  badgeText: { fontSize: 11, fontWeight: "600" },
+
+  ticketDescription: { fontSize: 14, lineHeight: 20, marginBottom: 8 },
+  ticketId: { fontSize: 11, fontFamily: Platform.OS === "ios" ? "Courier" : "monospace" },
+
+  dateSeparator: { flexDirection: "row", alignItems: "center", marginVertical: 16, gap: 12 },
+  dateLine: { flex: 1, height: 1 },
+  dateText: { fontSize: 12, fontWeight: "600" },
+
+  messageContainer: { marginBottom: 16 },
+  staffMessage: { alignItems: "flex-start" },
+  userMessage: { alignItems: "flex-end" },
+
   messageHeader: {
     flexDirection: "row",
     alignItems: "center",
@@ -740,42 +618,34 @@ const styles = StyleSheet.create({
     marginBottom: 4,
     paddingHorizontal: 4,
   },
-  senderInfo: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  senderName: {
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  messageTime: {
-    fontSize: 11,
-  },
-  messageBubble: {
-    maxWidth: "80%",
-    padding: 12,
-    borderRadius: 12,
-  },
-  messageText: {
-    fontSize: 14,
-    lineHeight: 20,
-  },
+  senderInfo: { flexDirection: "row", alignItems: "center", gap: 6 },
+  senderName: { fontSize: 12, fontWeight: "600" },
+  messageTime: { fontSize: 11 },
+
+  messageBubble: { maxWidth: "80%", padding: 12, borderRadius: 12 },
+  messageText: { fontSize: 14, lineHeight: 20 },
+
   inputContainer: {
+    borderTopWidth: 1,
+    paddingHorizontal: 12,
+    paddingTop: 12,
+  },
+  composerInner: {
     flexDirection: "row",
     alignItems: "flex-end",
-    padding: 12,
+    padding: 10,
     gap: 8,
-    borderTopWidth: 1,
+    borderRadius: 22,
+    borderWidth: 1,
   },
   input: {
     flex: 1,
     borderWidth: 1,
-    borderRadius: 20,
-    paddingHorizontal: 16,
+    borderRadius: 18,
+    paddingHorizontal: 14,
     paddingVertical: 10,
     fontSize: 15,
-    maxHeight: 100,
+    maxHeight: 110,
   },
   sendButton: {
     width: 44,
@@ -784,20 +654,18 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  sendButtonDisabled: {
-    opacity: 0.5,
-  },
+  sendButtonDisabled: { opacity: 0.5 },
+
   closedBanner: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    padding: 12,
+    paddingHorizontal: 12,
+    paddingTop: 12,
     gap: 8,
   },
-  closedText: {
-    fontSize: 13,
-    fontWeight: "500",
-  },
+  closedText: { fontSize: 13, fontWeight: "500" },
+
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0, 0, 0, 0.5)",
@@ -816,12 +684,8 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 5,
   },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    marginBottom: 20,
-    textAlign: "center",
-  },
+  modalTitle: { fontSize: 18, fontWeight: "600", marginBottom: 20, textAlign: "center" },
+
   statusOption: {
     flexDirection: "row",
     alignItems: "center",
@@ -830,20 +694,10 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     gap: 12,
   },
-  statusOptionText: {
-    fontSize: 16,
-    flex: 1,
-  },
-  cancelButton: {
-    marginTop: 16,
-    padding: 14,
-    borderRadius: 8,
-    alignItems: "center",
-  },
-  cancelButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
-  },
+  statusOptionText: { fontSize: 16, flex: 1 },
+
+  cancelButton: { marginTop: 16, padding: 14, borderRadius: 8, alignItems: "center" },
+  cancelButtonText: { fontSize: 16, fontWeight: "600" },
 });
 
 export default TicketDetailScreen;

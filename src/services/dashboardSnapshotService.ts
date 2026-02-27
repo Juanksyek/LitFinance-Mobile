@@ -4,6 +4,21 @@ import { authService } from './authService';
 import type { DashboardRange, DashboardSnapshot, SnapshotFetchResult, RateLimitedError, UnauthorizedError } from '../types/dashboardSnapshot';
 
 const memoryCache = new Map<string, { snapshot: DashboardSnapshot; etag: string | null }>();
+// Store latest metasSummary globally to help other services avoid empty-list UX
+let latestMetasSummary: DashboardSnapshot['metasSummary'] | null = null;
+
+export function getLatestMetasSummary() {
+  return latestMetasSummary;
+}
+
+export async function invalidateLatestMetasSummary(): Promise<void> {
+  latestMetasSummary = null;
+  try {
+    await AsyncStorage.removeItem('metasSummary:latest');
+  } catch {
+    // ignore
+  }
+}
 
 function cacheKey(params: { userId: string; range: DashboardRange; recentLimit: number }): string {
   return `dashboardSnapshot:${params.userId}:${params.range}:${params.recentLimit}`;
@@ -51,6 +66,18 @@ export async function setCachedDashboardSnapshot(params: {
   memoryCache.set(key, value);
   try {
     await AsyncStorage.setItem(key, JSON.stringify(value));
+    // also persist metasSummary (if present) to a global key for quick access
+    try {
+      const metas = params.snapshot?.metasSummary ?? null;
+      if (metas) {
+        latestMetasSummary = metas;
+        await AsyncStorage.setItem(`${key}:metasSummary`, JSON.stringify(metas));
+        // also keep a short global key for fastest lookup across screens
+        await AsyncStorage.setItem('metasSummary:latest', JSON.stringify(metas));
+      }
+    } catch {
+      // ignore
+    }
   } catch {
     // ignore storage failures
   }
@@ -79,6 +106,8 @@ export async function fetchDashboardSnapshot(params: {
   subaccountsPage?: number;
   recurrentesLimit?: number;
   recurrentesPage?: number;
+  metasLimit?: number;
+  metasPage?: number;
   signal?: AbortSignal;
 }): Promise<SnapshotFetchResult> {
   const url = new URL('/dashboard/snapshot', API_BASE_URL);
@@ -89,16 +118,52 @@ export async function fetchDashboardSnapshot(params: {
   if (typeof params.subaccountsPage === 'number') url.searchParams.set('subaccountsPage', String(params.subaccountsPage));
   if (typeof params.recurrentesLimit === 'number') url.searchParams.set('recurrentesLimit', String(params.recurrentesLimit));
   if (typeof params.recurrentesPage === 'number') url.searchParams.set('recurrentesPage', String(params.recurrentesPage));
+  if (typeof params.metasLimit === 'number') url.searchParams.set('metasLimit', String(params.metasLimit));
+  if (typeof params.metasPage === 'number') url.searchParams.set('metasPage', String(params.metasPage));
 
   const doFetch = async (accessToken: string): Promise<Response> => {
+    // Best-effort session refresh headers for /dashboard/snapshot
+    // Backend may rotate tokens when access token is near expiry.
+    const [refreshToken, deviceId] = await Promise.all([
+      authService.getRefreshToken(),
+      authService.getOrCreateDeviceId(),
+    ]);
+
     return fetch(url.toString(), {
       method: 'GET',
       headers: {
         Authorization: `Bearer ${accessToken}`,
+        ...(refreshToken ? { 'x-refresh-token': refreshToken } : {}),
+        ...(deviceId ? { 'x-device-id': deviceId } : {}),
         ...(params.etag ? { 'If-None-Match': params.etag } : {}),
       },
       signal: params.signal,
     });
+  };
+
+  const persistRefreshedSessionIfAny = async (res: Response): Promise<void> => {
+    try {
+      const refreshed = res.headers.get('x-session-refreshed');
+      if (refreshed !== '1') return;
+
+      // Prefer explicit headers, fall back to Authorization bearer.
+      const headerAccess = res.headers.get('x-access-token') || res.headers.get('authorization') || res.headers.get('Authorization');
+      const headerRefresh = res.headers.get('x-refresh-token');
+
+      const nextAccess = headerAccess?.startsWith('Bearer ')
+        ? headerAccess.slice('Bearer '.length).trim()
+        : headerAccess?.trim();
+      const nextRefresh = headerRefresh?.trim();
+
+      if (nextAccess) {
+        await authService.setAccessToken(nextAccess);
+      }
+      if (nextRefresh) {
+        await authService.setRefreshToken(nextRefresh);
+      }
+    } catch {
+      // best-effort
+    }
   };
 
   let token = await authService.getAccessToken();
@@ -108,6 +173,9 @@ export async function fetchDashboardSnapshot(params: {
   }
 
   let res = await doFetch(token);
+
+  // Best-effort persist refreshed tokens if server rotated them
+  await persistRefreshedSessionIfAny(res);
 
   // If unauthorized, attempt refresh once
   if (res.status === 401) {
@@ -119,6 +187,8 @@ export async function fetchDashboardSnapshot(params: {
       }
       token = newToken;
       res = await doFetch(token);
+
+      await persistRefreshedSessionIfAny(res);
     } catch {
       const err: UnauthorizedError = Object.assign(new Error('UNAUTHORIZED'), { code: 'UNAUTHORIZED' as const });
       throw err;

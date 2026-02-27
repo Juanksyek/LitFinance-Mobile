@@ -9,11 +9,13 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
+import EventBus from "../utils/eventBus";
 import { useThemeColors } from "../theme/useThemeColors";
 import supportService from "../services/supportService";
 import { Ticket, TicketEstado } from "../types/support";
 import Toast from "react-native-toast-message";
 import { Ionicons } from "@expo/vector-icons";
+import { fixEncoding } from '../utils/fixEncoding';
 
 const SupportScreen: React.FC = () => {
   const navigation = useNavigation<any>();
@@ -27,6 +29,67 @@ const SupportScreen: React.FC = () => {
       loadTickets();
     }, [])
   );
+
+  // Subscribe to ticket creation events so the list updates immediately
+  React.useEffect(() => {
+    const handler = (payload?: any) => {
+      try {
+        const t = payload as Ticket | undefined;
+        if (t?.ticketId) {
+          // Ensure required fields exist for rendering.
+          const safeTicket: Ticket = {
+            ...t,
+            mensajes: Array.isArray((t as any).mensajes) ? (t as any).mensajes : [],
+          } as Ticket;
+
+          setTickets((prev) => {
+            const withoutDup = prev.filter((x) => x.ticketId !== safeTicket.ticketId);
+            const next = [safeTicket, ...withoutDup];
+            return next.sort(
+              (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+            );
+          });
+        }
+      } catch {}
+
+      // Also refresh from server (cache for /support-tickets is invalidated on mutation)
+      loadTickets();
+    };
+    EventBus.on("ticketCreated", handler);
+    return () => {
+      EventBus.off("ticketCreated", handler);
+    };
+  }, []);
+
+  // Subscribe to ticket updates (message/status) to avoid waiting for refresh/caches
+  React.useEffect(() => {
+    const handler = (payload?: any) => {
+      try {
+        const t = payload as Ticket | undefined;
+        if (t?.ticketId) {
+          const safeTicket: Ticket = {
+            ...t,
+            mensajes: Array.isArray((t as any).mensajes) ? (t as any).mensajes : [],
+          } as Ticket;
+
+          setTickets((prev) => {
+            const withoutDup = prev.filter((x) => x.ticketId !== safeTicket.ticketId);
+            const next = [safeTicket, ...withoutDup];
+            return next.sort(
+              (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+            );
+          });
+        }
+      } catch {}
+
+      // still sync with backend (SupportService GET bypasses cache)
+      loadTickets();
+    };
+    EventBus.on('ticketUpdated', handler);
+    return () => {
+      EventBus.off('ticketUpdated', handler);
+    };
+  }, []);
 
   const loadTickets = async () => {
     try {
@@ -124,7 +187,7 @@ const SupportScreen: React.FC = () => {
           style={[styles.ticketDescription, { color: colors.placeholder }]}
           numberOfLines={2}
         >
-          {item.descripcion}
+          {fixEncoding(item.descripcion)}
         </Text>
 
         {lastMessage && (
@@ -134,12 +197,12 @@ const SupportScreen: React.FC = () => {
               size={12}
               color={colors.placeholder}
             />
-            <Text
-              style={[styles.lastMessage, { color: colors.placeholder }]}
-              numberOfLines={1}
-            >
-              {lastMessage.mensaje}
-            </Text>
+              <Text
+                style={[styles.lastMessage, { color: colors.placeholder }]}
+                numberOfLines={1}
+              >
+                {fixEncoding(lastMessage.mensaje)}
+              </Text>
           </View>
         )}
 

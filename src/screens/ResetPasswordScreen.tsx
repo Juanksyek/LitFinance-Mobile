@@ -1,24 +1,24 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView } from "react-native";
+import { Ionicons } from '@expo/vector-icons';
 import FormInput from "../components/FormInput";
 import { useThemeColors } from "../theme/useThemeColors";
 import { useNavigation, useRoute, NavigationProp, RouteProp } from "@react-navigation/native";
 import { RootStackParamList } from "../navigation/AppNavigator";
-import { apiRateLimiter } from "../services/apiRateLimiter";
 import Toast from "react-native-toast-message";
-import { API_BASE_URL } from "../constants/api";
+import { passwordResetService } from "../services/passwordResetService";
+import { fixEncoding } from "../utils/fixEncoding";
 
 const ResetPasswordScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const colors = useThemeColors();
   const route = useRoute<RouteProp<RootStackParamList, "ResetPassword">>();
-  const email = route.params?.email || "";
+  const resetToken = route.params?.resetToken || "";
 
-  const [code, setCode] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [timer, setTimer] = useState(60);
-  const [canResend, setCanResend] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const theme = useMemo(() => {
     const bg = colors.background;
@@ -30,78 +30,45 @@ const ResetPasswordScreen: React.FC = () => {
     return { bg, surface, shadowDark, shadowLight, borderSoft, accent };
   }, [colors]);
 
-  useEffect(() => {
-    if (!canResend && timer > 0) {
-      const interval = setInterval(() => setTimer(t => t - 1), 1000);
-      return () => clearInterval(interval);
-    } else if (timer <= 0) {
-      setCanResend(true);
-    }
-  }, [timer, canResend]);
-
-  const handleResend = async () => {
-    if (!email) return;
-    setCanResend(false);
-    setTimer(60);
-    try {
-      const response = await apiRateLimiter.fetch(`${API_BASE_URL}/auth/forgot-password`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
-      });
-      if (response.ok) {
-        Toast.show({ type: "success", text1: "Correo reenviado", text2: "Revisa tu correo nuevamente." });
-      } else {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || 'No se pudo reenviar');
-      }
-    } catch (error: any) {
-      Toast.show({
-        type: "error",
-        text1: "Error",
-        text2: error.message || "No se pudo reenviar el correo.",
-      });
-    }
-  };
-
   const handleSubmit = async () => {
-    if (!code || !newPassword || !confirmPassword) {
-      return Toast.show({ type: "error", text1: "Campos incompletos", text2: "Completa todos los campos." });
+    if (!newPassword || !confirmPassword) {
+      return Toast.show({ 
+        type: "error", 
+        text1: fixEncoding("Campos incompletos"), 
+        text2: fixEncoding("Completa todos los campos.") 
+      });
     }
     if (newPassword !== confirmPassword) {
-      return Toast.show({ type: "error", text1: "Contraseñas no coinciden", text2: "Verifica que ambas contraseñas sean iguales." });
+      return Toast.show({ 
+        type: "error", 
+        text1: fixEncoding("Contraseñas no coinciden"), 
+        text2: fixEncoding("Verifica que ambas contraseñas sean iguales.") 
+      });
+    }
+    if (newPassword.length < 6) {
+      return Toast.show({
+        type: "error",
+        text1: fixEncoding("Contraseña débil"),
+        text2: fixEncoding("La contraseña debe tener al menos 6 caracteres."),
+      });
     }
     try {
-      const payload = { email, code, newPassword, confirmPassword };
-      const response = await apiRateLimiter.fetch(`${API_BASE_URL}/auth/reset-password`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+      await passwordResetService.resetPassword(resetToken, newPassword);
+
+      Toast.show({ 
+        type: "success", 
+        text1: fixEncoding("Contraseña actualizada"), 
+        text2: fixEncoding("Ya puedes iniciar sesión.") 
       });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || 'Error al actualizar');
-      }
-
-      Toast.show({ type: "success", text1: "Contraseña actualizada", text2: "Ya puedes iniciar sesión." });
       navigation.navigate("Login");
     } catch (error: any) {
       Toast.show({
         type: "error",
-        text1: "Error",
-        text2: error.message || "No se pudo actualizar la contraseña.",
+        text1: fixEncoding("Error"),
+        text2: fixEncoding(error.message || "No se pudo actualizar la contraseña."),
       });
     }
   };
-
-  const maskedEmail = useMemo(() => {
-    if (!email) return "";
-    const [user, domain] = email.split("@");
-    if (!domain) return email;
-    const u = user.length <= 2 ? user[0] + "*" : user[0] + "*".repeat(Math.max(1, user.length - 2)) + user.slice(-1);
-    return `${u}@${domain}`;
-  }, [email]);
 
   return (
     <KeyboardAvoidingView
@@ -120,13 +87,9 @@ const ResetPasswordScreen: React.FC = () => {
           ]}
         >
           <View style={styles.header}>
-            <Text style={[styles.title, { color: colors.text }]}>Restablecer contraseña</Text>
+            <Text style={[styles.title, { color: colors.text }]}>{fixEncoding("Nueva contraseña")}</Text>
             <Text style={[styles.subtitle, { color: colors.placeholder }]}>
-              Se mandó un código a:{" "}
-              <Text style={{ color: colors.text, fontWeight: "600" }}>{maskedEmail || email}</Text>
-            </Text>
-            <Text style={[styles.subtitle, { color: colors.placeholder }]}>
-              Ingresa el código recibido y tu nueva contraseña.
+              {fixEncoding("Tu código fue verificado. Ingresa tu nueva contraseña.")}
             </Text>
           </View>
 
@@ -141,31 +104,16 @@ const ResetPasswordScreen: React.FC = () => {
             ]}
           >
             <FormInput
-              placeholder="Código"
-              keyboardType="number-pad"
-              value={code}
-              onChangeText={setCode}
-              style={styles.input}
-            />
-            <View style={[styles.innerHighlight, { borderColor: theme.shadowLight }]} />
-          </View>
-
-          <View
-            style={[
-              styles.neuInputWrapper,
-              {
-                backgroundColor: theme.surface,
-                shadowColor: theme.shadowDark,
-                borderColor: theme.borderSoft,
-              }
-            ]}
-          >
-            <FormInput
-              placeholder="Nueva contraseña"
-              secureTextEntry
+              placeholder={fixEncoding("Nueva contraseña")}
+              secureTextEntry={!showNewPassword}
               value={newPassword}
               onChangeText={setNewPassword}
               style={styles.input}
+              rightIcon={
+                <TouchableOpacity onPress={() => setShowNewPassword(!showNewPassword)} style={styles.iconButton}>
+                  <Ionicons name={showNewPassword ? 'eye-off-outline' : 'eye-outline'} size={20} color={colors.placeholder} />
+                </TouchableOpacity>
+              }
             />
             <View style={[styles.innerHighlight, { borderColor: theme.shadowLight }]} />
           </View>
@@ -181,11 +129,16 @@ const ResetPasswordScreen: React.FC = () => {
             ]}
           >
             <FormInput
-              placeholder="Confirmar contraseña"
-              secureTextEntry
+              placeholder={fixEncoding("Confirmar contraseña")}
+              secureTextEntry={!showConfirmPassword}
               value={confirmPassword}
               onChangeText={setConfirmPassword}
               style={styles.input}
+              rightIcon={
+                <TouchableOpacity onPress={() => setShowConfirmPassword(!showConfirmPassword)} style={styles.iconButton}>
+                  <Ionicons name={showConfirmPassword ? 'eye-off-outline' : 'eye-outline'} size={20} color={colors.placeholder} />
+                </TouchableOpacity>
+              }
             />
             <View style={[styles.innerHighlight, { borderColor: theme.shadowLight }]} />
           </View>
@@ -202,21 +155,8 @@ const ResetPasswordScreen: React.FC = () => {
             onPress={handleSubmit}
             activeOpacity={0.9}
           >
-            <Text style={styles.buttonText}>Restablecer</Text>
+            <Text style={styles.buttonText}>{fixEncoding("Restablecer")}</Text>
           </TouchableOpacity>
-
-          <View style={styles.resendContainer}>
-            <Text style={{ color: colors.placeholder }}>
-              ¿No recibiste el código?{" "}
-              {canResend ? (
-                <Text style={{ color: theme.accent, fontWeight: "600" }} onPress={handleResend}>
-                  Reenviar
-                </Text>
-              ) : (
-                <Text>Reenviar en {timer}s</Text>
-              )}
-            </Text>
-          </View>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -281,6 +221,8 @@ const styles = StyleSheet.create({
     elevation: 10,
   },
 
+  iconButton: { padding: 4 },
+
   // ====== Text & layout ======
   header: {
     alignItems: "center",
@@ -316,11 +258,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "700",
     letterSpacing: 0.3,
-  },
-
-  resendContainer: {
-    alignItems: "center",
-    marginTop: 6,
   },
 });
 

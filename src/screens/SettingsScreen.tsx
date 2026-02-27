@@ -7,7 +7,10 @@ import { useTheme } from "../theme/ThemeContext";
 import { useThemeColors } from "../theme/useThemeColors";
 import * as Notifications from 'expo-notifications';
 import { Switch } from 'react-native';
+import Toast from 'react-native-toast-message';
 import { registerForPushNotifications, unregisterPushNotifications } from '../services/notificationService';
+import PremiumModal from '../components/PremiumModal';
+import { authService } from '../services/authService';
 import {
   applyAppIconVariant,
   getStoredAppIconVariant,
@@ -24,6 +27,9 @@ export default function SettingsScreen() {
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
   const [dynamicIconSupported, setDynamicIconSupported] = useState<boolean>(false);
   const [appIconVariant, setAppIconVariant] = useState<AppIconVariant>('light');
+  const [userProfile, setUserProfile] = useState<any>(null);
+  const [premiumModalVisible, setPremiumModalVisible] = useState(false);
+  const [premiumToken, setPremiumToken] = useState<string | null>(null);
 
   const themeAnimations = React.useRef({
     light: new Animated.Value(themeMode === "light" ? 1 : 0.5),
@@ -35,7 +41,31 @@ export default function SettingsScreen() {
     checkNotificationStatus();
     checkUserRole();
     loadAppIconSettings();
+    loadUserProfile();
   }, []);
+
+  const loadUserProfile = async () => {
+    try {
+      const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+      const userData = await AsyncStorage.getItem('userData');
+      if (userData) {
+        setUserProfile(JSON.parse(userData));
+      }
+    } catch (error) {
+      console.error('Error cargando perfil:', error);
+    }
+  };
+
+  const openPremiumModal = async () => {
+    try {
+      const token = await authService.getAccessToken();
+      setPremiumToken(token);
+      setPremiumModalVisible(true);
+    } catch (e) {
+      console.error('Error obteniendo token para PremiumModal:', e);
+      Alert.alert('Error', 'No se pudo abrir la pantalla de Premium. Intenta de nuevo.');
+    }
+  };
 
   const loadAppIconSettings = async () => {
     try {
@@ -51,20 +81,22 @@ export default function SettingsScreen() {
 
   const handleAppIconChange = async (variant: AppIconVariant) => {
     try {
+      // Siempre guardar la preferencia localmente para que la app recuerde
+      // la elección aunque el sistema no soporte el cambio inmediato.
+      setAppIconVariant(variant);
+      await setStoredAppIconVariant(variant);
+
       if (!dynamicIconSupported) {
+        // Mostrar aviso leve: se guardó pero no se aplicó todavía.
         Alert.alert(
-          'No disponible',
-          Platform.OS === 'android'
-            ? 'No se pudo habilitar el cambio de icono en este build.'
-            : 'Por el momento, el cambio de icono está disponible solo en Android.'
+          'Guardado',
+          'Preferencia guardada. Se aplicará cuando tu dispositivo o build lo soporte.'
         );
         return;
       }
 
-      setAppIconVariant(variant);
-      await setStoredAppIconVariant(variant);
+      // Si está soportado, intentar aplicar inmediatamente.
       await applyAppIconVariant(variant);
-
       Alert.alert('✅ Icono actualizado', 'El icono se actualizará en el launcher.');
     } catch (e) {
       console.error('Error cambiando icono:', e);
@@ -302,11 +334,10 @@ export default function SettingsScreen() {
                     backgroundColor:
                       appIconVariant === 'light' ? colors.button : colors.cardSecondary,
                     borderColor: appIconVariant === 'light' ? colors.button : colors.border,
-                    opacity: dynamicIconSupported ? 1 : 0.5,
+                    opacity: dynamicIconSupported ? 1 : 0.6,
                   },
                 ]}
                 onPress={() => handleAppIconChange('light')}
-                disabled={!dynamicIconSupported}
               >
                 <Ionicons
                   name="sunny"
@@ -330,11 +361,10 @@ export default function SettingsScreen() {
                     backgroundColor:
                       appIconVariant === 'dark' ? colors.button : colors.cardSecondary,
                     borderColor: appIconVariant === 'dark' ? colors.button : colors.border,
-                    opacity: dynamicIconSupported ? 1 : 0.5,
+                    opacity: dynamicIconSupported ? 1 : 0.6,
                   },
                 ]}
                 onPress={() => handleAppIconChange('dark')}
-                disabled={!dynamicIconSupported}
               >
                 <Ionicons
                   name="moon"
@@ -367,6 +397,7 @@ export default function SettingsScreen() {
           <TouchableOpacity 
             style={[styles.settingItem, { backgroundColor: colors.card, borderColor: colors.border }]}
             activeOpacity={0.7}
+            onPress={() => (navigation as any).navigate('MainAccount')}
           >
             <View style={styles.settingItemLeft}>
               <Ionicons name="person-outline" size={20} color={colors.textSecondary} />
@@ -378,6 +409,7 @@ export default function SettingsScreen() {
           <TouchableOpacity 
             style={[styles.settingItem, { backgroundColor: colors.card, borderColor: colors.border }]}
             activeOpacity={0.7}
+            onPress={() => (navigation as any).navigate('PrivacySecurity')}
           >
             <View style={styles.settingItemLeft}>
               <Ionicons name="lock-closed-outline" size={20} color={colors.textSecondary} />
@@ -385,6 +417,75 @@ export default function SettingsScreen() {
             </View>
             <Ionicons name="chevron-forward" size={20} color={colors.textTertiary} />
           </TouchableOpacity>
+        </View>
+
+        {/* Sección de Plan */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Plan y Suscripción</Text>
+          
+          <View style={[styles.card, { backgroundColor: colors.card, shadowColor: colors.shadow, borderColor: colors.border }]}>
+            <View style={styles.planHeader}>
+              <View style={styles.planIconContainer}>
+                {(userProfile?.isPremium || userProfile?.planType === 'premium_plan') ? (
+                  <Ionicons name="diamond" size={24} color="#EF7725" />
+                ) : (
+                  <Ionicons name="diamond-outline" size={24} color={colors.textSecondary} />
+                )}
+              </View>
+              <View style={styles.planInfo}>
+                <Text style={[styles.planName, { color: colors.text }]}>
+                  {(userProfile?.isPremium || userProfile?.planType === 'premium_plan') ? 'Premium' : 'Free'}
+                </Text>
+                {(userProfile?.isPremium || userProfile?.planType === 'premium_plan') && userProfile?.premiumUntil && (
+                  <Text style={[styles.planExpiry, { color: colors.textSecondary }]}>
+                    Activo hasta {new Date(userProfile.premiumUntil).toLocaleDateString('es-MX', { 
+                      year: 'numeric', 
+                      month: 'long', 
+                      day: 'numeric' 
+                    })}
+                  </Text>
+                )}
+              </View>
+            </View>
+
+            <View style={styles.planFeatures}>
+              <View style={styles.featureRow}>
+                <Ionicons 
+                  name={(userProfile?.graficasAvanzadas || userProfile?.planType === 'premium_plan') ? "checkmark-circle" : "close-circle"} 
+                  size={20} 
+                  color={(userProfile?.graficasAvanzadas || userProfile?.planType === 'premium_plan') ? "#4CAF50" : colors.textTertiary} 
+                />
+                <Text style={[styles.featureText, { color: colors.text }]}>Gráficas avanzadas</Text>
+              </View>
+              <View style={styles.featureRow}>
+                <Ionicons 
+                  name={(userProfile?.isPremium || userProfile?.planType === 'premium_plan') ? "checkmark-circle" : "close-circle"} 
+                  size={20} 
+                  color={(userProfile?.isPremium || userProfile?.planType === 'premium_plan') ? "#4CAF50" : colors.textTertiary} 
+                />
+                <Text style={[styles.featureText, { color: colors.text }]}>Subcuentas ilimitadas</Text>
+              </View>
+              <View style={styles.featureRow}>
+                <Ionicons 
+                  name={(userProfile?.isPremium || userProfile?.planType === 'premium_plan') ? "checkmark-circle" : "close-circle"} 
+                  size={20} 
+                  color={(userProfile?.isPremium || userProfile?.planType === 'premium_plan') ? "#4CAF50" : colors.textTertiary} 
+                />
+                <Text style={[styles.featureText, { color: colors.text }]}>Recurrentes ilimitados</Text>
+              </View>
+            </View>
+
+            {!(userProfile?.isPremium || userProfile?.planType === 'premium_plan') && (
+              <TouchableOpacity
+                style={[styles.upgradeButton, { backgroundColor: '#EF7725' }]}
+                activeOpacity={0.8}
+                onPress={openPremiumModal}
+              >
+                <Text style={styles.upgradeButtonText}>Actualizar a Premium</Text>
+                <Ionicons name="arrow-forward" size={18} color="#fff" />
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
 
         {/* Sección de Notificaciones */}
@@ -413,34 +514,27 @@ export default function SettingsScreen() {
             )}
 
             <View style={styles.notificationToggle}>
-              <View style={styles.settingItemLeft}>
-                <Ionicons 
-                  name={notificationsEnabled ? "notifications" : "notifications-off"} 
-                  size={20} 
-                  color={notificationsEnabled ? colors.success : colors.textSecondary} 
+              <View style={styles.notificationHeaderRow}>
+                <Ionicons
+                  name={notificationsEnabled ? "notifications" : "notifications-off"}
+                  size={20}
+                  color={notificationsEnabled ? colors.success : colors.textSecondary}
                 />
-                <View style={{ flex: 1, marginRight: 12 }}>
-                  <Text style={[styles.settingItemText, { color: colors.text }]}>
-                    Notificaciones
-                  </Text>
-                  <Text style={[styles.notificationNote, { color: colors.textTertiary, marginTop: 4 }]}>
-                    Las notificaciones te informarán sobre recurrentes próximos, recordatorios y actualizaciones importantes.
-                  </Text>
-                </View>
+                <Text style={[styles.settingItemText, { color: colors.text, flex: 1 }]}>Notificaciones</Text>
               </View>
 
-              <Switch
-                value={!!notificationsEnabled}
-                onValueChange={toggleNotifications}
-                disabled={notificationsEnabled === null}
-                trackColor={{ true: colors.success, false: colors.inputBackground }}
-                thumbColor={notificationsEnabled ? colors.button : colors.card}
-              />
-            </View>
+              <Text style={[styles.notificationNote, { color: colors.textTertiary, marginTop: 6 }]}>Las notificaciones te informarán sobre recurrentes próximos, recordatorios y actualizaciones importantes.</Text>
 
-            <Text style={[styles.notificationNote, { color: colors.textTertiary }]}>
-              Las notificaciones te informarán sobre recurrentes próximos, recordatorios y actualizaciones importantes.
-            </Text>
+              <View style={styles.notificationSwitchRow}>
+                <Switch
+                  value={!!notificationsEnabled}
+                  onValueChange={toggleNotifications}
+                  disabled={notificationsEnabled === null}
+                  trackColor={{ true: colors.success, false: colors.inputBackground }}
+                  thumbColor={notificationsEnabled ? colors.button : colors.card}
+                />
+              </View>
+            </View>
           </View>
         </View>
 
@@ -460,6 +554,12 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         </View>
       </ScrollView>
+      <PremiumModal
+        visible={premiumModalVisible}
+        onClose={() => setPremiumModalVisible(false)}
+        token={premiumToken ?? ''}
+        onRefresh={loadUserProfile}
+      />
     </View>
   );
 }
@@ -529,30 +629,34 @@ const styles = StyleSheet.create({
   },
   themeButtons: {
     flexDirection: "row",
-    gap: 12,
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    marginHorizontal: -6,
   },
   themeButtonWrapper: {
     flex: 1,
+    paddingHorizontal: 6,
+    marginBottom: 12,
   },
   themeButton: {
-    flexDirection: "column",
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 16,
-    paddingHorizontal: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    minWidth: 92,
     borderRadius: 12,
-    gap: 8,
-    borderWidth: 2,
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
+    borderWidth: 1,
+    elevation: 2,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    backgroundColor: '#fff',
   },
   themeButtonText: {
     fontSize: 13,
     fontWeight: "600",
+    marginLeft: 8,
   },
   settingItem: {
     flexDirection: "row",
@@ -578,10 +682,19 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
   notificationToggle: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: 12,
+    paddingTop: 6,
+    paddingBottom: 4,
+  },
+
+  notificationHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+
+  notificationSwitchRow: {
+    marginTop: 10,
+    alignSelf: 'flex-end',
   },
   statusBadge: {
     paddingHorizontal: 12,
@@ -622,5 +735,58 @@ const styles = StyleSheet.create({
     color: "rgba(255, 255, 255, 0.8)",
     fontSize: 12,
     marginTop: 4,
+  },
+  planHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  planIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(239, 119, 37, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  planInfo: {
+    flex: 1,
+  },
+  planName: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  planExpiry: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  planFeatures: {
+    gap: 10,
+    marginBottom: 16,
+  },
+  featureRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  featureText: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  upgradeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    borderRadius: 12,
+    gap: 8,
+    marginTop: 4,
+  },
+  upgradeButtonText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '700',
   },
 });

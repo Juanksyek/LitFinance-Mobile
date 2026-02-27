@@ -151,6 +151,67 @@ export interface AnalyticsFilters {
   montoMaximo?: number;
 }
 
+export interface AnalyticsSmartFilters extends AnalyticsFilters {
+  topN?: number;
+  meses?: number;
+}
+
+export type SmartInsightSeverity = 'info' | 'success' | 'warning' | 'danger';
+
+export interface SmartInsight {
+  codigo: string;
+  severidad: SmartInsightSeverity;
+  titulo: string;
+  detalle: string;
+  metadata?: Record<string, any>;
+}
+
+export interface SmartSerieMensualBucket {
+  mes: string; // YYYY-MM
+  ingresos: number;
+  gastos: number;
+  balance: number;
+  gastosRecurrentes?: number;
+}
+
+export interface SmartTopConceptoGasto {
+  conceptoId?: string;
+  concepto?: {
+    id: string;
+    nombre: string;
+    color?: string;
+    icono?: string;
+  };
+  nombre?: string;
+  color?: string;
+  icono?: string;
+  monto: number;
+  movimientos?: number;
+  deltaVsPeriodoAnterior?: number;
+}
+
+export interface SmartRecurrentesResumen {
+  totalEjecutado: number;
+  top: Array<{
+    id?: string;
+    nombre: string;
+    monto: number;
+    moneda?: string;
+    categoria?: string;
+    color?: string;
+  }>;
+}
+
+export interface AnalyticsResumenInteligente {
+  periodo: { fechaInicio: string; fechaFin: string; descripcion: string };
+  moneda: string;
+  totales: { ingresos: number; gastos: number; balance: number; movimientos: number };
+  serieMensual: SmartSerieMensualBucket[];
+  topConceptosGasto: SmartTopConceptoGasto[];
+  recurrentes?: SmartRecurrentesResumen;
+  insights: SmartInsight[];
+}
+
 class AnalyticsService {
   private async makeRequest<T>(endpoint: string, filters?: AnalyticsFilters, signal?: AbortSignal): Promise<T> {
     const params = new URLSearchParams();
@@ -186,6 +247,13 @@ class AnalyticsService {
 
   async getResumenFinanciero(filters?: AnalyticsFilters): Promise<ResumenFinanciero> {
     return this.makeRequest<ResumenFinanciero>('/resumen-financiero', filters);
+  }
+
+  async getResumenInteligente(filters?: AnalyticsSmartFilters, signal?: AbortSignal): Promise<AnalyticsResumenInteligente> {
+    const res: any = await this.makeRequest<any>('/resumen-inteligente', filters, signal);
+    // Normalizar posibles envolturas tipo { data: ... }
+    const normalized = res?.data ?? res;
+    return normalized as AnalyticsResumenInteligente;
   }
 
   async getEstadisticasPorConcepto(filters?: AnalyticsFilters): Promise<EstadisticaConcepto[]> {
