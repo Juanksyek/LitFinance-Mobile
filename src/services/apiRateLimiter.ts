@@ -140,7 +140,35 @@ class ApiRateLimiter {
       h.set('X-Skip-Cache', lower);
       h.delete('x-skip-cache');
     }
+
+    // Asegurar que x-cache-ttl (minúsculas) se mueva a X-Cache-Ttl
+    const ttlLower = h.get('x-cache-ttl');
+    if (ttlLower && !h.get('X-Cache-Ttl')) {
+      h.set('X-Cache-Ttl', ttlLower);
+      h.delete('x-cache-ttl');
+    }
     return h;
+  }
+
+  /**
+   * TTL de cache solicitado por header (ms).
+   * Header interno: X-Cache-Ttl (milisegundos)
+   */
+  private getRequestedCacheTtlMs(headers?: HeadersInit): number | undefined {
+    try {
+      const h = new Headers(headers || {});
+      const raw = h.get('X-Cache-Ttl') || h.get('x-cache-ttl');
+      if (!raw) return undefined;
+      const n = Number(raw);
+      if (!Number.isFinite(n) || n <= 0) return undefined;
+
+      // Clamp para evitar TTLs absurdos
+      const min = 2000; // 2s
+      const max = 30 * 60 * 1000; // 30min
+      return Math.min(max, Math.max(min, Math.floor(n)));
+    } catch {
+      return undefined;
+    }
   }
 
   /**
@@ -205,6 +233,22 @@ class ApiRateLimiter {
           this.invalidateCacheByPrefix(`GET:${baseUrl}/cuenta/principal/${userId}`);
         }
       }
+
+      // Support tickets: after create/addMessage/update/delete/status changes,
+      // invalidate ticket list & detail caches so the UI updates immediately.
+      if (url.includes('/support-tickets')) {
+        this.invalidateCacheByPrefix(`GET:${baseUrl}/support-tickets`);
+      }
+
+      // Metas: after create/update/aporte/retiro/status changes, invalidate metas list & detail.
+      if (url.includes('/metas')) {
+        this.invalidateCacheByPrefix(`GET:${baseUrl}/metas`);
+      }
+
+      // BLOCs: after creating blocs/items or liquidations, invalidate blocs list & detail.
+      if (url.includes('/blocs')) {
+        this.invalidateCacheByPrefix(`GET:${baseUrl}/blocs`);
+      }
     } catch (e) {
       console.warn('⚠️ [ApiRateLimiter] Error invalidando cache:', e);
     }
@@ -237,14 +281,17 @@ class ApiRateLimiter {
     // Other 403s should be returned to the caller to handle normally.
     try {
       const parsed = await response.clone().json();
+      // Log parsed body to help diagnose why backend is returning 403 for premium users
+      console.log('🚫 [ApiRateLimiter] 403 body (parsed):', parsed);
       const code = parsed?.code;
       if (code && code !== 'PREMIUM_REQUIRED') {
         console.warn('🚫 [ApiRateLimiter] 403 no es PREMIUM_REQUIRED, devolviendo al caller:', { url, code });
         this.profileRefreshAttempts.delete(requestKey);
         return response;
       }
-    } catch {
-      // If body is not JSON, fall through to existing behavior.
+    } catch (e) {
+      // If body is not JSON, log the error and fall through to existing behavior.
+      console.warn('⚠️ [ApiRateLimiter] No se pudo parsear body JSON en 403:', e);
     }
 
     // Check if we already tried to refresh profile for this request
@@ -262,18 +309,65 @@ class ApiRateLimiter {
         }
 
         // Fetch and update profile
-        await userProfileService.fetchAndUpdateProfile();
+        const updatedProfile = await userProfileService.fetchAndUpdateProfile();
         console.log('✅ [ApiRateLimiter] Perfil actualizado, reintentando petición...');
 
-        // Retry the original request
-        const retryResponse = await fetch(url, options);
-        
-        // Clean up attempt counter on success or different error
-        if (retryResponse.status !== 403) {
+        // Retry the original request - but ensure we attach a fresh Authorization token
+        try {
+          const latestToken = await authService.getAccessToken();
+          let retryOptions: RequestInit = options;
+          if (latestToken) {
+            const newHeaders = new Headers(options.headers || ({} as any));
+            newHeaders.set('Authorization', `Bearer ${latestToken}`);
+            retryOptions = Object.assign({}, options, { headers: newHeaders });
+          }
+
+          const retryResponse = await fetch(url, retryOptions);
+
+          let retryParsed: any = null;
+          if (retryResponse.status === 403) {
+            try {
+              retryParsed = await retryResponse.clone().json();
+              console.log('🚫 [ApiRateLimiter] 403 body on retry (parsed):', retryParsed);
+            } catch (e) {
+              console.warn('⚠️ [ApiRateLimiter] No se pudo parsear body JSON en 403 retry:', e);
+            }
+          }
+
+          // Clean up attempt counter if retry is not 403.
+          if (retryResponse.status !== 403) {
+            this.profileRefreshAttempts.delete(requestKey);
+            return retryResponse;
+          }
+
+          // If retry is 403 but NOT PREMIUM_REQUIRED, do not show upgrade modal.
+          if (retryParsed?.code && retryParsed.code !== 'PREMIUM_REQUIRED') {
+            this.profileRefreshAttempts.delete(requestKey);
+            return retryResponse;
+          }
+
+          // If server still says PREMIUM_REQUIRED but the profile indicates premium, avoid showing upgrade modal.
+          const cachedProfile = await userProfileService.getCachedProfile().catch(() => null);
+          const isPremiumFromProfile =
+            updatedProfile?.planType === 'premium_plan' ||
+            updatedProfile?.isPremium === true ||
+            cachedProfile?.planType === 'premium_plan' ||
+            cachedProfile?.isPremium === true;
+
+          if (retryParsed?.code === 'PREMIUM_REQUIRED' && isPremiumFromProfile) {
+            console.warn('⚠️ [ApiRateLimiter] PREMIUM_REQUIRED pero el perfil indica Premium. Posible inconsistencia backend:', {
+              url,
+            });
+            this.profileRefreshAttempts.delete(requestKey);
+            return retryResponse;
+          }
+
+          // Otherwise, fall through to show upgrade modal below.
+        } catch (fetchErr) {
+          console.error('❌ [ApiRateLimiter] Retry after profile update failed:', fetchErr);
           this.profileRefreshAttempts.delete(requestKey);
+          // Fall through to show upgrade modal below.
         }
-        
-        return retryResponse;
       } catch (error) {
         console.error('❌ [ApiRateLimiter] Error actualizando perfil:', error);
         this.profileRefreshAttempts.delete(requestKey);
@@ -454,14 +548,15 @@ class ApiRateLimiter {
   /**
    * Guarda datos en cache
    */
-  private saveToCache(key: string, data: any): void {
+  private saveToCache(key: string, data: any, ttlMs?: number): void {
     const now = Date.now();
+    const ttl = typeof ttlMs === 'number' && Number.isFinite(ttlMs) && ttlMs > 0 ? ttlMs : this.CACHE_DURATION;
     this.cache.set(key, {
       data,
       timestamp: now,
-      expiresAt: now + this.CACHE_DURATION,
+      expiresAt: now + ttl,
     });
-    console.log('💾 [ApiRateLimiter] Guardado en cache:', key);
+    console.log('💾 [ApiRateLimiter] Guardado en cache:', key, `(ttl=${ttl}ms)`);
   }
 
   /**
@@ -501,6 +596,8 @@ class ApiRateLimiter {
     const method = options.method || 'GET';
     const skipCache = this.hasSkipCache(normalizedHeaders);
     const key = this.getRequestKey(url, options);
+
+    const requestedTtlMs = method === 'GET' && !skipCache ? this.getRequestedCacheTtlMs(normalizedHeaders) : undefined;
     
     console.log('📨 [ApiRateLimiter] Nueva petición:', {
       key,
@@ -588,7 +685,7 @@ class ApiRateLimiter {
                   const sharedRetryForCache = await this.toSharedResponse(retryResponse);
                   const cacheRes = this.fromSharedResponse(sharedRetryForCache);
                   const dataRetry = await cacheRes.json();
-                  this.saveToCache(key, dataRetry);
+                  this.saveToCache(key, dataRetry, requestedTtlMs);
                   return sharedRetryForCache;
                 } catch (cacheErr) {
                   console.warn('⚠️ [ApiRateLimiter] Error caching retry response:', cacheErr);
@@ -614,7 +711,7 @@ class ApiRateLimiter {
                 const sharedRetryForCache = await this.toSharedResponse(retryResponse);
                 const cacheRes = this.fromSharedResponse(sharedRetryForCache);
                 const dataRetry = await cacheRes.json();
-                this.saveToCache(key, dataRetry);
+                this.saveToCache(key, dataRetry, requestedTtlMs);
                 return sharedRetryForCache;
               } catch (cacheErr) {
                 console.warn('⚠️ [ApiRateLimiter] Error caching retry response:', cacheErr);
@@ -652,7 +749,7 @@ class ApiRateLimiter {
               const sharedForCache = await this.toSharedResponse(response);
               const cacheRes = this.fromSharedResponse(sharedForCache);
               const data = await cacheRes.json();
-              this.saveToCache(key, data);
+              this.saveToCache(key, data, requestedTtlMs);
               return sharedForCache;
             } catch (cacheErr) {
               console.warn('⚠️ [ApiRateLimiter] Error caching response:', cacheErr);
