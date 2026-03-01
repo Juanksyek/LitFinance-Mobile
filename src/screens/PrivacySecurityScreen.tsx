@@ -15,19 +15,20 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import * as SecureStore from 'expo-secure-store';
+import * as LocalAuth from 'expo-local-authentication';
 import Toast from 'react-native-toast-message';
 import { useNavigation } from '@react-navigation/native';
 
 import { useTheme } from '../theme/ThemeContext';
 import { useThemeColors } from '../theme/useThemeColors';
 import { authService } from '../services/authService';
+import EventBus from '../utils/eventBus';
 
-type AutoLockValue = 'immediate' | '30s' | '1m' | '5m' | '10m';
+type AutoLockValue = 'off' | 'immediate' | '30s' | '1m' | '5m' | '10m';
 
 const PS_KEYS = {
   useBiometrics: 'ps_useBiometrics',
   hideAppSwitcher: 'ps_hideAppSwitcher',
-  requireAuthSensitive: 'ps_requireAuthSensitive',
   securityLoginAlerts: 'ps_securityLoginAlerts',
   shareAnalytics: 'ps_shareAnalytics',
   shareCrashReports: 'ps_shareCrashReports',
@@ -39,6 +40,7 @@ const PS_KEYS = {
 const PIN_KEY = 'ps_pin_v1';
 
 const autoLockOptions: { value: AutoLockValue; label: string; subtitle: string }[] = [
+  { value: 'off', label: 'No bloquear', subtitle: 'No se bloquea automáticamente' },
   { value: 'immediate', label: 'Inmediato', subtitle: 'Se bloquea al salir de la app' },
   { value: '30s', label: '30 s', subtitle: 'Tras 30 segundos en segundo plano' },
   { value: '1m', label: '1 min', subtitle: 'Tras 1 minuto en segundo plano' },
@@ -48,7 +50,7 @@ const autoLockOptions: { value: AutoLockValue; label: string; subtitle: string }
 
 function formatAutoLock(value: AutoLockValue | null | undefined) {
   const opt = autoLockOptions.find((o) => o.value === value);
-  return opt?.label ?? 'Inmediato';
+  return opt?.label ?? 'No bloquear';
 }
 
 function isValidPin(pin: string) {
@@ -62,7 +64,6 @@ export default function PrivacySecurityScreen() {
 
   const [useBiometrics, setUseBiometrics] = useState(false);
   const [hideAppSwitcher, setHideAppSwitcher] = useState(false);
-  const [requireAuthSensitive, setRequireAuthSensitive] = useState(true);
 
   const [securityLoginAlerts, setSecurityLoginAlerts] = useState(true);
 
@@ -72,7 +73,7 @@ export default function PrivacySecurityScreen() {
   const [discreetMode, setDiscreetMode] = useState(false);
   const [confirmMovements, setConfirmMovements] = useState(false);
 
-  const [autoLock, setAutoLock] = useState<AutoLockValue>('immediate');
+  const [autoLock, setAutoLock] = useState<AutoLockValue>('off');
   const [autoLockModalVisible, setAutoLockModalVisible] = useState(false);
 
   const [pinConfigured, setPinConfigured] = useState(false);
@@ -83,12 +84,15 @@ export default function PrivacySecurityScreen() {
 
   const headerTitle = 'Privacidad y seguridad';
 
+  const notifyPrivacySecurityChanged = useCallback(() => {
+    EventBus.emit('privacySecurity:changed');
+  }, []);
+
   const loadSettings = useCallback(async () => {
     try {
       const entries = await AsyncStorage.multiGet([
         PS_KEYS.useBiometrics,
         PS_KEYS.hideAppSwitcher,
-        PS_KEYS.requireAuthSensitive,
         PS_KEYS.securityLoginAlerts,
         PS_KEYS.shareAnalytics,
         PS_KEYS.shareCrashReports,
@@ -100,7 +104,6 @@ export default function PrivacySecurityScreen() {
       const map = new Map(entries);
       setUseBiometrics(map.get(PS_KEYS.useBiometrics) === '1');
       setHideAppSwitcher(map.get(PS_KEYS.hideAppSwitcher) === '1');
-      setRequireAuthSensitive(map.get(PS_KEYS.requireAuthSensitive) !== '0');
 
       setSecurityLoginAlerts(map.get(PS_KEYS.securityLoginAlerts) !== '0');
 
@@ -110,8 +113,8 @@ export default function PrivacySecurityScreen() {
       setDiscreetMode(map.get(PS_KEYS.discreetMode) === '1');
       setConfirmMovements(map.get(PS_KEYS.confirmMovements) === '1');
 
-      const storedAutoLock = (map.get(PS_KEYS.autoLock) as AutoLockValue | null) ?? 'immediate';
-      setAutoLock(autoLockOptions.some((o) => o.value === storedAutoLock) ? storedAutoLock : 'immediate');
+      const storedAutoLock = (map.get(PS_KEYS.autoLock) as AutoLockValue | null) ?? 'off';
+      setAutoLock(autoLockOptions.some((o) => o.value === storedAutoLock) ? storedAutoLock : 'off');
     } catch (e) {
       console.warn('[PrivacySecurity] loadSettings error', e);
     }
@@ -148,12 +151,12 @@ export default function PrivacySecurityScreen() {
     if (!next) {
       setUseBiometrics(false);
       await persistBool(PS_KEYS.useBiometrics, false);
+      notifyPrivacySecurityChanged();
       return;
     }
 
     // Habilitar biometría si el dispositivo lo soporta.
     try {
-      const LocalAuth = await import('expo-local-authentication');
       const hasHardware = await LocalAuth.hasHardwareAsync();
       const isEnrolled = await LocalAuth.isEnrolledAsync();
 
@@ -164,6 +167,7 @@ export default function PrivacySecurityScreen() {
         );
         setUseBiometrics(false);
         await persistBool(PS_KEYS.useBiometrics, false);
+        notifyPrivacySecurityChanged();
         return;
       }
 
@@ -176,11 +180,13 @@ export default function PrivacySecurityScreen() {
       if (!result.success) {
         setUseBiometrics(false);
         await persistBool(PS_KEYS.useBiometrics, false);
+        notifyPrivacySecurityChanged();
         return;
       }
 
       setUseBiometrics(true);
       await persistBool(PS_KEYS.useBiometrics, true);
+      notifyPrivacySecurityChanged();
       Toast.show({ type: 'success', text1: 'Biometría activada' });
     } catch (e) {
       Alert.alert(
@@ -189,8 +195,9 @@ export default function PrivacySecurityScreen() {
       );
       setUseBiometrics(false);
       await persistBool(PS_KEYS.useBiometrics, false);
+      notifyPrivacySecurityChanged();
     }
-  }, [persistBool]);
+  }, [notifyPrivacySecurityChanged, persistBool]);
 
   const openAutoLockPicker = useCallback(() => {
     setAutoLockModalVisible(true);
@@ -204,10 +211,11 @@ export default function PrivacySecurityScreen() {
     async (value: AutoLockValue) => {
       setAutoLock(value);
       await persistAutoLock(value);
+      notifyPrivacySecurityChanged();
       Toast.show({ type: 'success', text1: 'Auto-bloqueo actualizado', text2: formatAutoLock(value) });
       setAutoLockModalVisible(false);
     },
-    [persistAutoLock]
+    [notifyPrivacySecurityChanged, persistAutoLock]
   );
 
   const openPinModal = useCallback(() => {
@@ -247,12 +255,13 @@ export default function PrivacySecurityScreen() {
       });
       setPinConfigured(true);
       closePinModal();
+      notifyPrivacySecurityChanged();
       Toast.show({ type: 'success', text1: 'PIN configurado' });
     } catch (e) {
       console.warn('[PrivacySecurity] save pin error', e);
       Toast.show({ type: 'error', text1: 'Error', text2: 'No se pudo guardar el PIN.' });
     }
-  }, [closePinModal, pinConfirmInput, pinInput, pinStep]);
+  }, [closePinModal, notifyPrivacySecurityChanged, pinConfirmInput, pinInput, pinStep]);
 
   const disablePin = useCallback(() => {
     Alert.alert('Desactivar PIN', '¿Seguro que deseas desactivar el PIN?', [
@@ -264,6 +273,7 @@ export default function PrivacySecurityScreen() {
           try {
             await SecureStore.deleteItemAsync(PIN_KEY);
             setPinConfigured(false);
+            notifyPrivacySecurityChanged();
             Toast.show({ type: 'success', text1: 'PIN desactivado' });
           } catch (e) {
             Toast.show({ type: 'error', text1: 'Error', text2: 'No se pudo desactivar el PIN.' });
@@ -271,7 +281,7 @@ export default function PrivacySecurityScreen() {
         },
       },
     ]);
-  }, []);
+  }, [notifyPrivacySecurityChanged]);
 
   const logoutThisDevice = useCallback(() => {
     Alert.alert('Cerrar sesión', '¿Deseas cerrar sesión en este dispositivo?', [
@@ -355,13 +365,14 @@ export default function PrivacySecurityScreen() {
             await AsyncStorage.multiRemove(keys);
             Toast.show({ type: 'success', text1: 'Caché borrada' });
             loadSettings();
+            notifyPrivacySecurityChanged();
           } catch {
             Toast.show({ type: 'error', text1: 'Error', text2: 'No se pudo borrar la caché.' });
           }
         },
       },
     ]);
-  }, [loadSettings]);
+  }, [loadSettings, notifyPrivacySecurityChanged]);
 
   const openSystemSettings = useCallback(async () => {
     try {
@@ -501,21 +512,7 @@ export default function PrivacySecurityScreen() {
                   onChange={async (v) => {
                     setHideAppSwitcher(v);
                     await persistBool(PS_KEYS.hideAppSwitcher, v);
-                  }}
-                />
-              }
-            />
-
-            <Row
-              icon="shield-checkmark-outline"
-              title="Requerir autenticación para acciones sensibles"
-              description="Pedir biometría/PIN para eliminar cuenta, exportar datos, ver CLABE, transferir…"
-              right={
-                <Toggle
-                  value={requireAuthSensitive}
-                  onChange={async (v) => {
-                    setRequireAuthSensitive(v);
-                    await persistBool(PS_KEYS.requireAuthSensitive, v);
+                    notifyPrivacySecurityChanged();
                   }}
                 />
               }
