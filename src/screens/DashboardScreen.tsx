@@ -538,9 +538,9 @@ export default function DashboardScreen() {
         onPressHome={() => {
           scrollRef.current?.scrollTo({ y: 0, animated: true });
         }}
-        onPressAnalytics={() => {
+        onPressBloc={() => {
           // @ts-ignore
-          navigation.navigate('Analytics' as never);
+          navigation.navigate('BlocCuentas' as never);
         }}
         onPressReports={() => {
           // Always navigate to ReportesExport screen; the screen will perform

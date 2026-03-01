@@ -434,10 +434,19 @@ export class SmartNumberFormatter {
    * Parsea un string con formato a número
    */
   public parseFormattedNumber(formatted: string): number | null {
-    // Remover símbolos de moneda y espacios
-    const cleaned = formatted.replace(/[$€£¥₹₽\s,]/g, '');
+    // 1) Normalizar y remover símbolos/espacios/letras
+    //    Nota: NO eliminamos '.' o ',' aquí porque pueden ser separadores.
+    const raw = String(formatted ?? '').trim();
+
+    // Remover símbolos de moneda comunes y espacios
+    let cleaned = raw.replace(/[$€£¥₹₽\s]/g, '');
+
+    // Remover cualquier carácter que no sea dígito, signo, separadores, exponente o sufijo compacto
+    cleaned = cleaned.replace(/[^0-9+\-.,eEKkMmBbQq]/g, '');
+
+    if (!cleaned || cleaned === '-' || cleaned === '+') return null;
     
-    // Manejar notación compacta
+    // 2) Manejar notación compacta (K/M/MM/B/Q)
     const compactMultipliers = {
       'K': 1e3,
       'M': 1e6,
@@ -447,19 +456,57 @@ export class SmartNumberFormatter {
     };
 
     for (const [suffix, multiplier] of Object.entries(compactMultipliers)) {
-      if (cleaned.endsWith(suffix)) {
-        const baseNumber = parseFloat(cleaned.slice(0, -suffix.length));
+      if (cleaned.toUpperCase().endsWith(suffix)) {
+        const baseStr = cleaned.slice(0, -suffix.length);
+        const baseNumber = this.parseFormattedNumber(baseStr);
+        if (baseNumber === null) return null;
         return isNaN(baseNumber) ? null : baseNumber * multiplier;
       }
     }
 
-    // Manejar notación científica
+    // 3) Manejar notación científica (ya validado chars)
     if (cleaned.includes('e') || cleaned.includes('E')) {
-      const parsed = parseFloat(cleaned);
+      const parsed = Number(cleaned);
       return isNaN(parsed) ? null : parsed;
     }
 
-    const parsed = parseFloat(cleaned);
+    // 4) Normalizar separadores locales:
+    //    - Si hay '.' y ',', el separador decimal es el que aparece más a la derecha.
+    //    - Si solo hay uno, asumimos decimal si tiene 1-2 dígitos al final; si tiene 3+ lo tomamos como miles.
+    const lastDot = cleaned.lastIndexOf('.');
+    const lastComma = cleaned.lastIndexOf(',');
+    const hasDot = lastDot >= 0;
+    const hasComma = lastComma >= 0;
+
+    let decimalSep: '.' | ',' | null = null;
+    if (hasDot && hasComma) {
+      decimalSep = lastDot > lastComma ? '.' : ',';
+    } else if (hasDot || hasComma) {
+      const sep = hasDot ? '.' : ',';
+      const idx = hasDot ? lastDot : lastComma;
+      const trailing = cleaned.slice(idx + 1);
+      // 1-2 dígitos => decimal; 3+ => miles
+      if (/^\d{1,2}$/.test(trailing)) decimalSep = sep as any;
+      else decimalSep = null;
+    }
+
+    let normalized = cleaned;
+    if (decimalSep) {
+      const thousandsSep = decimalSep === '.' ? ',' : '.';
+      normalized = normalized.split(thousandsSep).join('');
+      if (decimalSep === ',') normalized = normalized.replace(',', '.');
+      // Remove any additional same decimal separators (keep the last one)
+      const parts = normalized.split('.');
+      if (parts.length > 2) {
+        const last = parts.pop() as string;
+        normalized = parts.join('') + '.' + last;
+      }
+    } else {
+      // No decimal separator: remove all separators as thousands separators.
+      normalized = normalized.replace(/[.,]/g, '');
+    }
+
+    const parsed = Number(normalized);
     return isNaN(parsed) ? null : parsed;
   }
 }
