@@ -10,6 +10,8 @@ import { useThemeColors } from "../theme/useThemeColors";
 import SmartNumber from './SmartNumber';
 import apiRateLimiter from "../services/apiRateLimiter";
 import Toast from "react-native-toast-message";
+import { canPerform } from '../services/planConfigService';
+import type { DashboardSnapshot } from "../types/dashboardSnapshot";
 
 const { width } = Dimensions.get("window");
 
@@ -23,18 +25,21 @@ interface Subcuenta {
   afectaCuenta: boolean;
   subCuentaId: string;
   updatedAt: string;
+  createdAt?: string;
   activa: boolean;
   origenSaldo?: 'cuenta_principal' | 'nuevo';
+  pausadaPorPlan?: boolean;
 }
 
 interface Props {
   userId?: string;
   refreshKey?: number;
+  dashboardSnapshot?: DashboardSnapshot | null;
 }
 
 const LIMIT = 5;
 
-const SubaccountsList: React.FC<Props> = ({ userId, refreshKey = 0 }) => {
+const SubaccountsList: React.FC<Props> = ({ userId, refreshKey = 0, dashboardSnapshot }) => {
   const colors = useThemeColors();
   const [subcuentas, setSubcuentas] = useState<Subcuenta[]>([]);
   const [loading, setLoading] = useState(false);
@@ -44,6 +49,16 @@ const SubaccountsList: React.FC<Props> = ({ userId, refreshKey = 0 }) => {
   const [hasMore, setHasMore] = useState(true);
   const navigation = useNavigation<any>();
   const [mostrarSoloActivas, setMostrarSoloActivas] = useState(false);
+  const [hasReachedLimit, setHasReachedLimit] = useState(false);
+  const [allowedLimit, setAllowedLimit] = useState<number | null>(null);
+  const [subcuentasWithPauseStatus, setSubcuentasWithPauseStatus] = useState<Subcuenta[]>([]);
+
+  const snapshotMode = dashboardSnapshot !== undefined;
+
+  const subaccountsTotals = dashboardSnapshot?.subaccountsTotals;
+  const showSubaccountsTotals =
+    !!subaccountsTotals &&
+    (Array.isArray(subaccountsTotals.active?.byCurrency) || Array.isArray(subaccountsTotals.paused?.byCurrency));
 
   // Refs para cleanup y control de estado
   const isMountedRef = useRef(true);
@@ -70,7 +85,58 @@ const SubaccountsList: React.FC<Props> = ({ userId, refreshKey = 0 }) => {
     return () => clearTimeout(delay);
   }, [search]);
 
+  // Snapshot mode (Dashboard): compute list locally from snapshot, avoid network + canPerform
+  useEffect(() => {
+    if (!snapshotMode || !dashboardSnapshot) return;
+
+    const pauseIds = new Set(
+      (dashboardSnapshot.meta?.planEnforcement?.subcuentas?.toPauseOnThisPage || []).map((x) => String(x))
+    );
+
+    const all: Subcuenta[] = (dashboardSnapshot.subaccountsSummary || []).map((s) => ({
+      // Use backend per-item flag as source of truth; fall back to planEnforcement ids when present.
+      pausadaPorPlan: Boolean(s.pausadaPorPlan) || pauseIds.has(String(s.id)),
+      _id: s.id,
+      subCuentaId: s.id,
+      nombre: s.nombre,
+      cantidad: Number(s.saldo || 0),
+      moneda: s.moneda,
+      simbolo: (s.simbolo ?? '') as any,
+      color: (s.color ?? '') as any,
+      afectaCuenta: true,
+      updatedAt: dashboardSnapshot.meta?.generatedAt ?? new Date().toISOString(),
+      createdAt: dashboardSnapshot.meta?.generatedAt ?? new Date().toISOString(),
+      // Paused-by-plan should not be considered active in UI.
+      activa: Boolean(s.activa) && !(Boolean(s.pausadaPorPlan) || pauseIds.has(String(s.id))),
+    }));
+
+    let filtered = all;
+    if (debouncedSearch.trim()) {
+      filtered = all.filter((x) => (x.nombre || '').toLowerCase().includes(debouncedSearch.toLowerCase()));
+    }
+    if (mostrarSoloActivas) {
+      filtered = filtered.filter((x) => x.activa);
+    }
+    filtered = filtered.sort((a, b) => Number(b.activa) - Number(a.activa));
+
+    const start = (page - 1) * LIMIT;
+    const slice = filtered.slice(start, start + LIMIT);
+
+    setSubcuentas(slice);
+    setSubcuentasWithPauseStatus(slice);
+    setHasMore(start + LIMIT < filtered.length);
+    setLoading(false);
+
+    const isPremium = Boolean(dashboardSnapshot.meta?.plan?.isPremium);
+    const enforcement = dashboardSnapshot.meta?.planEnforcement?.subcuentas;
+    const max = enforcement?.limit ?? dashboardSnapshot.meta?.limits?.maxSubcuentas ?? null;
+    const unlimited = max === -1 || max === null;
+    setAllowedLimit(unlimited ? null : Number(max));
+    setHasReachedLimit(Boolean(enforcement?.overLimit) || (!isPremium && !unlimited && filtered.length >= Number(max)));
+  }, [snapshotMode, dashboardSnapshot, debouncedSearch, mostrarSoloActivas, page]);
+
   const fetchSubcuentas = async (forceFresh = false) => {
+    if (snapshotMode) return;
     if (!userId) {
       console.log('💳 [SubaccountsList] Esperando userId antes de hacer fetch');
       return;
@@ -165,7 +231,6 @@ const SubaccountsList: React.FC<Props> = ({ userId, refreshKey = 0 }) => {
 
       // Solo actualizar estado si el componente está montado
       if (isMountedRef.current && !signal.aborted) {
-        setSubcuentas(filtered);
         setHasMore(moreAvailable);
 
         // Si avanzamos a una página vacía (no debería pasar), corregimos al primer page
@@ -173,6 +238,83 @@ const SubaccountsList: React.FC<Props> = ({ userId, refreshKey = 0 }) => {
           console.warn('[SubaccountsList] Página vacía recibida, reset page -> 1');
           setPage(1);
         }
+        
+        // Verificar límite para mostrar información al usuario
+        if (userId) {
+          const subcuentasCount = filtered.length;
+          const limitCheck = await canPerform('subcuenta', { userId, currentCount: subcuentasCount });
+          const hasReachedLimitValue = !limitCheck.allowed;
+          setHasReachedLimit(hasReachedLimitValue);
+          
+          let limit = null;
+          if (limitCheck.message) {
+            const match = limitCheck.message.match(/(\d+)\/(\d+)/);
+            if (match) {
+              limit = parseInt(match[2], 10);
+            }
+          }
+          if (!limit && hasReachedLimitValue) {
+            limit = subcuentasCount;
+          }
+          setAllowedLimit(limit);
+          
+          console.log('🔍 [SubaccountsList] Estado de subcuentas:', {
+            count: subcuentasCount,
+            allowed: limitCheck.allowed,
+            limit,
+            subcuentas: filtered.map(s => ({
+              nombre: s.nombre,
+              pausadaPorPlan: s.pausadaPorPlan,
+              activa: s.activa,
+              createdAt: s.createdAt
+            }))
+          });
+          
+          // 🛡️ VALIDACIÓN DEFENSIVA: Si el backend no marcó pausadaPorPlan correctamente,
+          // el frontend lo calcula basado en fecha de creación y límite del plan
+          if (hasReachedLimitValue && limit) {
+            // Ordenar por fecha de creación (más recientes primero)
+            const sorted = [...filtered].sort((a, b) => {
+              const dateA = new Date(a.createdAt || a.updatedAt || 0).getTime();
+              const dateB = new Date(b.createdAt || b.updatedAt || 0).getTime();
+              return dateB - dateA; // Más recientes primero
+            });
+            
+            // Verificar si el backend marcó correctamente
+            const backendMarkedCorrectly = sorted.some((s, i) => {
+              const shouldBePaused = i >= limit;
+              return shouldBePaused && s.pausadaPorPlan;
+            });
+            
+            if (!backendMarkedCorrectly) {
+              console.warn('⚠️ [SubaccountsList] Backend no marcó pausadaPorPlan correctamente. Aplicando validación defensiva.');
+              
+              // Marcar las que exceden el límite como pausadas
+              const withPauseStatus = sorted.map((sub, index) => ({
+                ...sub,
+                pausadaPorPlan: sub.pausadaPorPlan || index >= limit
+              }));
+              
+              console.log('🔍 [SubaccountsList] Subcuentas con validación defensiva:', 
+                withPauseStatus.map((s, i) => ({
+                  index: i,
+                  nombre: s.nombre,
+                  pausadaPorPlan: s.pausadaPorPlan,
+                  mantenerActiva: i < limit,
+                  createdAt: s.createdAt
+                }))
+              );
+              
+              setSubcuentasWithPauseStatus(withPauseStatus);
+              setSubcuentas(withPauseStatus);
+              return;
+            }
+          }
+        }
+        
+        // Si el backend marcó correctamente o no se alcanzó el límite
+        setSubcuentasWithPauseStatus(filtered);
+        setSubcuentas(filtered);
       }
     } catch (err: any) {
       // Ignorar errores de abort
@@ -211,7 +353,7 @@ const SubaccountsList: React.FC<Props> = ({ userId, refreshKey = 0 }) => {
     }, 400);
 
     return () => clearTimeout(delay);
-  }, [page, debouncedSearch, refreshKey, mostrarSoloActivas]);
+  }, [page, debouncedSearch, refreshKey, mostrarSoloActivas, snapshotMode]);
 
 
 
@@ -225,13 +367,36 @@ const SubaccountsList: React.FC<Props> = ({ userId, refreshKey = 0 }) => {
 
   const renderItem = ({ item }: { item: Subcuenta }) => (
     <TouchableOpacity
-      onPress={() =>
+      onPress={() => {
+        if (item.pausadaPorPlan) {
+          Toast.show({
+            type: 'info',
+            text1: '🔒 Subcuenta pausada automáticamente',
+            text2: allowedLimit 
+              ? `Tu plan actual permite ${allowedLimit} subcuentas activas. Las más antiguas se pausaron automáticamente. Actualiza a Premium para ilimitadas.`
+              : 'Esta subcuenta fue pausada automáticamente por tu plan. Actualiza a Premium para reactivarla.',
+            visibilityTime: 6000,
+            onPress: () => {
+              // Navegar a Settings para upgrade
+            },
+          });
+          return;
+        }
         navigation.navigate("SubaccountDetail", {
           subcuenta: item,
           onGlobalRefresh: fetchSubcuentas,
-        })
-      }
-      style={[styles.card, { borderColor: item.color, backgroundColor: colors.card, shadowColor: colors.shadow }]}
+        });
+      }}
+      activeOpacity={item.pausadaPorPlan ? 1 : 0.7}
+      style={[
+        styles.card, 
+        { 
+          borderColor: item.color, 
+          backgroundColor: colors.card, 
+          shadowColor: colors.shadow,
+          opacity: item.pausadaPorPlan ? 0.5 : 1
+        }
+      ]}
     >
       <View style={styles.cardHeader}>
         <Text style={[styles.cardTitle, { color: colors.text }]} numberOfLines={1} ellipsizeMode="tail">
@@ -252,11 +417,17 @@ const SubaccountsList: React.FC<Props> = ({ userId, refreshKey = 0 }) => {
 
       {/* Badge de estado */}
       <View style={styles.badgesRow}>
-        <View style={[styles.statusBadge, { backgroundColor: item.activa ? "#D1FAE5" : "#FEE2E2" }]}>
-          <Text style={[styles.statusText, { color: item.activa ? "#10B981" : "#EF4444" }]}>
-            {item.activa ? "Activa" : "Inactiva"}
-          </Text>
-        </View>
+        {item.pausadaPorPlan ? (
+          <View style={[styles.statusBadge, { backgroundColor: "#FEF3C7" }]}>
+            <Text style={[styles.statusText, { color: "#F59E0B" }]}>⚠️ Pausada por plan</Text>
+          </View>
+        ) : (
+          <View style={[styles.statusBadge, { backgroundColor: item.activa ? "#D1FAE5" : "#FEE2E2" }]}>
+            <Text style={[styles.statusText, { color: item.activa ? "#10B981" : "#EF4444" }]}>
+              {item.activa ? "Activa" : "Inactiva"}
+            </Text>
+          </View>
+        )}
 
         {item.origenSaldo && (
           <View style={[styles.originBadge, { backgroundColor: colors.cardSecondary, borderColor: colors.border }]}>
@@ -271,7 +442,84 @@ const SubaccountsList: React.FC<Props> = ({ userId, refreshKey = 0 }) => {
 
   return (
     <View style={[styles.wrapper, { backgroundColor: colors.chartBackground, shadowColor: colors.shadow, borderColor: colors.border }]}>
-      <Text style={[styles.title, { color: colors.text }]}>Subcuentas</Text>
+      <View style={styles.headerBlock}>
+        <Text style={[styles.title, { color: colors.text }, { marginBottom: 0 }]}>Subcuentas</Text>
+
+        {snapshotMode && showSubaccountsTotals && (
+          <View
+            style={[
+              styles.totalsContainer,
+              { backgroundColor: colors.cardSecondary, borderColor: colors.border },
+            ]}
+          >
+            <View style={[styles.totalsPill, { borderColor: colors.button }]}
+            >
+              <Ionicons name="stats-chart" size={12} color={colors.button} />
+              <Text style={[styles.totalsPillText, { color: colors.text }]}>Totales</Text>
+            </View>
+
+            {Array.isArray(subaccountsTotals?.active?.byCurrency) && subaccountsTotals!.active.byCurrency.length > 0 && (
+              <View style={styles.totalsSection}>
+                <View
+                  style={[
+                    styles.totalsSectionLabelPill,
+                    { backgroundColor: colors.card, borderColor: colors.border },
+                  ]}
+                >
+                  <Text style={[styles.totalsLabel, { color: colors.textSecondary }]}>Activas</Text>
+                </View>
+
+                {subaccountsTotals!.active.byCurrency.map((x) => (
+                  <View
+                    key={`active-${x.moneda}`}
+                    style={[
+                      styles.totalsCurrencyPill,
+                      { backgroundColor: colors.card, borderColor: colors.border },
+                    ]}
+                  >
+                    <SmartNumber
+                      value={Number(x.total || 0)}
+                      textStyle={[styles.totalsValue, { color: colors.text }]}
+                      options={{ context: 'list', currency: x.moneda, maxLength: 14 }}
+                    />
+                    <Text style={[styles.totalsCount, { color: colors.textTertiary }]}>{`(${Number(x.count || 0)})`}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            {Array.isArray(subaccountsTotals?.paused?.byCurrency) && subaccountsTotals!.paused.byCurrency.length > 0 && (
+              <View style={styles.totalsSection}>
+                <View
+                  style={[
+                    styles.totalsSectionLabelPill,
+                    { backgroundColor: colors.card, borderColor: colors.border },
+                  ]}
+                >
+                  <Text style={[styles.totalsLabel, { color: colors.textSecondary }]}>Pausadas</Text>
+                </View>
+
+                {subaccountsTotals!.paused.byCurrency.map((x) => (
+                  <View
+                    key={`paused-${x.moneda}`}
+                    style={[
+                      styles.totalsCurrencyPill,
+                      { backgroundColor: colors.card, borderColor: colors.border },
+                    ]}
+                  >
+                    <SmartNumber
+                      value={Number(x.total || 0)}
+                      textStyle={[styles.totalsValue, { color: colors.text }]}
+                      options={{ context: 'list', currency: x.moneda, maxLength: 14 }}
+                    />
+                    <Text style={[styles.totalsCount, { color: colors.textTertiary }]}>{`(${Number(x.count || 0)})`}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
+        )}
+      </View>
       <TextInput
         style={[styles.searchInput, { backgroundColor: colors.inputBackground, borderColor: colors.border, color: colors.inputText }]}
         placeholder="Buscar subcuenta..."
@@ -362,6 +610,82 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "600",
     marginBottom: 10,
+  },
+  headerBlock: {
+    marginBottom: 10,
+  },
+  totalsContainer: {
+    width: '100%',
+    alignSelf: 'stretch',
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    marginTop: 8,
+    flexDirection: 'column',
+    gap: 8,
+  },
+  totalsPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 6,
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  totalsSection: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 6,
+  },
+  totalsSectionLabelPill: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  totalsCurrencyPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  totalsPillText: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: -0.1,
+  },
+  totalsLine: {
+    marginTop: 2,
+  },
+  totalsLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  totalsCurrencies: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  totalsItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  totalsValue: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: -0.2,
+  },
+  totalsCount: {
+    fontSize: 10,
+    fontWeight: '700',
   },
   searchInput: {
     borderRadius: 10,

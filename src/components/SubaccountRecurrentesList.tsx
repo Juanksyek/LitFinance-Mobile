@@ -37,6 +37,11 @@ const SubaccountRecurrentesList = ({ subcuentaId, userId, onRefresh }: Props) =>
     cuentaId?: string;
     userId?: string;
     pausado?: boolean;
+    // 🆕 Campos para tipo de pago y progreso
+    tipoRecurrente?: 'indefinido' | 'plazo_fijo';
+    totalPagos?: number;
+    pagosRealizados?: number;
+    estado?: 'activo' | 'pausado' | 'completado';
   }
 
   const navigation = useNavigation<StackNavigationProp<RootStackParamList>>();

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   View,
   Text,
@@ -59,11 +59,12 @@ const TicketDetailScreen: React.FC = () => {
 
   useEffect(() => {
     loadTicket();
+
     pollingIntervalRef.current = setInterval(() => {
       loadTicket(true);
     }, 15000);
 
-    // Solo para scroll al abrir teclado (sin tocar paddings manuales)
+    // ✅ solo scroll al final al abrir teclado (no tocamos paddings por keyboardHeight)
     const showSub = Keyboard.addListener("keyboardDidShow", () => {
       setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 80);
     });
@@ -95,9 +96,8 @@ const TicketDetailScreen: React.FC = () => {
       }
       const data = await supportService.getTicketDetail(ticketId);
 
-      if (updatingStatusRef.current) {
-        // no pisar estado optimista
-      } else {
+      // Avoid clobbering optimistic state
+      if (!updatingStatusRef.current) {
         const hasPendingSends = sendingQueueRef.current.length > 0;
         if (hasPendingSends) {
           setTicket((current) => {
@@ -152,7 +152,6 @@ const TicketDetailScreen: React.FC = () => {
     }
 
     const mensajeAEnviar = mensaje.trim();
-
     const tempId = `temp-${Date.now()}`;
     const optimisticMsg = {
       id: tempId,
@@ -169,6 +168,7 @@ const TicketDetailScreen: React.FC = () => {
 
     const sendPromise = (async () => {
       try {
+        setSending(true);
         const updatedTicket = await supportService.addMessage(ticketId, { mensaje: mensajeAEnviar });
         setTicket(updatedTicket);
         EventBus.emit("ticketUpdated", updatedTicket);
@@ -181,6 +181,8 @@ const TicketDetailScreen: React.FC = () => {
         });
         setMensaje(mensajeAEnviar);
         Toast.show({ type: "error", text1: "Error", text2: err?.message || "No se pudo enviar el mensaje" });
+      } finally {
+        setSending(false);
       }
     })();
 
@@ -239,7 +241,7 @@ const TicketDetailScreen: React.FC = () => {
         text1: "Estado actualizado",
         text2: `El ticket ahora está ${newStatus.replace("_", " ")}`,
       });
-    } catch (error: any) {
+    } catch {
       Toast.show({
         type: "error",
         text1: "No fue posible cambiar el estado",
@@ -322,9 +324,7 @@ const TicketDetailScreen: React.FC = () => {
           <View
             style={[
               styles.messageBubble,
-              {
-                backgroundColor: isStaff ? colors.button + "15" : colors.inputBackground,
-              },
+              { backgroundColor: isStaff ? colors.button + "15" : colors.inputBackground },
             ]}
           >
             <Text style={[styles.messageText, { color: colors.text }]}>{fixEncoding(item.mensaje)}</Text>
@@ -348,15 +348,24 @@ const TicketDetailScreen: React.FC = () => {
     );
   };
 
-  // SafeAreaView already applies the top inset; only add Android status bar height.
+  // SafeAreaView already applies top inset; only add Android status bar height.
   const topPad = Platform.OS === "android" ? (StatusBar.currentHeight || 0) : 0;
 
-  // ✅ En Android evitamos KAV (aquí era el que dejaba el recuadro blanco)
+  // ✅ FIX PRINCIPAL: Android SIN KeyboardAvoidingView (evita “brinco” y recuadro blanco)
   const BodyWrapper: any = Platform.OS === "ios" ? KeyboardAvoidingView : View;
   const bodyWrapperProps =
     Platform.OS === "ios"
       ? { behavior: "padding" as const, keyboardVerticalOffset: 0 }
       : {};
+
+  const listBottomPadding = useMemo(() => {
+    if (ticket?.estado !== "cerrado") {
+      // composerHeight YA incluye stableBottomInset (porque se mide con paddingBottom aplicado)
+      return Math.max(16, composerHeight) + 12;
+    }
+    // si no hay composer, protege el home-indicator/bottom inset
+    return 16 + stableBottomInset + 12;
+  }, [composerHeight, stableBottomInset, ticket?.estado]);
 
   if (loading) {
     return (
@@ -387,16 +396,8 @@ const TicketDetailScreen: React.FC = () => {
 
         <View style={styles.headerActions}>
           {isStaffOrAdmin && (
-            <TouchableOpacity
-              onPress={() => setShowStatusModal(true)}
-              style={{ marginRight: 16 }}
-              disabled={updatingStatus}
-            >
-              <Ionicons
-                name="swap-horizontal"
-                size={24}
-                color={updatingStatus ? colors.placeholder : colors.button}
-              />
+            <TouchableOpacity onPress={() => setShowStatusModal(true)} style={{ marginRight: 16 }} disabled={updatingStatus}>
+              <Ionicons name="swap-horizontal" size={24} color={updatingStatus ? colors.placeholder : colors.button} />
             </TouchableOpacity>
           )}
           <TouchableOpacity onPress={handleDeleteTicket}>
@@ -416,12 +417,7 @@ const TicketDetailScreen: React.FC = () => {
           contentInsetAdjustmentBehavior="never"
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
-          contentContainerStyle={[
-            styles.messagesList,
-            {
-              paddingBottom: Math.max(16, composerHeight) + stableBottomInset + 12,
-            },
-          ]}
+          contentContainerStyle={[styles.messagesList, { paddingBottom: listBottomPadding }]}
           refreshing={refreshing}
           onRefresh={() => loadTicket(false)}
           onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
@@ -463,6 +459,7 @@ const TicketDetailScreen: React.FC = () => {
                 maxLength={2000}
                 editable={!sending}
               />
+
               <TouchableOpacity
                 style={[
                   styles.sendButton,
@@ -472,11 +469,7 @@ const TicketDetailScreen: React.FC = () => {
                 onPress={handleSendMessage}
                 disabled={!mensaje.trim() || sending}
               >
-                {sending ? (
-                  <ActivityIndicator size="small" color="#FFF" />
-                ) : (
-                  <Ionicons name="send" size={20} color="#FFF" />
-                )}
+                {sending ? <ActivityIndicator size="small" color="#FFF" /> : <Ionicons name="send" size={20} color="#FFF" />}
               </TouchableOpacity>
             </View>
           </View>
@@ -499,57 +492,35 @@ const TicketDetailScreen: React.FC = () => {
         animationType="fade"
         onRequestClose={() => setShowStatusModal(false)}
       >
-        <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => setShowStatusModal(false)}
-        >
-          <View
-            style={[styles.modalContent, { backgroundColor: colors.background }]}
-            onStartShouldSetResponder={() => true}
-          >
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowStatusModal(false)}>
+          <View style={[styles.modalContent, { backgroundColor: colors.background }]} onStartShouldSetResponder={() => true}>
             <Text style={[styles.modalTitle, { color: colors.text }]}>Cambiar estado del ticket</Text>
 
-            <TouchableOpacity
-              style={[styles.statusOption, { borderBottomColor: colors.placeholder + "30" }]}
-              onPress={() => handleChangeStatus("abierto")}
-            >
+            <TouchableOpacity style={[styles.statusOption, { borderBottomColor: colors.placeholder + "30" }]} onPress={() => handleChangeStatus("abierto")}>
               <Ionicons name="alert-circle" size={20} color="#E53935" />
               <Text style={[styles.statusOptionText, { color: colors.text }]}>Abierto</Text>
               {ticket?.estado === "abierto" && <Ionicons name="checkmark" size={20} color={colors.button} />}
             </TouchableOpacity>
 
-            <TouchableOpacity
-              style={[styles.statusOption, { borderBottomColor: colors.placeholder + "30" }]}
-              onPress={() => handleChangeStatus("en_progreso")}
-            >
+            <TouchableOpacity style={[styles.statusOption, { borderBottomColor: colors.placeholder + "30" }]} onPress={() => handleChangeStatus("en_progreso")}>
               <Ionicons name="time" size={20} color="#FB8C00" />
               <Text style={[styles.statusOptionText, { color: colors.text }]}>En progreso</Text>
               {ticket?.estado === "en_progreso" && <Ionicons name="checkmark" size={20} color={colors.button} />}
             </TouchableOpacity>
 
-            <TouchableOpacity
-              style={[styles.statusOption, { borderBottomColor: colors.placeholder + "30" }]}
-              onPress={() => handleChangeStatus("resuelto")}
-            >
+            <TouchableOpacity style={[styles.statusOption, { borderBottomColor: colors.placeholder + "30" }]} onPress={() => handleChangeStatus("resuelto")}>
               <Ionicons name="checkmark-circle" size={20} color="#43A047" />
               <Text style={[styles.statusOptionText, { color: colors.text }]}>Resuelto</Text>
               {ticket?.estado === "resuelto" && <Ionicons name="checkmark" size={20} color={colors.button} />}
             </TouchableOpacity>
 
-            <TouchableOpacity
-              style={[styles.statusOption, { borderBottomColor: colors.placeholder + "30" }]}
-              onPress={() => handleChangeStatus("cerrado")}
-            >
+            <TouchableOpacity style={[styles.statusOption, { borderBottomColor: colors.placeholder + "30" }]} onPress={() => handleChangeStatus("cerrado")}>
               <Ionicons name="close-circle" size={20} color="#9E9E9E" />
               <Text style={[styles.statusOptionText, { color: colors.text }]}>Cerrado</Text>
               {ticket?.estado === "cerrado" && <Ionicons name="checkmark" size={20} color={colors.button} />}
             </TouchableOpacity>
 
-            <TouchableOpacity
-              style={[styles.cancelButton, { backgroundColor: colors.placeholder + "20" }]}
-              onPress={() => setShowStatusModal(false)}
-            >
+            <TouchableOpacity style={[styles.cancelButton, { backgroundColor: colors.placeholder + "20" }]} onPress={() => setShowStatusModal(false)}>
               <Text style={[styles.cancelButtonText, { color: colors.text }]}>Cancelar</Text>
             </TouchableOpacity>
           </View>

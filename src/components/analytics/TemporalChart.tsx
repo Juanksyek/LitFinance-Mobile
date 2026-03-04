@@ -82,10 +82,8 @@ const TemporalChart: React.FC<TemporalChartProps> = ({ filters, refreshKey = 0 }
       const response = await analyticsService.getAnalisisTemporal(filters, signal);
       if (!signal.aborted) setData(response);
     } catch (error: any) {
-      if (error?.message?.includes('401')) {
-        await authService.clearAll();
-        console.error('Session expired in TemporalChart');
-      }
+      // Do not force logout here. apiRateLimiter will refresh tokens on 401.
+      // A 401 after refresh can also mean endpoint authorization, not session expiry.
       console.error('Error loading temporal data:', error);
     } finally {
       setLoading(false);

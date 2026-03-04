@@ -18,8 +18,6 @@ const FormInput: React.FC<FormInputProps> = ({
   const theme = useColorScheme();
   const shadowColor = theme === 'dark' ? '#000000' : '#d1d9e6';
 
-  console.log('✏️ [FormInput] render', { placeholder: props.placeholder });
-
   return (
     <View
       style={[

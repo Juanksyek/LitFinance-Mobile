@@ -16,7 +16,8 @@ interface Props {
   visible: boolean;
   onClose: () => void;
   cuentaPrincipalId: string;
-  onSuccess: () => void;
+  // onSuccess may receive the created subcuenta id when creating
+  onSuccess: (createdId?: string) => void;
   subcuentaToEdit?: {
     id: string;
     nombre: string;
@@ -54,8 +55,23 @@ const SubaccountModal: React.FC<Props> = ({
   const [erroresCantidad, setErroresCantidad] = useState<string[]>([]);
   const [selectedMonedaObj, setSelectedMonedaObj] = useState<Moneda | null>(null);
   const [usarSaldoCuentaPrincipal, setUsarSaldoCuentaPrincipal] = useState<boolean>(false);
+  
+  // Use ref to track if we've initialized for current modal open
+  const initializedRef = React.useRef<boolean>(false);
+  const lastVisibleRef = React.useRef<boolean>(false);
 
   React.useEffect(() => {
+    // Reset initialization flag when modal closes
+    if (!visible && lastVisibleRef.current) {
+      initializedRef.current = false;
+    }
+    lastVisibleRef.current = visible;
+
+    // Only initialize once when modal opens
+    if (!visible || initializedRef.current) return;
+    
+    initializedRef.current = true;
+
     if (subcuentaToEdit) {
       setNombre(subcuentaToEdit.nombre);
       setCantidadNumerica(subcuentaToEdit.cantidad);
@@ -72,7 +88,7 @@ const SubaccountModal: React.FC<Props> = ({
       setAfectaCuenta(true);
       setUsarSaldoCuentaPrincipal(false);
     }
-  }, [subcuentaToEdit]);
+  }, [subcuentaToEdit, visible]);
 
   const getLimitesSubcuenta = () => ({
     min: 0,
@@ -111,8 +127,8 @@ const SubaccountModal: React.FC<Props> = ({
     if (erroresCantidad.some(error => error.includes('muy grande'))) {
       Toast.show({
         type: "info",
-        text1: "Cantidad inusualmente grande",
-        text2: "Verifica que sea correcta antes de continuar.",
+        text1: "Cantidad alta",
+        text2: "Confirma si es correcta.",
       });
     }
 
@@ -188,7 +204,9 @@ const SubaccountModal: React.FC<Props> = ({
       setCantidadNumerica(0);
       setCantidadValida(true);
       setErroresCantidad([]);
-      onSuccess();
+      // Try to extract created id from response
+      const createdId = responseData?.subCuentaId ?? responseData?._id ?? responseData?.id ?? undefined;
+      onSuccess(createdId);
       onClose();
     } catch (err: any) {
       console.error("❌ Error en handleCreate:", err);
@@ -331,15 +349,15 @@ const SubaccountModal: React.FC<Props> = ({
         {erroresCantidad.length > 0 && (
           <View style={styles.warningContainer}>
             <Ionicons name="warning-outline" size={20} color="#F59E0B" />
-            <View style={styles.warningContent}>
-              <Text style={styles.warningTitle}>Cantidad muy grande</Text>
-              <Text style={styles.warningText}>
-                Cantidad: <SmartNumber value={cantidadNumerica || 0} options={{ context: 'modal', symbol: simbolo }} />
-              </Text>
-              <Text style={styles.warningSubtext}>
-                {erroresCantidad[0]}
-              </Text>
-            </View>
+                <View style={styles.warningContent}>
+                  <Text style={styles.warningTitle}>Cantidad alta</Text>
+                  <Text style={styles.warningText}>
+                    Cantidad: <SmartNumber value={cantidadNumerica || 0} options={{ context: 'modal', symbol: simbolo }} />
+                  </Text>
+                  <Text style={styles.warningSubtext}>
+                    Revisa el monto antes de continuar.
+                  </Text>
+                </View>
           </View>
         )}
 
