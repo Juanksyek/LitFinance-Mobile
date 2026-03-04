@@ -9,6 +9,7 @@ import SubaccountDetail from '../screens/SubaccountDetail';
 import RecurrenteDetail from '../screens/RecurrentDetail';
 import MainAccountScreen from '../screens/MainAccountScreen';
 import ResetPasswordScreen from '../screens/ResetPasswordScreen';
+import VerifyOtpScreen from '../screens/VerifyOtpScreen';
 import AnalyticsScreen from '../screens/AnalyticsScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import SupportScreen from '../screens/SupportScreen';
@@ -16,6 +17,13 @@ import CreateTicketScreen from '../screens/CreateTicketScreen';
 import TicketDetailScreen from '../screens/TicketDetailScreen';
 import AdminNotificationsScreen from '../screens/AdminNotificationsScreen';
 import ConceptsScreen from '../screens/ConceptsScreen';
+import PrivacySecurityScreen from '../screens/PrivacySecurityScreen';
+import ReportesExportScreen from '../screens/ReportesExportScreen';
+import MetasScreen from '../screens/MetasScreen';
+import CreateMetaScreen from '../screens/CreateMetaScreen';
+import MetaDetailScreen from '../screens/MetaDetailScreen';
+import BlocCuentasScreen from '../screens/BlocCuentasScreen';
+import BlocDetailScreen from '../screens/BlocDetailScreen';
 
 export type Subcuenta = {
   _id: string;
@@ -38,6 +46,7 @@ export type RootStackParamList = {
   Login: undefined;
   Register: undefined;
   ForgotPassword: undefined;
+  VerifyOtp: { email: string };
   Dashboard: { updated?: boolean } | undefined;
   SubaccountDetail: { subcuenta: Subcuenta; onGlobalRefresh?: () => void };
   RecurrenteDetail: {
@@ -62,14 +71,26 @@ export type RootStackParamList = {
     };
   };
   MainAccount: undefined;
-  ResetPassword: { email: string };
+  ResetPassword: { resetToken: string };
   Analytics: undefined;
   Settings: undefined;
+  PrivacySecurity: undefined;
   Support: undefined;
   CreateTicket: undefined;
   TicketDetail: { ticketId: string };
   AdminNotifications: undefined;
   Concepts: undefined;
+  ReportesExport: undefined;
+  Metas:
+    | {
+        initialFilter?: 'activa' | 'pausada' | 'cumplida' | 'todas';
+        refreshKey?: number;
+      }
+    | undefined;
+  CreateMeta: undefined;
+  MetaDetail: { metaId: string };
+  BlocCuentas: undefined;
+  BlocDetail: { blocId: string };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -81,6 +102,7 @@ export default function AppNavigator() {
       <Stack.Screen name="Login" component={LoginScreen} />
       <Stack.Screen name="Register" component={RegisterScreen} />
       <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+      <Stack.Screen name="VerifyOtp" component={VerifyOtpScreen} />
       <Stack.Screen name="Dashboard" component={DashboardScreen} />
       <Stack.Screen name="SubaccountDetail" component={SubaccountDetail} />
       <Stack.Screen name="RecurrenteDetail" component={RecurrenteDetail} />
@@ -88,11 +110,18 @@ export default function AppNavigator() {
       <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
       <Stack.Screen name="Analytics" component={AnalyticsScreen} />
       <Stack.Screen name="Settings" component={SettingsScreen} />
+      <Stack.Screen name="PrivacySecurity" component={PrivacySecurityScreen} />
       <Stack.Screen name="Support" component={SupportScreen} />
       <Stack.Screen name="CreateTicket" component={CreateTicketScreen} />
       <Stack.Screen name="TicketDetail" component={TicketDetailScreen} />
       <Stack.Screen name="AdminNotifications" component={AdminNotificationsScreen} />
       <Stack.Screen name="Concepts" component={ConceptsScreen} />
+      <Stack.Screen name="ReportesExport" component={ReportesExportScreen} />
+      <Stack.Screen name="Metas" component={MetasScreen} />
+      <Stack.Screen name="CreateMeta" component={CreateMetaScreen} />
+      <Stack.Screen name="MetaDetail" component={MetaDetailScreen} />
+      <Stack.Screen name="BlocCuentas" component={BlocCuentasScreen} />
+      <Stack.Screen name="BlocDetail" component={BlocDetailScreen} />
     </Stack.Navigator>
   );
 }
