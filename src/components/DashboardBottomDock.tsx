@@ -5,12 +5,12 @@ import { useStableSafeInsets } from '../hooks/useStableSafeInsets';
 import { useKeyboardVisible } from '../hooks/useKeyboardVisible';
 import { useThemeColors } from '../theme/useThemeColors';
 
-type DockKey = 'home' | 'analytics' | 'reports' | 'settings';
+type DockKey = 'home' | 'bloc' | 'reports' | 'settings';
 
 type Props = {
   active?: DockKey;
   onPressHome: () => void;
-  onPressAnalytics: () => void;
+  onPressBloc: () => void;
   onPressCenter: () => void;
   onPressReports: () => void;
   onPressSettings: () => void;
@@ -23,7 +23,7 @@ export const DASHBOARD_DOCK_APPROX_HEIGHT = 85; // spacer in Dashboard content (
 export default function DashboardBottomDock({
   active = 'home',
   onPressHome,
-  onPressAnalytics,
+  onPressBloc,
   onPressCenter,
   onPressReports,
   onPressSettings,
@@ -73,9 +73,9 @@ export default function DashboardBottomDock({
             onPress={onPressHome}
           />
           <DockIconButton
-            icon={active === 'analytics' ? 'bar-chart' : 'bar-chart-outline'}
-            color={active === 'analytics' ? activeColor : inactive}
-            onPress={onPressAnalytics}
+            icon={active === 'bloc' ? 'document-text' : 'document-text-outline'}
+            color={active === 'bloc' ? activeColor : inactive}
+            onPress={onPressBloc}
           />
 
           <View style={styles.centerSlot} />
