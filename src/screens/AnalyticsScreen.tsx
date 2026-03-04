@@ -2,13 +2,16 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, ActivityIndicator, Platform, RefreshControl, Dimensions, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import { analyticsService, ResumenFinanciero, AnalyticsFilters } from '../services/analyticsService';
+import { analyticsService, ResumenFinanciero, AnalyticsFilters, type AnalyticsResumenInteligente } from '../services/analyticsService';
 import AnalyticsFiltersComponent from '../components/analytics/AnalyticsFilters';
 import ResumenCard from '../components/analytics/ResumenCard';
 import ChartSelector from '../components/analytics/ChartSelector';
+import SmartResumenCard from '../components/analytics/SmartResumenCard';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { authService } from '../services/authService';
 import { useThemeColors } from '../theme/useThemeColors';
+import { userProfileService, UserProfile } from '../services/userProfileService';
+import PremiumModal from '../components/PremiumModal';
 
 interface AnalyticsScreenProps {
   navigation: any;
@@ -25,6 +28,7 @@ const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ navigation, route }) 
   const subcuentaId = route?.params?.subcuentaId;
   const colors = useThemeColors();
   const [resumen, setResumen] = useState<ResumenFinanciero | null>(null);
+  const [smartResumen, setSmartResumen] = useState<AnalyticsResumenInteligente | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const refreshAnim = useRef(new Animated.Value(0)).current;
@@ -36,6 +40,9 @@ const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ navigation, route }) 
     ...(subcuentaId ? { subcuentas: [subcuentaId] } : {}),
   });
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const [premiumModalVisible, setPremiumModalVisible] = useState(false);
+  const [premiumToken, setPremiumToken] = useState<string | null>(null);
 
   // Refs para prevención de memory leaks
   const isMountedRef = useRef(true);
@@ -61,11 +68,11 @@ const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ navigation, route }) 
 
   const rangoLabel = useMemo(() => {
     const map: Record<string, string> = {
-      dia: 'Día',
+      dia: 'D\u00EDa',
       semana: 'Semana',
       mes: 'Mes',
-      anio: 'Año',
-      año: 'Año',
+      anio: 'A\u00F1o',
+      'a\u00F1o': 'A\u00F1o',
     };
     // @ts-ignore
     return map[filters.rangoTiempo] ?? 'Rango';
@@ -73,18 +80,19 @@ const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ navigation, route }) 
 
   useEffect(() => {
     const checkAnalyticsAllowed = async () => {
-      const planConfigService = await import('../services/planConfigService');
-      const gate = await planConfigService.canPerform('grafica');
-      if (gate.allowed === false) {
-        const isConfigError = gate.message?.includes('Configuración de plan no disponible');
-        setErrorMsg(
-          isConfigError 
-            ? 'No se pudo verificar tu plan. Por favor, contacta a soporte.'
-            : gate.message || 'Las gráficas avanzadas están disponibles solo para usuarios premium'
-        );
+      // Fast-path UI decision using userProfileService
+      const profile = await userProfileService.getCachedProfile();
+      const canSee = userProfileService.canSeeAdvanced(profile);
+
+      if (!canSee) {
+        setErrorMsg('Las gr\u00E1ficas avanzadas est\u00E1n disponibles solo para usuarios premium. Actualiza tu plan.');
+        setResumen(null);
+        setSmartResumen(null);
         setLoading(false);
         return;
       }
+
+      // Backend will enforce with 403 if needed (interceptor handles it)
       loadResumenFinanciero();
     };
     checkAnalyticsAllowed();
@@ -132,14 +140,28 @@ const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ navigation, route }) 
       const token = await authService.getAccessToken();
       if (!token) {
         if (isMountedRef.current && !signal.aborted) {
-          setErrorMsg('Tu sesión ha expirado. Por favor inicia sesión nuevamente.');
+          setErrorMsg('Tu sesi\u00F3n ha expirado. Por favor inicia sesi\u00F3n nuevamente.');
           setResumen(null);
           setLoading(false);
         }
         return;
       }
 
-      const data = await analyticsService.getResumenFinanciero(filters);
+      const [data, smart] = await Promise.all([
+        analyticsService.getResumenFinanciero(filters),
+        analyticsService
+          .getResumenInteligente({ ...filters, topN: 8 }, signal)
+          .catch((e: any) => {
+            // Si backend bloquea por plan, mostramos CTA premium pero dejamos la pantalla funcional
+            const msg = String(e?.message || e || '');
+            if (msg.includes('403')) {
+              console.log('🔒 [AnalyticsScreen] Smart resumen bloqueado por plan');
+            } else {
+              console.warn('⚠️ [AnalyticsScreen] Smart resumen falló:', e);
+            }
+            return null;
+          }),
+      ]);
 
       // Verificar si fue abortado
       if (signal.aborted) {
@@ -150,6 +172,7 @@ const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ navigation, route }) 
       // Solo actualizar estado si el componente está montado
       if (isMountedRef.current && !signal.aborted) {
         setResumen(data);
+        setSmartResumen(smart);
         setRefreshKey(prev => prev + 1); // Incrementar key para refrescar gráficas
       }
     } catch (error: any) {
@@ -161,16 +184,10 @@ const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ navigation, route }) 
       
       if (isMountedRef.current && !signal.aborted) {
         if (error?.response?.status === 401) {
-          await authService.clearAll();
-          setErrorMsg('Tu sesión ha expirado. Redirigiendo al login...');
-          if (refreshTimeoutRef.current) {
-            clearTimeout(refreshTimeoutRef.current);
-          }
-          refreshTimeoutRef.current = setTimeout(() => {
-            if (isMountedRef.current) {
-              navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
-            }
-          }, 1600);
+          // Do not force logout here.
+          // The networking layer (apiRateLimiter) already attempts refresh+retry on 401.
+          // A 401 after refresh can also be an authorization issue, not session expiry.
+          setErrorMsg('No fue posible autorizar esta operación. Intenta de nuevo.');
         } else {
           setErrorMsg('Error cargando analytics. Intenta de nuevo.');
         }
@@ -183,6 +200,16 @@ const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ navigation, route }) 
       }
     }
   };
+
+  const openPremiumModal = useCallback(async () => {
+    try {
+      const token = await authService.getAccessToken();
+      setPremiumToken(token);
+      setPremiumModalVisible(true);
+    } catch (e) {
+      console.error('[AnalyticsScreen] error opening PremiumModal:', e);
+    }
+  }, []);
 
   const onRefresh = useCallback(() => {
     if (!isMountedRef.current || refreshing) {
@@ -237,7 +264,7 @@ const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ navigation, route }) 
 
         <View style={[styles.loadingContainer, { paddingTop: HEADER_H + 8 }] }>
           <ActivityIndicator size="small" color={colors.button} />
-          <Text style={[styles.muted, { color: colors.textSecondary }] }>Cargando analytics…</Text>
+          <Text style={[styles.muted, { color: colors.textSecondary }] }>{'Cargando analytics\u2026'}</Text>
           {errorMsg && <Text style={[styles.errorText, { color: colors.error }] }>{errorMsg}</Text>}
         </View>
       </SafeAreaView>
@@ -308,6 +335,32 @@ const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ navigation, route }) 
           </View>
         )}
 
+        {smartResumen && (
+          <SmartResumenCard
+            data={smartResumen}
+            onPressRefresh={handleRetry}
+          />
+        )}
+
+        {!!errorMsg && errorMsg.toLowerCase().includes('premium') && (
+          <TouchableOpacity
+            onPress={openPremiumModal}
+            activeOpacity={0.9}
+            style={[styles.premiumCta, { backgroundColor: colors.card, borderColor: colors.button, shadowColor: colors.shadow }]}
+          >
+            <View style={styles.premiumCtaLeft}>
+              <Ionicons name="diamond" size={18} color={colors.button} />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.premiumCtaTitle, { color: colors.text }]}>Desbloquear Smart Analytics</Text>
+                <Text style={[styles.premiumCtaSub, { color: colors.textSecondary }]}>
+                  Insights, tops y serie mensual en un solo lugar.
+                </Text>
+              </View>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.button} />
+          </TouchableOpacity>
+        )}
+
         {resumen && (
           <>
             <View style={styles.cardWrap}>
@@ -342,6 +395,13 @@ const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ navigation, route }) 
           onClose={() => setShowFilters(false)}
         />
       )}
+
+      <PremiumModal
+        visible={premiumModalVisible}
+        onClose={() => setPremiumModalVisible(false)}
+        token={premiumToken ?? ''}
+        onRefresh={handleRetry}
+      />
     </SafeAreaView>
   );
 };
@@ -400,7 +460,8 @@ const styles = StyleSheet.create({
 
   container: {
     flex: 1,
-    paddingTop: HEADER_H + 8,
+    // Extra top padding so premium "Smart" card is fully visible beneath the floating header
+    paddingTop: HEADER_H + 30,
     paddingHorizontal: 14,
   },
 
@@ -441,6 +502,24 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   retryGhostText: {},
+
+  premiumCta: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 12,
+    shadowOffset: { width: 2, height: 6 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 2,
+    marginBottom: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  premiumCtaLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
+  premiumCtaTitle: { fontSize: 13, fontWeight: '900' },
+  premiumCtaSub: { fontSize: 12, fontWeight: '700', marginTop: 2 },
 
   // Error directo (pantalla de loading)
   errorText: { fontSize: 14, textAlign: 'center', paddingHorizontal: 16 },
