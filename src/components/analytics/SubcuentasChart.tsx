@@ -46,10 +46,8 @@ const SubcuentasChart: React.FC<SubcuentasChartProps> = ({ filters, refreshKey =
       const response = await analyticsService.getEstadisticasPorSubcuenta(filters);
       setData(response);
     } catch (error: any) {
-      if (error?.message?.includes('401')) {
-        await authService.clearAll();
-        console.error('Session expired in SubcuentasChart');
-      }
+      // Do not force logout here. apiRateLimiter will refresh tokens on 401.
+      // A 401 after refresh can also mean endpoint authorization, not session expiry.
       console.error('Error loading subcuentas data:', error);
     } finally {
       setLoading(false);
