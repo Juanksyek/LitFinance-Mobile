@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { NavigationContainerRef } from '@react-navigation/native';
 import AppNavigator from './src/navigation/AppNavigator';
-import Toast, { BaseToast } from 'react-native-toast-message';
+import Toast from 'react-native-toast-message';
 import { ThemeProvider } from './src/theme/ThemeContext';
 import { setupNotificationListeners } from './src/services/notificationService';
 import { authService } from './src/services/authService';
@@ -20,6 +20,9 @@ import * as SystemUI from 'expo-system-ui';
 import { userProfileService } from './src/services/userProfileService';
 import { apiRateLimiter } from './src/services/apiRateLimiter';
 import UpgradeModal from './src/components/UpgradeModal';
+import { toastConfig } from './src/components/ThemedToast';
+import AppLockGate from './src/components/AppLockGate';
+import { offlineSyncService } from './src/services/offlineSyncService';
 
 export default function App() {
   const navigationRef = useRef<NavigationContainerRef<RootStackParamList>>(null);
@@ -80,6 +83,9 @@ export default function App() {
     // Bootstrap tokens (load from storage + refresh if near-expiry), then refresh profile.
     bootstrapSession();
 
+    // Start offline sync listener (replay queued ops on reconnect)
+    offlineSyncService.init();
+
     // Listen to app state changes (foreground/background)
     const subscription = AppState.addEventListener('change', handleAppStateChange);
 
@@ -131,6 +137,9 @@ export default function App() {
       try {
         showSub.remove();
       } catch {}
+
+      // Stop NetInfo listener when app root unmounts
+      offlineSyncService.stop();
     };
   }, []);
 
@@ -259,16 +268,7 @@ export default function App() {
           </NavigationContainer>
         </SafeAreaProvider>
         <Toast
-          config={{
-            // Provide a simple mapping for 'warning' so older calls don't crash
-            warning: (props: any) => (
-              <BaseToast
-                {...props}
-                style={[{ borderLeftColor: '#F59E0B' }, props.style]}
-                text1Style={{ fontSize: 14, fontWeight: '700' }}
-              />
-            ),
-          }}
+          config={toastConfig}
         />
       </ThemeProvider>
     </StripeProvider>
@@ -308,7 +308,7 @@ function AppRootLayout({ children, routeName }: { children: React.ReactNode; rou
           },
         ]}
       >
-        {children}
+        <AppLockGate>{children}</AppLockGate>
       </View>
     </Container>
   );
