@@ -56,6 +56,13 @@ const HistorialDetalleModal = ({ visible, onClose, historialItem }: Props) => {
     motivo,
   } = historialItem;
 
+  // Prefer top-level `motivo` from the server. Fallback to metadata.nota, detalles.resumen, detalles.etiqueta.
+  const motivoDisplay = String(
+    (motivo !== undefined && motivo !== null ? motivo : undefined) ?? metadata?.nota ?? detalles?.resumen ?? detalles?.etiqueta ?? ''
+  ).trim();
+
+  const descripcionDisplay = String(descripcion ?? '').trim();
+
   const formatAmountPlain = (amount: number) =>
     Math.abs(amount).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -124,10 +131,13 @@ const HistorialDetalleModal = ({ visible, onClose, historialItem }: Props) => {
           </View>
 
           <ScrollView showsVerticalScrollIndicator={false}>
-            <View style={styles.section}>
-              <Text style={[styles.label, { color: colors.textSecondary }]}>Descripción</Text>
-              <Text style={[styles.value, { color: colors.text }]}>{fixEncoding(descripcion)}</Text>
-            </View>
+            {/* Show Descripción only when it's meaningfully different from Motivo */}
+            {descripcionDisplay && descripcionDisplay !== motivoDisplay ? (
+              <View style={styles.section}>
+                <Text style={[styles.label, { color: colors.textSecondary }]}>Descripción</Text>
+                <Text style={[styles.value, { color: colors.text }]}>{fixEncoding(descripcionDisplay)}</Text>
+              </View>
+            ) : null}
 
             {tipo === 'recurrente' && detalles.plataforma && (
               <View style={[styles.section, styles.recurrenteSection]}>
@@ -181,15 +191,15 @@ const HistorialDetalleModal = ({ visible, onClose, historialItem }: Props) => {
               </View>
             )}
 
-            {motivo && (
+            {motivoDisplay ? (
             <View style={styles.section}>
-                <Text style={[styles.label, { color: colors.textSecondary }]}>Motivo</Text>
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Ionicons name="chatbox-ellipses-outline" size={16} color={colors.text} style={{ marginRight: 6 }} />
-                <Text style={[styles.value, { color: colors.text }]}>{fixEncoding(motivo)}</Text>
-                </View>
+              <Text style={[styles.label, { color: colors.textSecondary }]}>Motivo</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Ionicons name="chatbox-ellipses-outline" size={16} color={colors.text} style={{ marginRight: 6 }} />
+              <Text style={[styles.value, { color: colors.text }]}>{fixEncoding(motivoDisplay)}</Text>
+              </View>
             </View>
-            )}
+            ) : null}
 
             <View style={styles.section}>
               <Text style={[styles.label, { color: colors.textSecondary }]}>Monto</Text>
@@ -249,7 +259,7 @@ const HistorialDetalleModal = ({ visible, onClose, historialItem }: Props) => {
               </View>
             )}
 
-            {detalles.resumen && (
+            {detalles.resumen && String(detalles.resumen).trim() && String(detalles.resumen).trim() !== motivoDisplay && String(detalles.resumen).trim() !== descripcionDisplay && (
               <View style={styles.section}>
                 <Text style={[styles.label, { color: colors.textSecondary }]}>Resumen</Text>
                 <Text style={[styles.value, { color: colors.text }]}>{fixEncoding(detalles.resumen)}</Text>

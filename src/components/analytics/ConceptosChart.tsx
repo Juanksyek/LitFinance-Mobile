@@ -5,7 +5,7 @@ import { analyticsService, EstadisticaConcepto, AnalyticsFilters } from '../../s
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { authService } from '../../services/authService';
 import { useThemeColors } from '../../theme/useThemeColors';
-import { fixMojibake, takeFirstGrapheme, emojiFontFix } from '../../utils/fixMojibake';
+import { normalizeEmojiStrict, emojiFontFix } from '../../utils/fixMojibake';
 
 interface ConceptosChartProps {
   filters: AnalyticsFilters;
@@ -69,10 +69,8 @@ const ConceptosChart: React.FC<ConceptosChartProps> = ({ filters, refreshKey = 0
       const response = await analyticsService.getEstadisticasPorConcepto(filters);
       setData(response);
     } catch (error: any) {
-      if (error?.message?.includes('401')) {
-        await authService.clearAll();
-        console.error('Session expired in ConceptosChart');
-      }
+      // Do not force logout here. apiRateLimiter will refresh tokens on 401.
+      // A 401 after refresh can also mean endpoint authorization, not session expiry.
       console.error('Error loading conceptos data:', error);
     } finally {
       setLoading(false);
@@ -221,7 +219,7 @@ const AnimatedConceptItem: React.FC<{
       <View style={styles.itemHeader}>
         <View style={styles.conceptInfo}>
             <View style={[styles.iconContainer, { backgroundColor: item.concepto.color + '20' }]}>
-            <Text style={[styles.icon, emojiFontFix]}>{takeFirstGrapheme(fixMojibake(item.concepto.icono ?? ''))}</Text>
+            <Text style={[styles.icon, emojiFontFix]}>{normalizeEmojiStrict(item.concepto.icono, '📌')}</Text>
           </View>
           <View style={styles.conceptText}>
             <Text style={[styles.conceptName, { color: colors.text }]}>{item.concepto.nombre}</Text>

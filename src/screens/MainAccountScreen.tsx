@@ -26,6 +26,7 @@ import Toast from 'react-native-toast-message';
 import DataPrivacyModal from '../components/DataPrivacyModal';
 import { useNavigation } from '@react-navigation/native';
 import { useThemeColors } from '../theme/useThemeColors';
+import { fixEncoding } from '../utils/fixEncoding';
 
 interface CuentaPrincipal {
   esPrincipal: boolean;
@@ -75,6 +76,7 @@ const MainAccountScreen = () => {
   const [saving, setSaving] = useState(false);
   const [infoModalVisible, setInfoModalVisible] = useState(false);
   const [formData, setFormData] = useState<Partial<Usuario>>({});
+  const [telefonoTouched, setTelefonoTouched] = useState(false);
   const [showProfessionSuggestions, setShowProfessionSuggestions] = useState(false);
   const professionHideTimer = useRef<number | null>(null);
   const [ocupacionesModalVisible, setOcupacionesModalVisible] = useState(false);
@@ -92,6 +94,25 @@ const MainAccountScreen = () => {
   // Use the provided occupations catalog
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const OCUPACIONES: string[] = (require('../constants/ocupaciones.json') as string[]) || [];
+  const COUNTRIES: { name: string; code: string }[] = (require('../constants/countries.json') as any) || [];
+
+  const [countriesModalVisible, setCountriesModalVisible] = useState(false);
+  const [countrySearch, setCountrySearch] = useState('');
+
+  const countryCodeToEmoji = (code?: string) => {
+    if (!code) return '';
+    const upper = code.toUpperCase();
+    if (upper.length !== 2) return '';
+    const first = upper.codePointAt(0)! - 65 + 0x1F1E6;
+    const second = upper.codePointAt(1)! - 65 + 0x1F1E6;
+    return String.fromCodePoint(first, second);
+  };
+
+  const filteredCountries = React.useMemo(() => {
+    const q = countrySearch.trim().toLowerCase();
+    if (!q) return COUNTRIES;
+    return COUNTRIES.filter((c) => c.name.toLowerCase().includes(q));
+  }, [countrySearch]);
 
   const filteredOcupaciones = React.useMemo(() => {
     const q = ocupSearch.trim().toLowerCase();
@@ -243,12 +264,25 @@ const MainAccountScreen = () => {
       const raw = await res.json().catch(() => ({}));
       if (res.ok) {
         const payload = raw?.data ?? raw ?? {};
-        setUsuario(payload);
-        setFormData(payload);
+        // sanitize string fields to avoid mojibake appearing in editable inputs
+        const sanitized = sanitizeUserForForm(payload);
+        setUsuario(sanitized);
+        setFormData(sanitized);
       } else {
         console.warn('[MainAccount] /user/profile non-ok', { status: res.status, body: raw });
       }
     } catch {}
+  };
+
+  // sanitize only the string fields we'll edit, using the project's fixer
+  const sanitizeUserForForm = (u: any) => {
+    if (!u || typeof u !== 'object') return u;
+    const out = { ...u } as any;
+    const keys = ['nombreCompleto', 'email', 'ocupacion', 'telefono', 'pais', 'estado', 'ciudad', 'bio'];
+    for (const k of keys) {
+      if (typeof out[k] === 'string') out[k] = fixEncoding(out[k]);
+    }
+    return out;
   };
 
   const fetchData = async () => {
@@ -264,7 +298,7 @@ const MainAccountScreen = () => {
   };
 
   const handleUpdateProfile = async () => {
-    try {
+      try {
       setSaving(true);
 
       const token = await authService.getAccessToken();
@@ -272,9 +306,21 @@ const MainAccountScreen = () => {
       if (token) headers.Authorization = `Bearer ${token}`;
 
       const { monedaPreferencia, ...rest } = formData;
-      const cleanPayload = Object.fromEntries(
+      let cleanPayload: Record<string, any> = Object.fromEntries(
         Object.entries(rest).filter(([key]) => !key.toLowerCase().includes('moneda'))
       );
+
+      // Validate telefono if provided: must be exactly 10 digits
+      const telefonoRaw = (formData.telefono ?? '').toString().trim();
+      if (telefonoRaw) {
+        const digits = telefonoRaw.replace(/\D+/g, '');
+        if (!/^\d{10}$/.test(digits)) {
+          Toast.show({ type: 'error', text1: 'Teléfono inválido', text2: 'Introduce 10 dígitos (solo números).' });
+          setSaving(false);
+          return;
+        }
+        cleanPayload.telefono = digits;
+      }
 
       const response = await apiRateLimiter.fetch(`${API_BASE_URL}/user/update`, {
         method: 'PATCH',
@@ -448,7 +494,7 @@ const MainAccountScreen = () => {
                   <Ionicons name="wallet" size={20} color="#4f46e5" />
                 </View>
                 <View>
-                  <Text style={[styles.title, { color: colors.text }]}>{cuenta.nombre}</Text>
+                  <Text style={[styles.title, { color: colors.text }]}>{fixEncoding(cuenta.nombre)}</Text>
                   <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Cuenta activa</Text>
                 </View>
               </View>
@@ -675,30 +721,44 @@ const MainAccountScreen = () => {
                         <Ionicons name="call-outline" size={12} /> Teléfono
                       </Text>
                       <TextInput
-                        style={[styles.input, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]}
+                        style={[
+                          styles.input,
+                          { backgroundColor: colors.card, borderColor: telefonoTouched && !!(formData.telefono || '') && String(formData.telefono).replace(/\D+/g, '').length !== 10 ? '#ef4444' : colors.border, color: colors.text },
+                        ]}
                         value={formData.telefono || ''}
-                        onChangeText={(t) => handleChange('telefono', t)}
+                        onChangeText={(t) => {
+                          // keep only digits and limit to 10 characters
+                          const onlyDigits = (t || '').replace(/\D+/g, '').slice(0, 10);
+                          handleChange('telefono', onlyDigits);
+                        }}
+                        onBlur={() => setTelefonoTouched(true)}
                         keyboardType="phone-pad"
-                        placeholder="Ej. 55 1234 5678"
+                        placeholder="Ej. 5512345678"
                         placeholderTextColor={colors.placeholder}
                         onFocus={handleInputFocus}
                         returnKeyType="next"
                       />
+                      {telefonoTouched && !!(formData.telefono || '') && String(formData.telefono).replace(/\D+/g, '').length !== 10 ? (
+                        <Text style={[styles.errorText, { color: '#ef4444' }]}>Introduce 10 dígitos válidos (solo números).</Text>
+                      ) : null}
                     </View>
 
                     <View style={styles.fieldRow}>
                       <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>
                         <Ionicons name="earth-outline" size={12} /> País
                       </Text>
-                      <TextInput
-                        style={[styles.input, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]}
-                        value={formData.pais || ''}
-                        onChangeText={(t) => handleChange('pais', t)}
-                        placeholder="Ej. México"
-                        placeholderTextColor={colors.placeholder}
-                        onFocus={handleInputFocus}
-                        returnKeyType="next"
-                      />
+                      <TouchableOpacity
+                        activeOpacity={0.8}
+                        style={[styles.input, { backgroundColor: colors.card, borderColor: colors.border, paddingVertical: 12 }]}
+                        onPress={() => setCountriesModalVisible(true)}
+                      >
+                        <Text style={{ color: formData.pais ? colors.text : colors.placeholder }}>
+                          {(() => {
+                            const found = COUNTRIES.find((c) => c.name === formData.pais);
+                            return found ? `${countryCodeToEmoji(found.code)}  ${found.name}` : (formData.pais || 'Ej. México');
+                          })()}
+                        </Text>
+                      </TouchableOpacity>
                     </View>
 
                     <View style={styles.inline}>
@@ -900,6 +960,73 @@ const MainAccountScreen = () => {
               </View>
             </View>
           </Modal>
+          <Modal
+            visible={countriesModalVisible}
+            animationType="fade"
+            transparent
+            onRequestClose={() => setCountriesModalVisible(false)}
+          >
+            <View style={styles.modalOverlay}>
+              <View style={[styles.modalContainer, styles.neumorphicModal, { backgroundColor: colors.card }]}>
+                <View style={[styles.modalHeaderContainer, { borderBottomColor: colors.border }]}>
+                  <View style={styles.modalHeaderRow}>
+                    <Text style={[styles.modalTitle, { color: colors.text }]}>Seleccionar País</Text>
+                    <TouchableOpacity 
+                      style={[styles.closeButton, { backgroundColor: colors.inputBackground }]}
+                      onPress={() => setCountriesModalVisible(false)}
+                    >
+                      <Ionicons name="close" size={24} color={colors.text} />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                <View style={{ padding: 12 }}>
+                  <TextInput
+                    placeholder="Buscar país..."
+                    value={countrySearch}
+                    onChangeText={setCountrySearch}
+                    style={[styles.searchInput, { backgroundColor: colors.inputBackground, color: colors.text }]}
+                    placeholderTextColor={colors.placeholder}
+                  />
+
+                  <View style={styles.modalListWrapper}>
+                    <FlatList
+                      data={filteredCountries}
+                      keyExtractor={(item: any) => item.code}
+                      contentContainerStyle={{ paddingBottom: 32 }}
+                      style={{ height: 320 }}
+                      ListEmptyComponent={() => (
+                        <View style={{ padding: 16 }}>
+                          <Text style={{ color: colors.placeholder }}>No se encontraron países.</Text>
+                        </View>
+                      )}
+                      renderItem={({ item }: { item: any }) => (
+                        <TouchableOpacity
+                          onPress={() => {
+                            handleChange('pais', item.name);
+                            setCountriesModalVisible(false);
+                          }}
+                          activeOpacity={0.8}
+                          style={[
+                            styles.ocupacionItem,
+                            { backgroundColor: colors.inputBackground },
+                            formData.pais === item.name && { backgroundColor: colors.cardSecondary, borderColor: colors.border }
+                          ]}
+                        >
+                          <Text style={[styles.ocupacionText, { color: colors.text }]}>{countryCodeToEmoji(item.code)}  {item.name}</Text>
+                        </TouchableOpacity>
+                      )}
+                    />
+                    <LinearGradient
+                      colors={["transparent", "rgba(0,0,0,0.12)"]}
+                      style={styles.modalBottomGradient}
+                      pointerEvents="none"
+                    />
+                  </View>
+                </View>
+              </View>
+            </View>
+          </Modal>
     </SafeAreaView>
   );
 };
@@ -938,7 +1065,7 @@ const ItemRow = ({
             numberOfLines={multiline ? undefined : truncate ? 1 : 2}
             ellipsizeMode={truncate ? 'middle' : 'tail'}
           >
-            {value}
+            {fixEncoding(value)}
           </Text>
         )}
       </View>
@@ -1162,6 +1289,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.03,
     shadowRadius: 6,
   },
+  errorText: { fontSize: 12, marginTop: 6, fontWeight: '700' },
   textArea: {
     minHeight: 100,
     textAlignVertical: 'top',

@@ -68,10 +68,8 @@ const RecurrentesChart: React.FC<RecurrentesChartProps> = ({ filters, refreshKey
       const response = await analyticsService.getEstadisticasPorRecurrente(filters);
       setData(response);
     } catch (error: any) {
-      if (error?.message?.includes('401')) {
-        await authService.clearAll();
-        console.error('Session expired in RecurrentesChart');
-      }
+      // Do not force logout here. apiRateLimiter will refresh tokens on 401.
+      // A 401 after refresh can also mean endpoint authorization, not session expiry.
       console.error('Error loading recurrentes data:', error);
     } finally {
       setLoading(false);
