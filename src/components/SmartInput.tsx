@@ -1,8 +1,9 @@
 import React from 'react';
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, ViewStyle, TextStyle } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ViewStyle, TextStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useCurrencyInput, useNumericInput } from '../hooks/useNumericInput';
 import { useThemeColors } from '../theme/useThemeColors';
+import AppTextInput from './AppTextInput';
 
 interface UseNumericInputOptions {
   initialValue?: number;
@@ -20,6 +21,7 @@ interface SmartInputProps extends Omit<UseNumericInputOptions, 'onValueChange' |
   label?: React.ReactNode;             // <- permite nodo; lo renderizamos seguro
   placeholder?: string;
   style?: StyleProp<ViewStyle>;
+  inputContainerStyle?: StyleProp<ViewStyle>;
   inputStyle?: StyleProp<TextStyle>;
   labelStyle?: StyleProp<TextStyle>;
   errorStyle?: StyleProp<TextStyle>;
@@ -39,6 +41,7 @@ const SmartInput: React.FC<SmartInputProps> = ({
   label,
   placeholder,
   style,
+  inputContainerStyle,
   inputStyle,
   labelStyle,
   errorStyle,
@@ -93,7 +96,7 @@ const SmartInput: React.FC<SmartInputProps> = ({
   const numericInput = getNumericHook();
   const colors = useThemeColors();
 
-  console.log('🔢 [SmartInput] init', { type, placeholder, displayValue: numericInput.displayValue });
+  // Removed debug log to avoid render noise
 
   const getInputColor = () => {
     if (disabled) return colors.placeholder;
@@ -205,12 +208,13 @@ const SmartInput: React.FC<SmartInputProps> = ({
         style={[
           styles.inputContainer,
           { borderColor: getBorderColor() },
+          inputContainerStyle,
           disabled && { backgroundColor: colors.cardSecondary },
         ]}
       >
         {renderPrefix()}
 
-        <TextInput
+        <AppTextInput
           value={numericInput.displayValue}
           onChangeText={numericInput.onChangeText}
           onFocus={numericInput.onFocus}
