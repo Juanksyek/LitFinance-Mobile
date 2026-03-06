@@ -67,6 +67,21 @@ const HistorialDetalleModal = ({ visible, onClose, historialItem }: Props) => {
     Math.abs(amount).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   const meta: any = metadata ?? {};
+  const transferData = {
+    side: meta?.side ?? detalles?.side,
+    origen: meta?.origen ?? detalles?.origen,
+    destino: meta?.destino ?? detalles?.destino,
+    txId: meta?.txId ?? detalles?.txId,
+    montoOrigen: meta?.montoOrigen ?? meta?.montoOriginal,
+    monedaOrigen: meta?.monedaOrigen ?? meta?.monedaOriginal,
+    montoDestino: meta?.montoDestino ?? meta?.montoConvertido,
+    monedaDestino: meta?.monedaDestino ?? meta?.monedaConvertida,
+    tasaConversion: meta?.tasaConversion ?? detalles?.tasaConversion,
+    fechaConversion: meta?.fechaConversion ?? detalles?.fechaConversion,
+  };
+
+  const transferOrigenNombre = typeof transferData.origen === 'object' ? String(transferData.origen?.nombre ?? transferData.origen?.id ?? '').trim() : '';
+  const transferDestinoNombre = typeof transferData.destino === 'object' ? String(transferData.destino?.nombre ?? transferData.destino?.id ?? '').trim() : '';
   const conceptoDisplay = (() => {
     const concepto = String(meta?.concepto ?? detalles?.conceptoNombre ?? '').trim();
     if (concepto) return concepto;
@@ -112,9 +127,11 @@ const HistorialDetalleModal = ({ visible, onClose, historialItem }: Props) => {
     ? 'arrow-up-circle'
     : tipo === 'recurrente'
     ? 'repeat'
+    : tipo === 'transferencia'
+    ? 'swap-horizontal'
     : 'information-circle';
 
-  const colorTipo = tipo === 'ingreso' ? '#16a34a' : tipo === 'egreso' ? '#dc2626' : '#0ea5e9';
+  const colorTipo = tipo === 'ingreso' ? '#16a34a' : tipo === 'egreso' ? '#dc2626' : tipo === 'transferencia' ? '#7b1fa2' : '#0ea5e9';
 
   return (
     <Modal visible={visible} animationType="slide" transparent>
@@ -199,6 +216,62 @@ const HistorialDetalleModal = ({ visible, onClose, historialItem }: Props) => {
               <Text style={[styles.value, { color: colors.text }]}>{fixEncoding(motivoDisplay)}</Text>
               </View>
             </View>
+            ) : null}
+
+            {tipo === 'transferencia' && transferData.side === 'origen' && transferDestinoNombre ? (
+              <View style={styles.section}>
+                <Text style={[styles.label, { color: colors.textSecondary }]}>Transferido a</Text>
+                <Text style={[styles.value, { color: colors.text }]}>{fixEncoding(transferDestinoNombre)}</Text>
+              </View>
+            ) : null}
+
+            {tipo === 'transferencia' && transferData.side === 'destino' && transferOrigenNombre ? (
+              <View style={styles.section}>
+                <Text style={[styles.label, { color: colors.textSecondary }]}>Transferido desde</Text>
+                <Text style={[styles.value, { color: colors.text }]}>{fixEncoding(transferOrigenNombre)}</Text>
+              </View>
+            ) : null}
+
+            {tipo === 'transferencia' && !transferData.side && (transferOrigenNombre || transferDestinoNombre) ? (
+              <>
+                {transferOrigenNombre ? (
+                  <View style={styles.section}>
+                    <Text style={[styles.label, { color: colors.textSecondary }]}>Origen</Text>
+                    <Text style={[styles.value, { color: colors.text }]}>{fixEncoding(transferOrigenNombre)}</Text>
+                  </View>
+                ) : null}
+                {transferDestinoNombre ? (
+                  <View style={styles.section}>
+                    <Text style={[styles.label, { color: colors.textSecondary }]}>Destino</Text>
+                    <Text style={[styles.value, { color: colors.text }]}>{fixEncoding(transferDestinoNombre)}</Text>
+                  </View>
+                ) : null}
+              </>
+            ) : null}
+
+            {tipo === 'transferencia' && transferData.montoOrigen != null && transferData.monedaOrigen ? (
+              <View style={styles.section}>
+                <Text style={[styles.label, { color: colors.textSecondary }]}>Monto origen</Text>
+                <Text style={[styles.value, { color: colors.text }]}> 
+                  {formatAmountPlain(Number(transferData.montoOrigen))} {String(transferData.monedaOrigen)}
+                </Text>
+              </View>
+            ) : null}
+
+            {tipo === 'transferencia' && transferData.montoDestino != null && transferData.monedaDestino ? (
+              <View style={styles.section}>
+                <Text style={[styles.label, { color: colors.textSecondary }]}>Monto destino</Text>
+                <Text style={[styles.value, { color: colors.text }]}> 
+                  {formatAmountPlain(Number(transferData.montoDestino))} {String(transferData.monedaDestino)}
+                </Text>
+              </View>
+            ) : null}
+
+            {tipo === 'transferencia' && transferData.txId ? (
+              <View style={styles.section}>
+                <Text style={[styles.label, { color: colors.textSecondary }]}>Tx ID</Text>
+                <Text style={[styles.value, { color: colors.text }]}>{fixEncoding(String(transferData.txId))}</Text>
+              </View>
             ) : null}
 
             <View style={styles.section}>
