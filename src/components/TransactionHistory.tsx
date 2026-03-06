@@ -38,7 +38,9 @@ type HistorialItem = {
       tipo: 'backdated' | 'edited' | 'deleted' | string;
       label?: string | null;
     };
+    side?: 'origen' | 'destino' | string;
     origen?: string;
+    destino?: string;
     etiqueta?: string;
     resumen?: string;
     [key: string]: any;
@@ -164,11 +166,16 @@ const TransactionHistory = ({ refreshKey, dashboardSnapshot }: { refreshKey?: nu
     const descripcion = raw?.descripcion ?? raw?.concepto ?? raw?.nombre ?? '';
     const fecha = raw?.fecha ?? raw?.createdAt ?? raw?.registradoEn ?? '';
 
-    const rawConceptoId = raw?.conceptoId ?? raw?.metadata?.conceptoId ?? undefined;
-    const rawConcepto = raw?.concepto ?? raw?.metadata?.concepto ?? undefined;
+    const rawConceptoId = raw?.conceptoId ?? raw?.metadata?.conceptoId ?? raw?.datos?.conceptoId ?? undefined;
+    const rawConcepto = raw?.concepto ?? raw?.metadata?.concepto ?? raw?.datos?.concepto ?? undefined;
+    const mergedDetalles = {
+      ...(raw?.detalles ?? {}),
+      ...(raw?.datos ?? {}),
+    };
 
     const mergedMetadata = {
       ...(raw?.metadata ?? {}),
+      ...(raw?.datos ?? {}),
       ...(rawTransaccionId ? { transaccionId: rawTransaccionId } : {}),
       ...(rawConceptoId ? { conceptoId: String(rawConceptoId) } : {}),
       ...(rawConcepto ? { concepto: String(rawConcepto) } : {}),
@@ -180,13 +187,13 @@ const TransactionHistory = ({ refreshKey, dashboardSnapshot }: { refreshKey?: nu
       transaccionId: rawTransaccionId,
       _id: rawMongoId,
       descripcion: String(descripcion ?? ''),
-      motivo: String(raw?.motivo ?? raw?.metadata?.nota ?? raw?.detalles?.resumen ?? '').trim() || undefined,
+      motivo: String(raw?.motivo ?? raw?.datos?.motivo ?? raw?.metadata?.nota ?? raw?.detalles?.resumen ?? raw?.datos?.resumen ?? '').trim() || undefined,
       monto: Number(raw?.monto ?? raw?.montoConvertido ?? 0),
       tipo: String(raw?.tipo ?? ''),
       fecha: String(fecha ?? ''),
       cuentaId: String(raw?.cuentaId ?? cuentaIdFallback ?? ''),
-      subcuentaId: raw?.subcuentaId != null ? String(raw.subcuentaId) : (raw?.subCuentaId != null ? String(raw.subCuentaId) : undefined),
-      detalles: raw?.detalles ?? undefined,
+      subcuentaId: raw?.subcuentaId != null ? String(raw.subcuentaId) : (raw?.subCuentaId != null ? String(raw.subCuentaId) : (raw?.datos?.subCuentaId != null ? String(raw.datos.subCuentaId) : undefined)),
+      detalles: Object.keys(mergedDetalles).length ? (mergedDetalles as any) : undefined,
       metadata: Object.keys(mergedMetadata).length ? (mergedMetadata as any) : undefined,
     };
   };
@@ -400,11 +407,11 @@ const TransactionHistory = ({ refreshKey, dashboardSnapshot }: { refreshKey?: nu
 
   const getConversionLabel = (item: HistorialItem): string | null => {
     const meta: any = item.metadata ?? {};
-    const montoOriginal = meta.montoOriginal;
+    const montoOriginal = meta.montoOriginal ?? meta.montoOrigen;
     const monedaOrigen = meta.monedaOrigen ?? meta.monedaOriginal;
     if (montoOriginal == null || !monedaOrigen) return null;
 
-    const montoConvertido = meta.montoConvertido ?? item.monto;
+    const montoConvertido = meta.montoConvertido ?? meta.montoDestino ?? item.monto;
     const monedaConvertida = meta.monedaConvertida ?? meta.monedaDestino ?? meta.monedaCuenta;
     if (montoConvertido == null || !monedaConvertida) return null;
 
@@ -1058,6 +1065,8 @@ const TransactionHistory = ({ refreshKey, dashboardSnapshot }: { refreshKey?: nu
       case "ajuste_subcuenta":
         return <Ionicons name="sync-outline" size={20} color="#fbc02d" />;
       case "cambio_moneda":
+        return <Ionicons name="swap-horizontal" size={20} color="#7b1fa2" />;
+      case "transferencia":
         return <Ionicons name="swap-horizontal" size={20} color="#7b1fa2" />;
       default:
         return <Ionicons name="time-outline" size={20} color="#616161" />;
