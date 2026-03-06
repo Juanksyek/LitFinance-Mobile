@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, Dimensions } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import MovementModal from './MovementModal';
 import SubaccountModal from './SubaccountModal';
 import RecurrentModal from './RecurrentModal';
+import TransferModal from './TransferModal';
 import { API_BASE_URL } from "../constants/api";
 import Toast from "react-native-toast-message";
 import { useNavigation } from '@react-navigation/native';
@@ -14,11 +15,10 @@ import { authService } from '../services/authService';
 import apiRateLimiter from '../services/apiRateLimiter';
 import type { DashboardSnapshot } from '../types/dashboardSnapshot';
 
-const { width } = Dimensions.get("window");
-
-const actions: { icon: "arrow-up-outline" | "arrow-down-outline" | "add-outline" | "refresh-outline" | "stats-chart-outline", label: string }[] = [
+const actions: { icon: "arrow-up-outline" | "arrow-down-outline" | "add-outline" | "refresh-outline" | "stats-chart-outline" | "swap-horizontal-outline", label: string }[] = [
   { icon: "arrow-up-outline", label: "Ingreso" },
   { icon: "arrow-down-outline", label: "Egreso" },
+  { icon: "swap-horizontal-outline", label: "Transferir" },
   { icon: "add-outline", label: "Subcuenta" },
   { icon: "refresh-outline", label: "Recurrente" },
   { icon: "stats-chart-outline", label: "Analiticas"} // icono válido
@@ -55,6 +55,7 @@ const ActionButtons = ({
   const [modalVisible, setModalVisible] = useState(false);
   const [subcuentaModalVisible, setSubcuentaModalVisible] = useState(false);
   const [recurrentModalVisible, setRecurrentModalVisible] = useState(false);
+  const [transferModalVisible, setTransferModalVisible] = useState(false);
   const [tipo, setTipo] = useState<'ingreso' | 'egreso'>('ingreso');
   const [refreshKey, setRefreshKey] = useState(Date.now());
   const navigation = useNavigation();
@@ -204,6 +205,11 @@ const ActionButtons = ({
       return;
     }
 
+    if (label === 'Transferir') {
+      setTransferModalVisible(true);
+      return;
+    }
+
     if (label === 'Subcuenta') {
       // Backend ya validó límites en fetchCounts, simplemente abrir modal
       setSubcuentaModalVisible(true);
@@ -320,6 +326,22 @@ const ActionButtons = ({
         onRefresh={() => setRefreshKey(Date.now())}
       />
 
+      <TransferModal
+        visible={transferModalVisible}
+        onClose={() => setTransferModalVisible(false)}
+        cuentaId={isSubcuenta && subcuenta ? subcuenta.cuentaPrincipalId : (cuentaId ?? '')}
+        userId={userId}
+        isSubcuenta={isSubcuenta}
+        currentSubcuentaId={isSubcuenta && subcuenta ? subcuenta.subCuentaId : undefined}
+        onSuccess={() => {
+          if (fetchSubcuenta) {
+            fetchSubcuenta();
+          }
+          onRefresh();
+          setRefreshKey(Date.now());
+        }}
+      />
+
       {showSubcuentaButton && (
         <SubaccountModal
           visible={subcuentaModalVisible}
@@ -354,7 +376,8 @@ const styles = StyleSheet.create({
   },
   buttonWrapper: {
     alignItems: "center",
-    width: width / 4 - 34,
+    flex: 1,
+    minWidth: 56,
   },
   button: {
     width: 56,

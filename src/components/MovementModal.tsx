@@ -1,5 +1,4 @@
-import React, { useEffect, useState } from 'react';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -11,21 +10,27 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  StyleProp,
-  ViewStyle
+  ActivityIndicator,
+  LayoutAnimation,
+  UIManager,
 } from 'react-native';
 import Modal from 'react-native-modal';
 import { Ionicons } from "@expo/vector-icons";
-import { API_BASE_URL } from '../constants/api';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { authService } from '../services/authService';
 import Toast from 'react-native-toast-message';
+import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import { useNavigation } from '@react-navigation/native';
+import NetInfo from '@react-native-community/netinfo';
+
+import { API_BASE_URL } from '../constants/api';
+import apiRateLimiter from '../services/apiRateLimiter';
 import SmartInput from './SmartInput';
 import SmartNumber from './SmartNumber';
 import { CurrencyField, Moneda } from '../components/CurrencyPicker';
 import { useThemeColors } from '../theme/useThemeColors';
-import { emitSubcuentasChanged } from '../utils/dashboardRefreshBus';
-import { fixMojibake, takeFirstGrapheme, emojiFontFix } from '../utils/fixMojibake';
+import { emitSubcuentasChanged, emitTransaccionesChanged } from '../utils/dashboardRefreshBus';
+import { normalizeEmojiStrict, emojiFontFix } from '../utils/fixMojibake';
+import { fixEncoding } from '../utils/fixEncoding';
+import { offlineSyncService } from '../services/offlineSyncService';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 
@@ -47,6 +52,167 @@ interface Concepto {
   icono: string;
 }
 
+/** =======================
+ *  Fecha efectiva (UI pro)
+ *  ======================= */
+function formatYYYYMMDD(date: Date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function parseYYYYMMDD(s: string): Date | null {
+  const t = (s || '').trim();
+  if (!t) return null;
+  const m = /^\d{4}-\d{2}-\d{2}$/.exec(t);
+  if (!m) return null;
+  const [yStr, moStr, dStr] = t.split('-');
+  const y = Number(yStr);
+  const mo = Number(moStr);
+  const d = Number(dStr);
+  const dt = new Date(y, mo - 1, d);
+  if (
+    dt.getFullYear() === y &&
+    dt.getMonth() === mo - 1 &&
+    dt.getDate() === d
+  ) return dt;
+  return null;
+}
+
+type EffectiveDateFieldProps = {
+  value: string; // YYYY-MM-DD o ""
+  onChange: (next: string) => void;
+  colors: any;
+};
+
+const EffectiveDateField: React.FC<EffectiveDateFieldProps> = ({ value, onChange, colors }) => {
+  const [showPicker, setShowPicker] = useState(false);
+
+  const currentDate = useMemo(() => {
+    const parsed = parseYYYYMMDD(value);
+    return parsed ?? new Date();
+  }, [value]);
+
+  const setRelative = (deltaDays: number) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    const d = new Date();
+    d.setHours(12, 0, 0, 0);
+    d.setDate(d.getDate() + deltaDays);
+    onChange(formatYYYYMMDD(d));
+  };
+
+  const clear = () => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    onChange('');
+  };
+
+  const open = () => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setShowPicker(true);
+  };
+
+  const onPickerChange = (_event: DateTimePickerEvent, selected?: Date) => {
+    // Android cierra automáticamente; iOS puede seguir visible dependiendo del display
+    if (Platform.OS === 'android') setShowPicker(false);
+    if (selected) {
+      onChange(formatYYYYMMDD(selected));
+    }
+  };
+
+  const pretty = useMemo(() => {
+    if (!value?.trim()) return 'Sin fecha (usa hoy por defecto)';
+    return value;
+  }, [value]);
+
+  return (
+    <View style={[styles.fieldBlock, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}>
+      <View style={styles.labelRow}>
+        <Text style={[styles.label, { color: colors.text }]}>Fecha efectiva (opcional)</Text>
+        {!!value?.trim() ? (
+          <TouchableOpacity onPress={clear} activeOpacity={0.85}>
+            <Text style={[styles.clearText, { color: colors.textSecondary }]}>Limpiar</Text>
+          </TouchableOpacity>
+        ) : null}
+      </View>
+
+      <TouchableOpacity
+        onPress={open}
+        activeOpacity={0.9}
+        style={[
+          styles.dateDisplay,
+          {
+            backgroundColor: colors.inputBackground,
+            borderColor: colors.border,
+          },
+        ]}
+      >
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <View style={[styles.dateIcon, { backgroundColor: colors.cardSecondary, borderColor: colors.border }]}>
+            <Ionicons name="calendar-outline" size={16} color={colors.textSecondary} />
+          </View>
+          <Text style={[styles.dateText, { color: colors.inputText }]}>
+            {pretty}
+          </Text>
+        </View>
+
+        <Ionicons name="chevron-down" size={18} color={colors.textSecondary} />
+      </TouchableOpacity>
+
+      <View style={styles.quickRow}>
+        <TouchableOpacity
+          onPress={() => setRelative(0)}
+          activeOpacity={0.88}
+          style={[styles.quickPill, { backgroundColor: colors.card, borderColor: colors.border }]}
+        >
+          <Text style={[styles.quickText, { color: colors.text }]}>Hoy</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          onPress={() => setRelative(-1)}
+          activeOpacity={0.88}
+          style={[styles.quickPill, { backgroundColor: colors.card, borderColor: colors.border }]}
+        >
+          <Text style={[styles.quickText, { color: colors.text }]}>Ayer</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          onPress={() => setRelative(1)}
+          activeOpacity={0.88}
+          style={[styles.quickPill, { backgroundColor: colors.card, borderColor: colors.border }]}
+        >
+          <Text style={[styles.quickText, { color: colors.text }]}>Mañana</Text>
+        </TouchableOpacity>
+      </View>
+
+      {showPicker ? (
+        <View style={{ marginTop: 10 }}>
+          <DateTimePicker
+            value={currentDate}
+            mode="date"
+            display={Platform.OS === 'ios' ? 'inline' : 'default'}
+            onChange={onPickerChange}
+          />
+
+          {Platform.OS === 'ios' ? (
+            <TouchableOpacity
+              onPress={() => setShowPicker(false)}
+              activeOpacity={0.9}
+              style={[styles.doneBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
+            >
+              <Text style={[styles.doneText, { color: colors.text }]}>Listo</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+      ) : null}
+
+      <Text style={[styles.dateHint, { color: colors.textSecondary }]}>
+        Tip: si no eliges fecha, se usa la fecha actual.
+      </Text>
+    </View>
+  );
+};
+
 const MovementModal: React.FC<Props> = ({
   visible,
   onClose,
@@ -58,14 +224,16 @@ const MovementModal: React.FC<Props> = ({
   onRefresh
 }) => {
   const colors = useThemeColors();
+  const navigation = useNavigation<any>();
+
   const [montoNumerico, setMontoNumerico] = useState<number | null>(null);
   const [montoValido, setMontoValido] = useState(false);
   const [erroresMonto, setErroresMonto] = useState<string[]>([]);
 
   const [motivo, setMotivo] = useState('');
+  const [fechaEfectiva, setFechaEfectiva] = useState(''); // YYYY-MM-DD
   const [afectaCuenta, setAfectaCuenta] = useState(true);
 
-  // ✅ Estados de moneda
   const [moneda, setMoneda] = useState('MXN');
   const [selectedMoneda, setSelectedMoneda] = useState<Moneda | null>({
     id: 'seed',
@@ -77,15 +245,29 @@ const MovementModal: React.FC<Props> = ({
   const [conceptos, setConceptos] = useState<Concepto[]>([]);
   const [conceptoBusqueda, setConceptoBusqueda] = useState('');
   const [conceptoSeleccionado, setConceptoSeleccionado] = useState<Concepto | null>(null);
-  const [loading, setLoading] = useState(false);
-  const navigation = useNavigation<any>();
 
-  const getLimitesPorTipo = () => {
+  const [loading, setLoading] = useState(false);
+  const [loadingBootstrap, setLoadingBootstrap] = useState(false);
+
+  useEffect(() => {
+    if (Platform.OS === 'android') {
+      try {
+        UIManager.setLayoutAnimationEnabledExperimental?.(true);
+      } catch {}
+    }
+  }, []);
+
+  const icon = tipo === 'ingreso' ? 'arrow-up-outline' : 'arrow-down-outline';
+  const tipoColor = tipo === 'ingreso' ? '#4CAF50' : '#F44336';
+
+  const getLimitesPorTipo = useCallback(() => {
     const baseLimit = isSubcuenta ? 1_000_000 : 10_000_000;
     return tipo === 'egreso'
       ? { maxValue: baseLimit, minValue: 0.01, warningThreshold: baseLimit * 0.1 }
       : { maxValue: baseLimit * 10, minValue: 0.01, warningThreshold: baseLimit * 0.5 };
-  };
+  }, [isSubcuenta, tipo]);
+
+  const warningThreshold = getLimitesPorTipo().warningThreshold;
 
   const handleMontoChange = (value: number | null) => setMontoNumerico(value);
   const handleValidationChange = (isValid: boolean, errors: string[]) => {
@@ -105,23 +287,45 @@ const MovementModal: React.FC<Props> = ({
     return symbols[currency] || '$';
   };
 
-  const fetchCuentaYConceptos = async () => {
-    try {
-      const token = await authService.getAccessToken();
-      if (!token) throw new Error('Token no encontrado');
+  const resetForm = useCallback(() => {
+    setMontoNumerico(null);
+    setMontoValido(false);
+    setErroresMonto([]);
+    setMotivo('');
+    setFechaEfectiva('');
+    setConceptoBusqueda('');
+    setConceptoSeleccionado(null);
+    setAfectaCuenta(true);
+  }, []);
 
+  const fetchCuentaYConceptos = useCallback(async () => {
+    try {
+      setLoadingBootstrap(true);
       const [resCuentaRaw, resConceptosRaw] = await Promise.all([
-        fetch(`${API_BASE_URL}/cuenta/principal`, { headers: { Authorization: `Bearer ${token}` } }),
-        fetch(`${API_BASE_URL}/conceptos`, { headers: { Authorization: `Bearer ${token}` } }),
+        apiRateLimiter.fetch(`${API_BASE_URL}/cuenta/principal`, {
+          method: 'GET',
+          headers: {
+            'Cache-Control': 'no-store',
+            'X-Skip-Cache': '1',
+          },
+        }),
+        apiRateLimiter.fetch(`${API_BASE_URL}/conceptos`, {
+          method: 'GET',
+          headers: {
+            'Cache-Control': 'no-store',
+            'X-Skip-Cache': '1',
+          },
+        }),
       ]);
 
       const [resCuenta, resConceptos] = await Promise.all([
-        resCuentaRaw.json(),
-        resConceptosRaw.json(),
+        resCuentaRaw.json().catch(() => ({})),
+        resConceptosRaw.json().catch(() => ({})),
       ]);
 
       const codigo = resCuenta?.moneda || 'MXN';
       const symbol = resCuenta?.simbolo || getSymbolForCurrency(codigo);
+
       setMoneda(codigo);
       setSelectedMoneda({
         id: 'seed',
@@ -130,99 +334,202 @@ const MovementModal: React.FC<Props> = ({
         simbolo: symbol,
       });
 
-      if (Array.isArray(resConceptos?.resultados)) {
-        setConceptos(resConceptos.resultados);
-      } else {
-        throw new Error('Respuesta inválida de conceptos');
-      }
+      if (Array.isArray(resConceptos?.resultados)) setConceptos(resConceptos.resultados);
+      else if (Array.isArray(resConceptos?.data)) setConceptos(resConceptos.data);
+      else if (Array.isArray(resConceptos)) setConceptos(resConceptos);
+      else setConceptos([]);
     } catch (err: any) {
       Toast.show({
         type: 'error',
         text1: 'Error al cargar datos',
-        text2: err.message || 'No se pudieron cargar cuenta ni conceptos.',
+        text2: err?.message || 'No se pudieron cargar cuenta ni conceptos.',
       });
+      setConceptos([]);
+    } finally {
+      setLoadingBootstrap(false);
     }
+  }, []);
+
+  useEffect(() => {
+    if (visible) {
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      fetchCuentaYConceptos();
+    } else {
+      resetForm();
+    }
+  }, [visible, fetchCuentaYConceptos, resetForm]);
+
+  const conceptosFiltrados = useMemo(() => {
+    const q = conceptoBusqueda.trim().toLowerCase();
+    if (!q) return conceptos;
+    return conceptos.filter((c) => (c?.nombre || '').toLowerCase().includes(q));
+  }, [conceptoBusqueda, conceptos]);
+
+  const canSubmit = useMemo(() => {
+    return !!montoNumerico && montoValido && !!motivo.trim();
+  }, [montoNumerico, montoValido, motivo]);
+
+  const validateFecha = (fecha: string) => {
+    const trimmed = (fecha || '').trim();
+    if (!trimmed) return { ok: true as const };
+
+    const parsed = parseYYYYMMDD(trimmed);
+    if (!parsed) {
+      return {
+        ok: false as const,
+        message: 'Selecciona una fecha válida.',
+      };
+    }
+
+    return { ok: true as const };
   };
 
-  const handleSend = async () => {
+  const handleSend = useCallback(async () => {
     if (!montoNumerico || !montoValido || !motivo.trim()) {
-      return Toast.show({ type: 'error', text1: 'Datos incompletos', text2: 'Verifica el monto y el motivo.' });
+      return Toast.show({
+        type: 'error',
+        text1: 'Datos incompletos',
+        text2: 'Verifica el monto y el motivo.',
+      });
+    }
+
+    const fechaCheck = validateFecha(fechaEfectiva);
+    if (!fechaCheck.ok) {
+      return Toast.show({
+        type: 'error',
+        text1: 'Fecha inválida',
+        text2: fechaCheck.message,
+      });
     }
 
     if (erroresMonto.some((e) => e.includes('muy grande'))) {
-      Toast.show({ type: 'warning', text1: 'Monto inusualmente grande', text2: '¿Seguro que es correcto?' });
+      Toast.show({
+        type: 'warning',
+        text1: 'Monto inusualmente grande',
+        text2: '¿Seguro que es correcto?',
+      });
     }
 
-    const conceptoFinal = conceptoSeleccionado?.nombre || motivo.trim();
+    const conceptoFinal = (conceptoSeleccionado?.nombre || motivo.trim()).trim();
     if (!conceptoFinal) {
-      return Toast.show({ type: 'error', text1: 'Concepto requerido', text2: 'Selecciona o escribe un concepto.' });
+      return Toast.show({
+        type: 'error',
+        text1: 'Concepto requerido',
+        text2: 'Selecciona o escribe un concepto.',
+      });
     }
 
     try {
       setLoading(true);
-      const token = await authService.getAccessToken();
-      const payload = {
+      const payload: any = {
         tipo,
         monto: montoNumerico,
         concepto: conceptoFinal,
         motivo,
+        ...(fechaEfectiva.trim() ? { fecha: fechaEfectiva.trim() } : {}),
         moneda,
         cuentaId,
         afectaCuenta,
         ...(isSubcuenta && subcuentaId ? { subCuentaId: subcuentaId } : {}),
       };
 
-      const res = await fetch(`${API_BASE_URL}/transacciones`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify(payload),
-      });
+      const netState = await NetInfo.fetch().catch(() => null);
+      const isConnected = !!netState?.isConnected;
 
-      if (!res.ok) throw new Error((await res.json())?.message || 'Error al guardar');
+      if (!isConnected) {
+        await offlineSyncService.enqueueTransaccion(payload);
+        Toast.show({
+          type: 'success',
+          text1: 'Movimiento guardado offline',
+          text2: 'Se sincronizará cuando haya conexión.',
+        });
+
+        onRefresh?.();
+        onSuccess();
+        resetForm();
+        onClose();
+
+        if (isSubcuenta) {
+          emitSubcuentasChanged();
+        }
+
+        // offlineSyncService already emits transacciones:changed, but keep behavior consistent.
+        emitTransaccionesChanged();
+        return;
+      }
+
+      let res: any;
+      try {
+        res = await apiRateLimiter.fetch(`${API_BASE_URL}/transacciones`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+      } catch (e: any) {
+        const msg = String(e?.message ?? e ?? '');
+        if (msg.toLowerCase().includes('network request failed') || msg.toLowerCase().includes('failed to fetch')) {
+          await offlineSyncService.enqueueTransaccion(payload);
+          Toast.show({
+            type: 'success',
+            text1: 'Movimiento guardado offline',
+            text2: 'Se sincronizará cuando haya conexión.',
+          });
+
+          onRefresh?.();
+          onSuccess();
+          resetForm();
+          onClose();
+
+          if (isSubcuenta) {
+            emitSubcuentasChanged();
+          }
+
+          emitTransaccionesChanged();
+          return;
+        }
+        throw e;
+      }
+
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body?.message || 'Error al guardar');
 
       Toast.show({ type: 'success', text1: 'Movimiento guardado' });
+
       onRefresh?.();
-      setMontoNumerico(null);
-      setMontoValido(false);
-      setErroresMonto([]);
-      setMotivo('');
-      setConceptoSeleccionado(null);
       onSuccess();
+
+      resetForm();
       onClose();
+
+      // Mantener dashboard y feeds sincronizados tras mutaciones
+      emitTransaccionesChanged();
 
       if (isSubcuenta) {
         emitSubcuentasChanged();
-        if (navigation.canGoBack()) {
-          navigation.goBack();
-        } else {
-          navigation.navigate('Dashboard', { updated: false } as any);
-        }
       }
     } catch (err: any) {
       Toast.show({ type: 'error', text1: 'Error', text2: err?.message || 'No se pudo guardar' });
     } finally {
       setLoading(false);
     }
-  };
-
-  const conceptosFiltrados = conceptoBusqueda.length === 0
-    ? conceptos
-    : conceptos.filter(c => c.nombre.toLowerCase().includes(conceptoBusqueda.toLowerCase()));
-
-  useEffect(() => {
-    if (visible) fetchCuentaYConceptos();
-    else {
-      setMontoNumerico(null);
-      setMontoValido(false);
-      setErroresMonto([]);
-      setMotivo('');
-      setConceptoBusqueda('');
-      setConceptoSeleccionado(null);
-    }
-  }, [visible]);
-
-  const icon = tipo === 'ingreso' ? 'arrow-up-outline' : 'arrow-down-outline';
-  const color = tipo === 'ingreso' ? '#4CAF50' : '#F44336';
+  }, [
+    montoNumerico,
+    montoValido,
+    motivo,
+    fechaEfectiva,
+    erroresMonto,
+    conceptoSeleccionado,
+    tipo,
+    moneda,
+    cuentaId,
+    afectaCuenta,
+    isSubcuenta,
+    subcuentaId,
+    onRefresh,
+    onSuccess,
+    resetForm,
+    onClose,
+  ]);
 
   return (
     <Modal
@@ -231,121 +538,236 @@ const MovementModal: React.FC<Props> = ({
       onSwipeComplete={onClose}
       swipeDirection="down"
       style={styles.modalContainer}
-      backdropOpacity={0.15}
+      backdropOpacity={0.14}
       animationIn="slideInUp"
       animationOut="slideOutDown"
-      animationInTiming={400}
-      animationOutTiming={350}
-      useNativeDriver={true}
+      animationInTiming={320}
+      animationOutTiming={260}
+      useNativeDriver
+      propagateSwipe
+      avoidKeyboard
+      statusBarTranslucent
     >
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={[styles.modal, { backgroundColor: colors.card }]}>
-        <View style={[styles.handle, { backgroundColor: colors.border }]} />
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 80 : 0}
+        style={{ flex: 1, justifyContent: 'flex-end' }}
+      >
+        <View style={[styles.modal, { backgroundColor: colors.card }]}>
+          <View style={[styles.handle, { backgroundColor: colors.border }]} />
+
         <View style={styles.header}>
-          <Ionicons name={icon} size={22} color={color} />
-          <Text style={[styles.title, { color: colors.text }]}>Agregar {tipo}</Text>
-          <TouchableOpacity onPress={onClose}>
+          <View style={styles.headerLeft}>
+            <View style={[styles.tipoBadge, { backgroundColor: colors.cardSecondary, borderColor: colors.border }]}>
+              <Ionicons name={icon} size={18} color={tipoColor} />
+            </View>
+            <View>
+              <Text style={[styles.title, { color: colors.text }]}>Agregar {tipo}</Text>
+              <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+                {isSubcuenta ? 'Subcuenta' : 'Cuenta principal'}
+              </Text>
+            </View>
+          </View>
+
+          <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
             <Ionicons name="close" size={22} color={colors.textSecondary} />
           </TouchableOpacity>
         </View>
 
-        <View style={styles.row}>
-          <SmartInput
-            type="currency"
-            initialValue={0}
-            context="transaction"
-            maxValue={getLimitesPorTipo().maxValue}
-            minValue={getLimitesPorTipo().minValue}
-            onValueChange={handleMontoChange}
-            onValidationChange={handleValidationChange}
-            prefix={selectedMoneda?.simbolo || getSymbolForCurrency(moneda)}
-            clearable
-            autoFix
-            style={StyleSheet.flatten([{ flex: 1, marginRight: 8, marginTop: 8 }])}
-            placeholder="0.00"
-          />
+        <ScrollView
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={{ paddingBottom: 32 }}
+          showsVerticalScrollIndicator={false}
+        >
+          {loadingBootstrap ? (
+            <View style={[styles.bootstrap, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}>
+              <ActivityIndicator size="small" color={colors.textSecondary} />
+              <Text style={[styles.bootstrapText, { color: colors.textSecondary }]}>Cargando datos…</Text>
+            </View>
+          ) : null}
 
-          {/* ✅ CurrencyField para seleccionar moneda */}
-          <View style={{ minWidth: 120 }}>
-            <CurrencyField
-              value={selectedMoneda}
-              onChange={(m) => {
-                setSelectedMoneda(m);
-                setMoneda(m.codigo);
-              }}
-              showSearch
+          <View style={styles.row}>
+            <SmartInput
+              type="currency"
+              initialValue={0}
+              context="transaction"
+              maxValue={getLimitesPorTipo().maxValue}
+              minValue={getLimitesPorTipo().minValue}
+              onValueChange={handleMontoChange}
+              onValidationChange={handleValidationChange}
+              prefix={selectedMoneda?.simbolo || getSymbolForCurrency(moneda)}
+              clearable
+              autoFix
+              style={StyleSheet.flatten([{ flex: 1, marginRight: 10, marginTop: 6 }])}
+              placeholder="0.00"
             />
-          </View>
-        </View>
 
-        {montoNumerico && montoNumerico >= getLimitesPorTipo().warningThreshold && (
-          <View style={styles.warningContainer}>
-            <Ionicons name="warning-outline" size={16} color="#F59E0B" />
-            <View style={styles.warningContent}>
-              <Text style={styles.warningTitle}>Monto inusualmente grande</Text>
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Text style={styles.warningText}>Has ingresado: </Text>
-                <SmartNumber
-                  value={montoNumerico}
-                  options={{ context: 'detail', symbol: selectedMoneda?.simbolo || getSymbolForCurrency(moneda) }}
-                  textStyle={[styles.warningText, styles.warningAmount]}
-                />
-              </View>
-              <Text style={styles.warningSubtext}>Verifica que sea correcto antes de continuar.</Text>
+            <View style={{ minWidth: 128, marginTop: 6 }}>
+              <CurrencyField
+                value={selectedMoneda}
+                onChange={(m) => {
+                  setSelectedMoneda(m);
+                  setMoneda(m.codigo);
+                }}
+                showSearch
+              />
             </View>
           </View>
-        )}
 
-        <TextInput
-          placeholder="Motivo"
-          value={motivo}
-          onChangeText={setMotivo}
-          style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.border, color: colors.inputText }]}
-          placeholderTextColor={colors.placeholder}
-        />
+          {!!montoNumerico && montoNumerico >= warningThreshold ? (
+            <View style={[styles.warningContainer, { borderLeftColor: '#F59E0B' }]}>
+              <Ionicons name="warning-outline" size={16} color="#F59E0B" />
+              <View style={styles.warningContent}>
+                <Text style={styles.warningTitle}>Monto inusualmente grande</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Text style={styles.warningText}>Has ingresado: </Text>
+                  <SmartNumber
+                    value={montoNumerico}
+                    options={{
+                      context: 'detail',
+                      symbol: selectedMoneda?.simbolo || getSymbolForCurrency(moneda),
+                    }}
+                    textStyle={[styles.warningText, styles.warningAmount]}
+                  />
+                </View>
+                <Text style={styles.warningSubtext}>Verifica que sea correcto antes de continuar.</Text>
+              </View>
+            </View>
+          ) : null}
 
-        <View style={styles.conceptoHeader}>
-          <TextInput
-            placeholder="Busca o escribe un concepto rápido"
-            placeholderTextColor={colors.placeholder}
-            value={conceptoBusqueda}
-            onChangeText={setConceptoBusqueda}
-            style={[styles.input, { flex: 1, fontSize: 12, backgroundColor: colors.inputBackground, borderColor: colors.border, color: colors.inputText }]}
+          <View style={[styles.fieldBlock, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}>
+            <Text style={[styles.label, { color: colors.text }]}>Motivo</Text>
+            <TextInput
+              placeholder="Ej: Gasolina, Nómina, Starbucks…"
+              value={motivo}
+              onChangeText={setMotivo}
+              style={[
+                styles.input,
+                {
+                  backgroundColor: colors.inputBackground,
+                  borderColor: colors.border,
+                  color: colors.inputText,
+                },
+              ]}
+              placeholderTextColor={colors.placeholder}
+            />
+          </View>
+
+          {/* ✅ NUEVO: Fecha efectiva pro */}
+          <EffectiveDateField
+            value={fechaEfectiva}
+            onChange={setFechaEfectiva}
+            colors={colors}
           />
-          <TouchableOpacity onPress={() => {
-            onClose();
-            navigation.navigate('Concepts');
-          }}>
-            <Text style={styles.adminLink}>+ Conceptos</Text>
-          </TouchableOpacity>
-        </View>
 
-        <Text style={[styles.conceptosText, { color: colors.text }]}>Tus conceptos</Text>
-        <ScrollView style={{ maxHeight: 150 }} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.conceptosBox}>
-          {conceptosFiltrados.map((item) => {
-            const isSelected = conceptoSeleccionado?.conceptoId === item.conceptoId;
-            return (
+          {/* Conceptos (tu lógica original, pero con emojis seguros) */}
+          <View style={[styles.fieldBlock, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}>
+            <View style={styles.conceptHeader}>
+              <Text style={[styles.label, { color: colors.text }]}>Conceptos</Text>
               <TouchableOpacity
-                key={item.conceptoId}
-                onPress={() => setConceptoSeleccionado(isSelected ? null : item)}
-                style={[styles.chip, { backgroundColor: colors.cardSecondary }, isSelected && styles.chipSelected]}
+                onPress={() => {
+                  try { onClose(); } catch {}
+                  navigation.navigate('Concepts');
+                }}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                activeOpacity={0.8}
               >
-                <Text style={[styles.chipText, { color: isSelected ? '#fff' : colors.text }]}>{takeFirstGrapheme(fixMojibake(item.icono || ''))} {item.nombre}</Text>
+                <Text style={styles.adminLink}>Administrar</Text>
               </TouchableOpacity>
-            );
-          })}
-          {conceptosFiltrados.length === 0 && (
-            <Text style={{ color: colors.textSecondary, fontSize: 12 }}>Sin resultados…</Text>
-          )}
+            </View>
+
+            <View style={[styles.searchRow, { borderColor: colors.border, backgroundColor: colors.inputBackground }]}>
+              <Ionicons name="search" size={16} color={colors.textSecondary} style={{ marginRight: 8 }} />
+              <TextInput
+                placeholder="Buscar concepto…"
+                placeholderTextColor={colors.placeholder}
+                value={conceptoBusqueda}
+                onChangeText={setConceptoBusqueda}
+                style={[styles.searchInput, { color: colors.inputText }]}
+              />
+              {!!conceptoBusqueda ? (
+                <TouchableOpacity onPress={() => setConceptoBusqueda('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Ionicons name="close-circle" size={18} color={colors.textSecondary} />
+                </TouchableOpacity>
+              ) : null}
+            </View>
+
+            <View style={styles.chipsWrap}>
+              {conceptosFiltrados.slice(0, 24).map((item) => {
+                const isSelected = conceptoSeleccionado?.conceptoId === item.conceptoId;
+                const emoji = normalizeEmojiStrict(item.icono || '', '•');
+                const looksLikeIonicon = typeof item.icono === 'string' && item.icono.includes('-');
+
+                return (
+                  <TouchableOpacity
+                    key={item.conceptoId}
+                    onPress={() => setConceptoSeleccionado(isSelected ? null : item)}
+                    activeOpacity={0.88}
+                    style={[
+                      styles.chip,
+                      {
+                        borderColor: isSelected ? item.color : colors.border,
+                        backgroundColor: colors.card,
+                      },
+                    ]}
+                  >
+                    {looksLikeIonicon ? (
+                      <View style={[styles.chipIconBadge, { backgroundColor: colors.backgroundSecondary, borderColor: colors.border }]}> 
+                        <Ionicons name={(item.icono || '') as any} size={16} color={item.color || colors.text} />
+                      </View>
+                    ) : (
+                      <View style={[styles.chipDot, { backgroundColor: item.color }]}> 
+                        <Text style={{ fontSize: 12 }}>{emoji}</Text>
+                      </View>
+                    )}
+
+                    <Text
+                      style={[
+                        styles.chipText,
+                        { color: colors.text },
+                        isSelected && { fontWeight: '900' },
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {fixEncoding(item.nombre)}
+                    </Text>
+                    {isSelected ? <Ionicons name="checkmark" size={14} color={item.color} /> : null}
+                  </TouchableOpacity>
+                );
+              })}
+
+              {conceptosFiltrados.length === 0 ? (
+                <Text style={{ color: colors.textSecondary, fontSize: 12, fontWeight: '600', marginTop: 6 }}>
+                  Sin resultados…
+                </Text>
+              ) : null}
+            </View>
+          </View>
+
+          <View style={[styles.switchCard, { borderColor: colors.border, backgroundColor: colors.backgroundSecondary }]}>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.switchLabel, { color: colors.text }]}>Afecta cuenta principal</Text>
+              <Text style={[styles.switchHint, { color: colors.textSecondary }]}>
+                Si lo apagas, se registra sin modificar saldo.
+              </Text>
+            </View>
+            <Switch value={afectaCuenta} onValueChange={setAfectaCuenta} />
+          </View>
+
+          <TouchableOpacity
+            style={[
+              styles.button,
+              { backgroundColor: tipoColor, opacity: loading ? 0.8 : 1 },
+              !canSubmit && { opacity: 0.55 },
+            ]}
+            onPress={handleSend}
+            disabled={loading || !canSubmit}
+            activeOpacity={0.9}
+          >
+            {loading ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.buttonText}>Guardar</Text>}
+          </TouchableOpacity>
         </ScrollView>
-
-        <View style={styles.switchRow}>
-          <Text style={[styles.switchLabel, { color: colors.text }]}>Afecta cuenta principal</Text>
-          <Switch value={afectaCuenta} onValueChange={setAfectaCuenta} />
         </View>
-
-        <TouchableOpacity style={[styles.button, { backgroundColor: color }]} onPress={handleSend} disabled={loading}>
-          <Text style={styles.buttonText}>{loading ? 'Guardando...' : 'Guardar'}</Text>
-        </TouchableOpacity>
       </KeyboardAvoidingView>
     </Modal>
   );
@@ -356,86 +778,166 @@ const styles = StyleSheet.create({
   modal: {
     paddingHorizontal: 16,
     paddingTop: 10,
-    paddingBottom: 24,
-    borderTopLeftRadius: 18,
-    borderTopRightRadius: 18,
-    maxHeight: require('react-native').Dimensions.get('window').height * 0.95,
-  },
-  conceptoHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 10,
+    paddingBottom: 16,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: SCREEN_HEIGHT * 0.85,
   },
   handle: {
-    width: 40,
+    width: 44,
     height: 5,
-    borderRadius: 5,
+    borderRadius: 999,
     alignSelf: 'center',
-    marginBottom: 8,
+    marginBottom: 10,
   },
+
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 12,
   },
-  title: { fontSize: 18, fontWeight: '600' },
-  input: {
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    height: 44,
-    fontSize: 14,
-    borderWidth: 1,
-    marginBottom: 10,
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
   },
-  row: { flexDirection: 'row', alignItems: 'center' },
-  adminLink: { marginLeft: 8, fontSize: 13, color: '#EF7725', fontWeight: '500' },
-  conceptosText: { fontSize: 14, fontWeight: '500', marginBottom: 8 },
-  conceptosBox: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 14 },
-  chip: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: 20, margin: 3 },
-  chipSelected: { backgroundColor: '#EF7725' },
-  chipText: { fontSize: 13, ...emojiFontFix },
-  switchRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginVertical: 10 },
-  switchLabel: { fontSize: 14 },
-  button: { padding: 14, borderRadius: 12, alignItems: 'center', marginTop: 10, marginBottom: 40 },
-  buttonText: { color: '#fff', fontWeight: '600' },
-  subModalCard: { width: '90%', maxHeight: '85%', borderRadius: 20, padding: 20 },
-  smartInputContainer: {
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    height: 44,
-    fontSize: 14,
+  tipoBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: 14,
     borderWidth: 1,
-    marginBottom: 10,
-  },
-  smartInputOuter: {
-    borderRadius: 10,
-    borderWidth: 1,
-    height: 44,
-    paddingHorizontal: 12,
+    alignItems: 'center',
     justifyContent: 'center',
+  },
+  title: { fontSize: 18, fontWeight: '800' },
+  subtitle: { fontSize: 12, fontWeight: '700', marginTop: 2 },
+
+  row: { flexDirection: 'row', alignItems: 'center' },
+
+  bootstrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderWidth: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 14,
     marginBottom: 10,
   },
-  smartInputText: {
-    fontSize: 14,
+  bootstrapText: { fontSize: 12, fontWeight: '700' },
+
+  fieldBlock: {
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: 12,
+    marginTop: 10,
   },
+  labelRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  label: { fontSize: 12, fontWeight: '900' },
+  clearText: { fontSize: 12, fontWeight: '900' },
+
+  input: {
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    height: 44,
+    fontSize: 14,
+    borderWidth: 1,
+  },
+
+  // Fecha efectiva
+  dateDisplay: {
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    height: 46,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexDirection: 'row',
+  },
+  dateIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dateText: { fontSize: 13.5, fontWeight: '800' },
+  quickRow: { flexDirection: 'row', gap: 8, marginTop: 10 },
+  quickPill: { borderRadius: 999, borderWidth: 1, paddingVertical: 8, paddingHorizontal: 12 },
+  quickText: { fontSize: 12, fontWeight: '900' },
+  doneBtn: { marginTop: 10, borderRadius: 14, borderWidth: 1, paddingVertical: 10, alignItems: 'center' },
+  doneText: { fontSize: 13, fontWeight: '900' },
+  dateHint: { marginTop: 8, fontSize: 11, fontWeight: '700' },
+
+  // Conceptos
+  conceptHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  adminLink: { fontSize: 12, color: '#EF7725', fontWeight: '900' },
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    height: 42,
+    marginBottom: 10,
+  },
+  searchInput: { flex: 1, fontSize: 13, paddingVertical: 0, fontWeight: '700' },
+  chipsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, paddingBottom: 2 },
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 9,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+    borderWidth: 1,
+    maxWidth: '100%',
+  },
+  chipDot: { width: 34, height: 30, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  chipIconBadge: { width: 34, height: 30, borderRadius: 10, borderWidth: 1, alignItems: 'center', justifyContent: 'center', marginRight: 6 },
+  chipText: { fontSize: 12.5, fontWeight: '800', maxWidth: 220, ...emojiFontFix },
+
+  // Switch
+  switchCard: {
+    marginTop: 12,
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  switchLabel: { fontSize: 14, fontWeight: '900' },
+  switchHint: { fontSize: 12, fontWeight: '700', marginTop: 3 },
+
+  // CTA
+  button: {
+    paddingVertical: 14,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 14,
+  },
+  buttonText: { color: '#fff', fontWeight: '900', fontSize: 15 },
+
+  // Warning
   warningContainer: {
     flexDirection: 'row',
     backgroundColor: '#FEF3C7',
     padding: 12,
-    borderRadius: 8,
-    marginBottom: 16,
-    marginTop: 8,
+    borderRadius: 12,
+    marginBottom: 10,
+    marginTop: 10,
     borderLeftWidth: 4,
-    borderLeftColor: '#F59E0B',
   },
   warningContent: { flex: 1, marginLeft: 8 },
-  warningTitle: { fontSize: 14, fontWeight: '600', color: '#92400E', marginBottom: 4 },
-  warningText: { fontSize: 12, color: '#92400E', marginBottom: 2 },
-  warningAmount: { fontWeight: '700', color: '#92400E' },
-  warningSubtext: { fontSize: 11, color: '#A16207', fontStyle: 'italic' },
+  warningTitle: { fontSize: 14, fontWeight: '900', color: '#92400E', marginBottom: 4 },
+  warningText: { fontSize: 12, color: '#92400E', marginBottom: 2, fontWeight: '700' },
+  warningAmount: { fontWeight: '900', color: '#92400E' },
+  warningSubtext: { fontSize: 11, color: '#A16207', fontStyle: 'italic', fontWeight: '700' },
 });
 
 export default MovementModal;

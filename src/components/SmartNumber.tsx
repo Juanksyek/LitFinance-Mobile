@@ -8,7 +8,7 @@ import Toast from 'react-native-toast-message';
 import { useThemeColors } from '../theme/useThemeColors';
 
 interface SmartNumberProps {
-  value: number;
+  value: number | undefined | null;
   options?: FormatOptions;
   style?: any;
   textStyle?: any;
@@ -55,12 +55,10 @@ const SmartNumber: React.FC<SmartNumberProps> = ({
   };
 
   // Formateo del valor
-  const result = formatCurrency(value, {
+  const result = formatCurrency(value as any, {
     ...options,
     forceFullNumbers: showFullNumbers,
   });
-
-  console.log('🔢 [SmartNumber] value computed', { value, formatted: result.formatted, isTruncated: result.isTruncated });
 
   const hasWarnings = result.warnings.length > 0;
   const shouldShowTooltip = allowTooltip && (result.isTruncated || result.isLarge || hasWarnings);

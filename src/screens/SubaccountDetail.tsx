@@ -34,7 +34,7 @@ import MovimientoDetalleModal from '../components/MovimientoDetalleModal';
 import { apiRateLimiter } from '../services/apiRateLimiter';
 import { API_BASE_URL } from '../constants/api';
 import { RootStackParamList } from '../navigation/AppNavigator';
-import { emitRecurrentesChanged, emitSubcuentasChanged, emitTransaccionesChanged, emitViewerChanged } from '../utils/dashboardRefreshBus';
+import { emitRecurrentesChanged, emitSubcuentasChanged, emitTransaccionesChanged, emitViewerChanged, dashboardRefreshBus } from '../utils/dashboardRefreshBus';
 import { useThemeColors } from '../theme/useThemeColors';
 import { fixEncoding } from '../utils/fixEncoding';
 import { subcuentasService } from '../services/subcuentasService';
@@ -238,18 +238,33 @@ const SubaccountDetail = () => {
     return fixEncoding(found ?? 'Movimiento');
   }, []);
 
-  const pickTipo = useCallback((item: any): 'ingreso' | 'egreso' | null => {
+  const pickTipo = useCallback((item: any): 'ingreso' | 'egreso' | 'transferencia' | null => {
     const raw = item?.tipo;
     if (raw === 'ingreso' || raw === 'egreso') return raw;
+    if (raw === 'transferencia') return raw;
     const raw2 = item?.movimientoTipo;
     if (raw2 === 'ingreso' || raw2 === 'egreso') return raw2;
+    if (raw2 === 'transferencia') return raw2;
     return null;
   }, []);
 
   const pickMonto = useCallback((item: any): number | null => {
-    const candidates = [item?.monto, item?.cantidad, item?.importe, item?.amount, item?.total];
+    const candidates = [item?.monto, item?.cantidad, item?.importe, item?.amount, item?.total, item?.datos?.monto, item?.datos?.montoOrigen, item?.datos?.montoDestino];
     const found = candidates.find((n) => typeof n === 'number' && Number.isFinite(n));
     return found ?? null;
+  }, []);
+
+  const getTransferData = useCallback((item: any) => {
+    const data = item?.datos ?? item?.metadata ?? item?.detalles ?? {};
+    return {
+      side: data?.side,
+      origen: data?.origen,
+      destino: data?.destino,
+      montoOrigen: data?.montoOrigen,
+      monedaOrigen: data?.monedaOrigen,
+      montoDestino: data?.montoDestino,
+      monedaDestino: data?.monedaDestino,
+    };
   }, []);
 
   const fetchSubcuenta = useCallback(async () => {
@@ -419,6 +434,22 @@ const SubaccountDetail = () => {
   useEffect(() => {
     fetchHistorial();
   }, [fetchHistorial]);
+
+  useEffect(() => {
+    const offTx = dashboardRefreshBus.on('transacciones:changed', () => {
+      fetchSubcuenta();
+      fetchHistorial();
+    });
+    const offSub = dashboardRefreshBus.on('subcuentas:changed', () => {
+      fetchSubcuenta();
+      fetchHistorial();
+    });
+
+    return () => {
+      offTx();
+      offSub();
+    };
+  }, [fetchSubcuenta, fetchHistorial]);
 
   const toggleFiltros = useCallback(() => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -615,14 +646,27 @@ const SubaccountDetail = () => {
       const scale = useRef(new Animated.Value(1)).current;
 
       const tipo = pickTipo(item);
-      const isExpense = tipo === 'egreso';
-      const accent = isExpense ? danger : success;
+      const transferData = getTransferData(item);
+      const isTransfer = tipo === 'transferencia';
+      const transferIsExpense = isTransfer && (transferData.side === 'origen' || Number(item?.monto ?? 0) < 0);
+      const isExpense = tipo === 'egreso' || transferIsExpense;
+      const accent = isTransfer ? '#7b1fa2' : isExpense ? danger : success;
+      const transferFallbackDescription =
+        (transferData.side === 'origen' && transferData.destino?.nombre ? `Transferido a ${transferData.destino.nombre}` : '') ||
+        (transferData.side === 'destino' && transferData.origen?.nombre ? `Transferido desde ${transferData.origen.nombre}` : '') ||
+        pickDescripcion(item);
 
-      const desc = pickDescripcion(item);
+      const desc = isTransfer
+        ? fixEncoding(
+            String(
+              item?.descripcion ?? item?.datos?.motivo ?? transferFallbackDescription
+            )
+          )
+        : pickDescripcion(item);
       const date = pickDate(item);
       const amount = pickMonto(item);
 
-      const leftIcon: IonName = isExpense ? 'arrow-up-circle' : 'arrow-down-circle';
+      const leftIcon: IonName = isTransfer ? 'swap-horizontal' : isExpense ? 'arrow-up-circle' : 'arrow-down-circle';
 
       const hasMulti =
         item?.montoOriginal != null &&
@@ -630,7 +674,9 @@ const SubaccountDetail = () => {
         (item?.montoConvertido != null || item?.montoConvertidoCuenta != null || item?.montoConvertidoSubcuenta != null) &&
         (item?.monedaConvertida || item?.monedaConvertidaCuenta || item?.monedaConvertidaSubcuenta);
 
-      const displayAmount = hasMulti
+      const displayAmount = isTransfer && transferData.montoOrigen != null && transferData.monedaOrigen && transferData.montoDestino != null && transferData.monedaDestino
+        ? `${transferData.side === 'origen' ? '-' : '+'}${formatCurrency(Number(transferData.side === 'origen' ? transferData.montoOrigen : transferData.montoDestino))} ${String(transferData.side === 'origen' ? transferData.monedaOrigen : transferData.monedaDestino)}`
+        : hasMulti
         ? `${isExpense ? '-' : '+'}${formatCurrency(item.montoOriginal)} ${item.moneda} → ${formatCurrency(
             item.montoConvertido ?? item.montoConvertidoCuenta ?? item.montoConvertidoSubcuenta
           )} ${item.monedaConvertida ?? item.monedaConvertidaCuenta ?? item.monedaConvertidaSubcuenta}`
@@ -668,9 +714,9 @@ const SubaccountDetail = () => {
                   {desc}
                 </Text>
 
-                {!!item?.motivo && (
+                {!!(item?.motivo || item?.datos?.motivo) && (
                   <Text style={[styles.rowSub, { color: colors.textSecondary }]} numberOfLines={1}>
-                    {fixEncoding(item.motivo)}
+                    {fixEncoding(item?.motivo ?? item?.datos?.motivo)}
                   </Text>
                 )}
 
@@ -705,6 +751,7 @@ const SubaccountDetail = () => {
       formatDate,
       pickDate,
       pickDescripcion,
+      getTransferData,
       pickMonto,
       pickTipo,
       subcuenta?.simbolo,
@@ -868,6 +915,7 @@ const SubaccountDetail = () => {
               fetchSubcuenta={fetchSubcuenta}
               onRefresh={() => {
                 fetchSubcuenta();
+                fetchHistorial();
                 handleGlobalRefresh();
               }}
               userId={userId!}
