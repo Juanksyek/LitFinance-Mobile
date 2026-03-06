@@ -17,6 +17,8 @@ export default function PremiumStatusCard({ premiumSubscriptionStatus, premiumUn
       (premiumUntil && new Date(premiumUntil) > new Date());
   }, [premiumSubscriptionStatus, premiumUntil]);
 
+  const isSubscription = premiumSubscriptionStatus === 'active' || premiumSubscriptionStatus === 'trialing';
+
   console.log('⭐ [PremiumStatusCard] computed', { isPremium, isSubscription });
 
   const daysRemaining = useMemo(() => {
@@ -33,8 +35,6 @@ export default function PremiumStatusCard({ premiumSubscriptionStatus, premiumUn
       year: 'numeric',
     });
   }, [premiumUntil]);
-
-  const isSubscription = premiumSubscriptionStatus === 'active' || premiumSubscriptionStatus === 'trialing';
 
   if (!isPremium) {
     console.log('⭐ [PremiumStatusCard] not premium, rendering null');
