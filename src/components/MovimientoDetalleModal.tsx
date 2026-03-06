@@ -3,6 +3,7 @@ import { Modal, View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'rea
 import { Ionicons } from "@expo/vector-icons";
 import SmartNumber from './SmartNumber';
 import { useThemeColors } from '../theme/useThemeColors';
+import { fixEncoding } from '../utils/fixEncoding';
 
 // Reutiliza el tipo de movimiento de subcuenta
 export type SubcuentaMovimiento = any;
@@ -26,6 +27,19 @@ const MovimientoDetalleModal: React.FC<Props> = ({ visible, onClose, movimiento,
   const montoConvertido = movimiento.montoConvertido ?? movimiento.montoConvertidoCuenta ?? movimiento.montoConvertidoSubcuenta;
   const monedaConvertida = movimiento.monedaConvertida ?? movimiento.monedaConvertidaCuenta ?? movimiento.monedaConvertidaSubcuenta;
   const tasaConversion = movimiento.tasaConversion ?? movimiento.tasaConversionCuenta ?? movimiento.tasaConversionSubcuenta;
+  const transferData = {
+    side: movimiento?.datos?.side ?? movimiento?.metadata?.side,
+    origen: movimiento?.datos?.origen ?? movimiento?.metadata?.origen,
+    destino: movimiento?.datos?.destino ?? movimiento?.metadata?.destino,
+    txId: movimiento?.datos?.txId ?? movimiento?.metadata?.txId,
+    montoOrigen: movimiento?.datos?.montoOrigen ?? movimiento?.metadata?.montoOrigen,
+    monedaOrigen: movimiento?.datos?.monedaOrigen ?? movimiento?.metadata?.monedaOrigen,
+    montoDestino: movimiento?.datos?.montoDestino ?? movimiento?.metadata?.montoDestino,
+    monedaDestino: movimiento?.datos?.monedaDestino ?? movimiento?.metadata?.monedaDestino,
+  };
+  const transferOrigenNombre = typeof transferData.origen === 'object' ? String(transferData.origen?.nombre ?? transferData.origen?.id ?? '').trim() : '';
+  const transferDestinoNombre = typeof transferData.destino === 'object' ? String(transferData.destino?.nombre ?? transferData.destino?.id ?? '').trim() : '';
+  const amountColor = movimiento.tipo === 'egreso' ? '#EF4444' : movimiento.tipo === 'transferencia' ? '#7b1fa2' : '#10B981';
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
@@ -40,13 +54,13 @@ const MovimientoDetalleModal: React.FC<Props> = ({ visible, onClose, movimiento,
           <ScrollView style={{ maxHeight: 350 }}>
             <View style={styles.row}>
               <Text style={[styles.label, { color: colors.textSecondary }]}>Descripción:</Text>
-              <Text style={[styles.value, { color: colors.text }]}>{movimiento.descripcion || movimiento.concepto || movimiento.motivo || '—'}</Text>
+              <Text style={[styles.value, { color: colors.text }]}>{fixEncoding(movimiento.descripcion) || fixEncoding(movimiento.concepto) || fixEncoding(movimiento.motivo) || '—'}</Text>
             </View>
             {/* Multi-currency conversion display */}
             {montoOriginal != null && monedaOrigen && montoConvertido != null && monedaConvertida ? (
               <View style={styles.row}>
                 <Text style={[styles.label, { color: colors.textSecondary }]}>Monto:</Text>
-                <Text style={[styles.value, { color: movimiento.tipo === 'egreso' ? '#EF4444' : '#10B981' }]}
+                <Text style={[styles.value, { color: amountColor }]}
                 >
                   {(movimiento.tipo === 'egreso' ? '-' : '+') +
                     formatAmountPlain(montoOriginal) + ' ' + monedaOrigen +
@@ -57,9 +71,37 @@ const MovimientoDetalleModal: React.FC<Props> = ({ visible, onClose, movimiento,
             ) : (
               <View style={styles.row}>
                 <Text style={[styles.label, { color: colors.textSecondary }]}>Monto:</Text>
-                <Text style={[styles.value, { color: movimiento.tipo === 'egreso' ? '#EF4444' : '#10B981' }]}> {(movimiento.tipo === 'egreso' ? '-' : '+') + (simbolo || '') + Math.abs(movimiento.monto ?? movimiento.montoOriginal ?? 0)} </Text>
+                <Text style={[styles.value, { color: amountColor }]}> {(movimiento.tipo === 'egreso' ? '-' : '+') + (simbolo || '') + Math.abs(movimiento.monto ?? movimiento.montoOriginal ?? 0)} </Text>
               </View>
             )}
+
+            {movimiento.tipo === 'transferencia' && transferData.side === 'origen' && transferDestinoNombre ? (
+              <View style={styles.row}>
+                <Text style={[styles.label, { color: colors.textSecondary }]}>Transferido a:</Text>
+                <Text style={[styles.value, { color: colors.text }]}>{fixEncoding(transferDestinoNombre)}</Text>
+              </View>
+            ) : null}
+
+            {movimiento.tipo === 'transferencia' && transferData.side === 'destino' && transferOrigenNombre ? (
+              <View style={styles.row}>
+                <Text style={[styles.label, { color: colors.textSecondary }]}>Transferido desde:</Text>
+                <Text style={[styles.value, { color: colors.text }]}>{fixEncoding(transferOrigenNombre)}</Text>
+              </View>
+            ) : null}
+
+            {movimiento.tipo === 'transferencia' && transferData.montoOrigen != null && transferData.monedaOrigen ? (
+              <View style={styles.row}>
+                <Text style={[styles.label, { color: colors.textSecondary }]}>Monto origen:</Text>
+                <Text style={[styles.value, { color: colors.text }]}>{formatAmountPlain(Number(transferData.montoOrigen))} {String(transferData.monedaOrigen)}</Text>
+              </View>
+            ) : null}
+
+            {movimiento.tipo === 'transferencia' && transferData.montoDestino != null && transferData.monedaDestino ? (
+              <View style={styles.row}>
+                <Text style={[styles.label, { color: colors.textSecondary }]}>Monto destino:</Text>
+                <Text style={[styles.value, { color: colors.text }]}>{formatAmountPlain(Number(transferData.montoDestino))} {String(transferData.monedaDestino)}</Text>
+              </View>
+            ) : null}
 
             {/* Show conversion rate if available */}
             {tasaConversion && monedaOrigen && monedaConvertida && (
@@ -77,19 +119,19 @@ const MovimientoDetalleModal: React.FC<Props> = ({ visible, onClose, movimiento,
             {movimiento.motivo && (
               <View style={styles.row}>
                 <Text style={[styles.label, { color: colors.textSecondary }]}>Motivo:</Text>
-                <Text style={[styles.value, { color: colors.text }]}>{movimiento.motivo}</Text>
+                <Text style={[styles.value, { color: colors.text }]}>{fixEncoding(movimiento.motivo)}</Text>
               </View>
             )}
             {movimiento.source && (
               <View style={styles.row}>
                 <Text style={[styles.label, { color: colors.textSecondary }]}>Fuente:</Text>
-                <Text style={[styles.value, { color: colors.text }]}>{movimiento.source}</Text>
+                <Text style={[styles.value, { color: colors.text }]}>{fixEncoding(movimiento.source)}</Text>
               </View>
             )}
             {movimiento.transaccionId && (
               <View style={styles.row}>
                 <Text style={[styles.label, { color: colors.textSecondary }]}>ID Transacción:</Text>
-                <Text style={[styles.value, { color: colors.text }]}>{movimiento.transaccionId}</Text>
+                <Text style={[styles.value, { color: colors.text }]}>{fixEncoding(movimiento.transaccionId)}</Text>
               </View>
             )}
             {/* Puedes agregar más campos relevantes aquí */}
