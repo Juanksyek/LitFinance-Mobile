@@ -405,6 +405,35 @@ const TransactionHistory = ({ refreshKey, dashboardSnapshot }: { refreshKey?: nu
   const formatAmountPlain = (amount: number) =>
     Math.abs(amount).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+  const getCurrencySymbol = (currency?: string | null) => {
+    const normalized = String(currency ?? '').trim().toUpperCase();
+    const symbols: Record<string, string> = {
+      MXN: '$',
+      USD: '$',
+      EUR: '€',
+      GBP: '£',
+      JPY: '¥',
+      CNY: '¥',
+      CAD: '$',
+      AUD: '$',
+      CHF: 'CHF',
+    };
+    return symbols[normalized] ?? normalized;
+  };
+
+  const getOriginalCurrencyAmountText = (item: HistorialItem): string | null => {
+    const meta: any = item.metadata ?? {};
+    const montoOriginal = meta.montoOriginal ?? meta.montoOrigen;
+    const monedaOrigen = meta.monedaOrigen ?? meta.monedaOriginal;
+    const montoConvertido = meta.montoConvertido ?? meta.montoDestino ?? item.monto;
+    const monedaConvertida = meta.monedaConvertida ?? meta.monedaDestino ?? meta.monedaCuenta;
+
+    if (montoOriginal == null || !monedaOrigen || montoConvertido == null || !monedaConvertida) return null;
+    if (String(monedaOrigen).toUpperCase() === String(monedaConvertida).toUpperCase()) return null;
+
+    return `${getCurrencySymbol(monedaOrigen)}${formatAmountPlain(Number(montoOriginal))}`;
+  };
+
   const getConversionLabel = (item: HistorialItem): string | null => {
     const meta: any = item.metadata ?? {};
     const montoOriginal = meta.montoOriginal ?? meta.montoOrigen;
@@ -418,7 +447,7 @@ const TransactionHistory = ({ refreshKey, dashboardSnapshot }: { refreshKey?: nu
     // Only show when it actually looks like a conversion (currency differs)
     if (String(monedaOrigen) === String(monedaConvertida)) return null;
 
-    return `${formatAmountPlain(montoOriginal)} ${monedaOrigen} → ${formatAmountPlain(montoConvertido)} ${monedaConvertida}`;
+    return `${getCurrencySymbol(monedaOrigen)}${formatAmountPlain(Number(montoOriginal))} ${String(monedaOrigen).toUpperCase()} → ${getCurrencySymbol(monedaConvertida)}${formatAmountPlain(Number(montoConvertido))} ${String(monedaConvertida).toUpperCase()}`;
   };
 
   // Snapshot mode: prefer recentHistory (unified feed). Fallback to recentTransactions.
@@ -1231,6 +1260,7 @@ const TransactionHistory = ({ refreshKey, dashboardSnapshot }: { refreshKey?: nu
             let showRecurrenteBadge = false;
             let recurrenteBadgeText = '';
             const conversionLabel = getConversionLabel(item);
+            const originalCurrencyAmountText = getOriginalCurrencyAmountText(item);
             // Recurrente de registro (monto 0)
             if (item.tipo === 'recurrente' && item.monto === 0) {
               amountText = 'Registro';
@@ -1238,21 +1268,23 @@ const TransactionHistory = ({ refreshKey, dashboardSnapshot }: { refreshKey?: nu
               if (conversionLabel) {
                 registroBadgeText = conversionLabel;
               } else if (item.metadata?.montoOriginal && item.metadata?.monedaOrigen) {
-                registroBadgeText = `${formatAmountPlain(item.metadata.montoOriginal)} ${item.metadata.monedaOrigen}`;
+                registroBadgeText = `${getCurrencySymbol(item.metadata.monedaOrigen)}${formatAmountPlain(Number(item.metadata.montoOriginal))} ${String(item.metadata.monedaOrigen).toUpperCase()}`;
               } else {
                 registroBadgeText = 'Recurrente';
               }
             } else if (item.tipo === 'recurrente') {
               // Recurrente ejecutado (monto > 0)
-              amountText = `$${item.monto.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+              amountText = originalCurrencyAmountText ?? `$${item.monto.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
               showRecurrenteBadge = true;
               if (conversionLabel) {
                 recurrenteBadgeText = conversionLabel;
               } else if (item.metadata?.monedaOrigen && item.metadata?.montoOriginal) {
-                recurrenteBadgeText = `${formatAmountPlain(item.metadata.montoOriginal)} ${item.metadata.monedaOrigen}`;
+                recurrenteBadgeText = `${getCurrencySymbol(item.metadata.monedaOrigen)}${formatAmountPlain(Number(item.metadata.montoOriginal))} ${String(item.metadata.monedaOrigen).toUpperCase()}`;
               } else {
                 recurrenteBadgeText = 'Recurrente';
               }
+            } else if (originalCurrencyAmountText) {
+              amountText = originalCurrencyAmountText;
             } else if (item.monto >= 1000000) {
               amountText = `$${(item.monto / 1000000).toFixed(1)}M`;
             } else {

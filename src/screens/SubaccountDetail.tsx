@@ -226,6 +226,22 @@ const SubaccountDetail = () => {
     return amount.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }, []);
 
+  const getCurrencySymbol = useCallback((currency?: string | null) => {
+    const normalized = String(currency ?? '').trim().toUpperCase();
+    const symbols: Record<string, string> = {
+      MXN: '$',
+      USD: '$',
+      EUR: '€',
+      GBP: '£',
+      JPY: '¥',
+      CNY: '¥',
+      CAD: '$',
+      AUD: '$',
+      CHF: 'CHF',
+    };
+    return symbols[normalized] ?? normalized;
+  }, []);
+
   const pickDate = useCallback((item: any): string | null => {
     const candidates = [item?.createdAt, item?.fecha, item?.executedAt, item?.updatedAt, item?.timestamp, item?.date];
     const found = candidates.find((d) => typeof d === 'string' && d.trim().length > 0);
@@ -677,9 +693,9 @@ const SubaccountDetail = () => {
       const displayAmount = isTransfer && transferData.montoOrigen != null && transferData.monedaOrigen && transferData.montoDestino != null && transferData.monedaDestino
         ? `${transferData.side === 'origen' ? '-' : '+'}${formatCurrency(Number(transferData.side === 'origen' ? transferData.montoOrigen : transferData.montoDestino))} ${String(transferData.side === 'origen' ? transferData.monedaOrigen : transferData.monedaDestino)}`
         : hasMulti
-        ? `${isExpense ? '-' : '+'}${formatCurrency(item.montoOriginal)} ${item.moneda} → ${formatCurrency(
+        ? `${isExpense ? '-' : '+'}${getCurrencySymbol(item.moneda)}${formatCurrency(item.montoOriginal)} ${String(item.moneda).toUpperCase()} → ${formatCurrency(
             item.montoConvertido ?? item.montoConvertidoCuenta ?? item.montoConvertidoSubcuenta
-          )} ${item.monedaConvertida ?? item.monedaConvertidaCuenta ?? item.monedaConvertidaSubcuenta}`
+          )} ${String(item.monedaConvertida ?? item.monedaConvertidaCuenta ?? item.monedaConvertidaSubcuenta).toUpperCase()}`
         : amount != null
         ? `${isExpense ? '-' : '+'}${subcuenta.simbolo || ''}${formatCurrency(amount)}`
         : '';
@@ -751,6 +767,7 @@ const SubaccountDetail = () => {
       formatDate,
       pickDate,
       pickDescripcion,
+      getCurrencySymbol,
       getTransferData,
       pickMonto,
       pickTipo,

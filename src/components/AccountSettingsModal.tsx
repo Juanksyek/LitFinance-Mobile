@@ -306,6 +306,27 @@ const AccountSettingsModal: React.FC<Props> = ({ visible, onClose }) => {
           </TouchableOpacity>
         </View>
 
+        <View style={[styles.section, { borderBottomColor: colors.border }]}> 
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Organización</Text>
+
+          <TouchableOpacity
+            style={[styles.premiumOption, { backgroundColor: colors.cardSecondary, borderColor: colors.border }]}
+            onPress={() => {
+              onClose();
+              navigation.navigate('Concepts');
+            }}
+          >
+            <View style={styles.premiumIconContainer}>
+              <Ionicons name="pricetags-outline" size={24} color={colors.button} />
+            </View>
+            <View style={styles.premiumTextContainer}>
+              <Text style={[styles.premiumTitle, { color: colors.text }]}>Administrar conceptos</Text>
+              <Text style={[styles.premiumSubtext, { color: colors.textSecondary }]}>Crea, edita y organiza tus conceptos</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={colors.textTertiary} />
+          </TouchableOpacity>
+        </View>
+
         <View style={styles.switchOption}>
           <View style={styles.switchTextContainer}>
             <Text style={[styles.optionText, { color: colors.text }]}>Números completos</Text>

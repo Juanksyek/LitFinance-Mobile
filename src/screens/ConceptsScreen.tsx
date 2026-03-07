@@ -111,6 +111,22 @@ const withAlpha = (color: string, alpha: number) => {
   return c;
 };
 
+// Fix common mojibake where UTF-8 bytes were interpreted as latin1 (e.g. "NÃ³mina" -> "Nómina")
+function fixEncoding(input: any) {
+  if (input === null || input === undefined) return "";
+  const s = String(input);
+  try {
+    // decodeURIComponent(escape(...)) is a pragmatic way to recover text
+    // that was double-interpreted between Latin1 and UTF-8.
+    // It is safe-failing for already-correct strings.
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore: escape is available in JS runtime
+    return decodeURIComponent(escape(s));
+  } catch {
+    return s;
+  }
+}
+
 /** Full catalog (dedupe + robust) */
 const RAW_ICON_CATALOG = [
   "add",
@@ -414,7 +430,7 @@ const ConceptsScreen: React.FC = () => {
 
         return {
           conceptoId: it.conceptoId ?? it.id ?? String(it._id ?? Math.random()),
-          nombre: it.nombre ?? it.name ?? "",
+          nombre: fixEncoding(it.nombre ?? it.name ?? ""),
           color: it.color ?? it.hex ?? COLORS[0],
           icono,
         };
@@ -503,7 +519,7 @@ const ConceptsScreen: React.FC = () => {
       const created: Concepto = createdBody
         ? {
             conceptoId: createdBody.conceptoId ?? createdBody.id ?? String(createdBody._id ?? Math.random()),
-            nombre: createdBody.nombre ?? createdBody.name ?? nombre,
+            nombre: fixEncoding(createdBody.nombre ?? createdBody.name ?? nombre),
             color: createdBody.color ?? createdBody.hex ?? form.color,
             icono:
               typeof (createdBody.icono ?? createdBody.icon) === "string" && ICON_SET.has(String(createdBody.icono ?? createdBody.icon).trim())
@@ -512,7 +528,7 @@ const ConceptsScreen: React.FC = () => {
           }
         : {
             conceptoId: String(Math.random()),
-            nombre,
+            nombre: fixEncoding(nombre),
             color: form.color,
             icono: iconoFinal,
           };
@@ -588,7 +604,7 @@ const ConceptsScreen: React.FC = () => {
       const updated: Concepto = updatedBody
         ? {
             conceptoId: form.conceptoId,
-            nombre: updatedBody.nombre ?? updatedBody.name ?? originalItem.nombre,
+            nombre: fixEncoding(updatedBody.nombre ?? updatedBody.name ?? originalItem.nombre),
             color: updatedBody.color ?? updatedBody.hex ?? originalItem.color,
             icono:
               typeof (updatedBody.icono ?? updatedBody.icon) === "string" && ICON_SET.has(String(updatedBody.icono ?? updatedBody.icon).trim())

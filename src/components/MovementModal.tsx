@@ -31,6 +31,7 @@ import { emitSubcuentasChanged, emitTransaccionesChanged } from '../utils/dashbo
 import { normalizeEmojiStrict, emojiFontFix } from '../utils/fixMojibake';
 import { fixEncoding } from '../utils/fixEncoding';
 import { offlineSyncService } from '../services/offlineSyncService';
+import EventBus from '../utils/eventBus';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 
@@ -359,6 +360,28 @@ const MovementModal: React.FC<Props> = ({
     }
   }, [visible, fetchCuentaYConceptos, resetForm]);
 
+  useEffect(() => {
+    if (!visible) return;
+
+    const handleConceptChanged = (payload?: any) => {
+      fetchCuentaYConceptos();
+
+      const changed = payload?.item;
+      if (changed?.conceptoId && changed?.nombre) {
+        setConceptoSeleccionado({
+          conceptoId: String(changed.conceptoId),
+          nombre: String(changed.nombre),
+          color: String(changed.color ?? '#EF7725'),
+          icono: String(changed.icono ?? 'pricetag-outline'),
+        });
+        setConceptoBusqueda('');
+      }
+    };
+
+    EventBus.on('conceptChanged', handleConceptChanged);
+    return () => EventBus.off('conceptChanged', handleConceptChanged);
+  }, [visible, fetchCuentaYConceptos]);
+
   const conceptosFiltrados = useMemo(() => {
     const q = conceptoBusqueda.trim().toLowerCase();
     if (!q) return conceptos;
@@ -666,7 +689,6 @@ const MovementModal: React.FC<Props> = ({
               <Text style={[styles.label, { color: colors.text }]}>Conceptos</Text>
               <TouchableOpacity
                 onPress={() => {
-                  try { onClose(); } catch {}
                   navigation.navigate('Concepts');
                 }}
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
