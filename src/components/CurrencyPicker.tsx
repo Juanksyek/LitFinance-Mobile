@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, ActivityIndicator, RefreshControl, UIManager, LayoutAnimation, Platform, Animated, KeyboardAvoidingView } from "react-native";
 import Modal from "react-native-modal";
 import { Ionicons } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import Toast from "react-native-toast-message";
 import userService from "../services/userService";
 import { API_BASE_URL } from "../constants/api";
@@ -36,6 +35,11 @@ type MonedasResponse = {
   totalFavoritas: number;
 };
 
+type FavoriteDetailsResponse = {
+  monedasFavoritas?: string[];
+  detalles?: Array<Record<string, any>>;
+};
+
 export type CurrencyPickerProps = {
   visible: boolean;
   onClose: () => void;
@@ -49,6 +53,35 @@ export type CurrencyPickerProps = {
 
 function sortByNombre(a: Moneda, b: Moneda) {
   return a.nombre.localeCompare(b.nombre, "es", { sensitivity: "base" });
+}
+
+function normalizeCurrency(raw: any): Moneda | null {
+  const codigo = String(raw?.codigo ?? raw?.code ?? raw?.currencyCode ?? '').trim().toUpperCase();
+  if (!codigo) return null;
+
+  return {
+    id: String(raw?.id ?? raw?._id ?? codigo),
+    codigo,
+    nombre: String(raw?.nombre ?? raw?.name ?? codigo),
+    simbolo: String(raw?.simbolo ?? raw?.symbol ?? raw?.sign ?? codigo),
+    esPrincipal: Boolean(raw?.esPrincipal ?? raw?.isPrimary),
+    esFavorita: Boolean(raw?.esFavorita ?? raw?.isFavorite),
+  };
+}
+
+function dedupeCurrencies(items: Array<Moneda | null | undefined>) {
+  const seen = new Set<string>();
+  const result: Moneda[] = [];
+
+  for (const item of items) {
+    if (!item) continue;
+    const key = item.codigo.toUpperCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(item);
+  }
+
+  return result;
 }
 
 export const CurrencyPicker: React.FC<CurrencyPickerProps> = ({
@@ -71,6 +104,7 @@ export const CurrencyPicker: React.FC<CurrencyPickerProps> = ({
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [q, setQ] = useState("");
+  const [pendingFavorites, setPendingFavorites] = useState<Record<string, boolean>>({});
 
   const starScale = useRef<Record<string, Animated.Value>>({}).current;
   const getStarAnim = (id: string) => {
@@ -92,19 +126,40 @@ export const CurrencyPicker: React.FC<CurrencyPickerProps> = ({
     try {
       setLoading(true);
       const headers = await getHeaders();
-      const res = await fetch(`${API_BASE_URL}/monedas`, { headers });
-      if (!res.ok) throw new Error(await res.text());
-      const json: MonedasResponse = await res.json();
-      // Normalize: some backends may return favorites mixed into 'otras' with esFavorita flag.
-      const combined: Moneda[] = [...(json.favoritas || []), ...(json.otras || [])];
-      // Remove possible duplicates by codigo (keep first occurrence)
-      const seen = new Set<string>();
-      const unique = combined.filter((m) => {
-        const key = m.codigo?.toUpperCase() || m.id;
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      });
+      const [catalogRes, favoritasRes] = await Promise.all([
+        fetch(`${API_BASE_URL}/monedas`, { headers }),
+        userService.getMonedasFavoritas().catch(() => ({ monedasFavoritas: [], detalles: [] } as FavoriteDetailsResponse)),
+      ]);
+
+      if (!catalogRes.ok) throw new Error(await catalogRes.text());
+
+      const catalogJson: any = await catalogRes.json();
+      const catalogItems = [
+        ...(Array.isArray(catalogJson?.favoritas) ? catalogJson.favoritas : []),
+        ...(Array.isArray(catalogJson?.otras) ? catalogJson.otras : []),
+        ...(Array.isArray(catalogJson?.data) ? catalogJson.data : []),
+        ...(Array.isArray(catalogJson) ? catalogJson : []),
+      ];
+
+      const favoriteCodes = new Set(
+        (Array.isArray(favoritasRes?.monedasFavoritas) ? favoritasRes.monedasFavoritas : [])
+          .map((code) => String(code).trim().toUpperCase())
+          .filter(Boolean)
+      );
+
+      const favoriteDetails = Array.isArray(favoritasRes?.detalles) ? favoritasRes.detalles : [];
+      const unique = dedupeCurrencies([
+        ...favoriteDetails.map((item) => {
+          const normalized = normalizeCurrency(item);
+          return normalized ? { ...normalized, esFavorita: true } : null;
+        }),
+        ...catalogItems.map((item) => {
+          const normalized = normalizeCurrency(item);
+          return normalized
+            ? { ...normalized, esFavorita: favoriteCodes.has(normalized.codigo) || normalized.esFavorita }
+            : null;
+        }),
+      ]);
 
       const favoritas = unique.filter((m) => !!m.esFavorita).sort(sortByNombre);
       const otras = unique.filter((m) => !m.esFavorita).sort(sortByNombre);
@@ -112,8 +167,8 @@ export const CurrencyPicker: React.FC<CurrencyPickerProps> = ({
       setData({
         favoritas,
         otras,
-        total: (favoritas.length + otras.length) || (json.total ?? 0),
-        totalFavoritas: favoritas.length || (json.totalFavoritas ?? 0),
+        total: (favoritas.length + otras.length) || (catalogJson.total ?? 0),
+        totalFavoritas: favoritas.length,
       });
     } catch (err) {
       console.error(err);
@@ -154,6 +209,8 @@ export const CurrencyPicker: React.FC<CurrencyPickerProps> = ({
 
   const toggleFavorita = useCallback(
     async (codigoMoneda: string) => {
+      if (pendingFavorites[codigoMoneda]) return;
+
       const prev = JSON.parse(JSON.stringify(data)) as MonedasResponse;
       const enFav = data.favoritas.find((m) => m.codigo === codigoMoneda);
       const enOtras = data.otras.find((m) => m.codigo === codigoMoneda);
@@ -180,6 +237,7 @@ export const CurrencyPicker: React.FC<CurrencyPickerProps> = ({
       }
 
       setData(next);
+      setPendingFavorites((prevState) => ({ ...prevState, [codigoMoneda]: true }));
 
       const idStar =
         (enFav?.id as string | undefined) || (enOtras?.id as string | undefined);
@@ -192,9 +250,31 @@ export const CurrencyPicker: React.FC<CurrencyPickerProps> = ({
       }
 
       try {
-        const headers = await getHeaders();
-        // Use centralized userService which wraps apiRateLimiter
         const resp = await userService.toggleMonedaFavorita(codigoMoneda);
+        const favoriteCodes = new Set(
+          (Array.isArray(resp?.monedasFavoritas) ? resp.monedasFavoritas : [])
+            .map((code) => String(code).trim().toUpperCase())
+            .filter(Boolean)
+        );
+
+        setData((current) => {
+          const all = dedupeCurrencies(
+            [...current.favoritas, ...current.otras].map((item) => ({
+              ...item,
+              esFavorita: favoriteCodes.has(String(item.codigo).toUpperCase()),
+            }))
+          );
+
+          const favoritas = all.filter((item) => item.esFavorita).sort(sortByNombre);
+          const otras = all.filter((item) => !item.esFavorita).sort(sortByNombre);
+
+          return {
+            favoritas,
+            otras,
+            total: favoritas.length + otras.length,
+            totalFavoritas: favoritas.length,
+          };
+        });
         Toast.show({ type: "success", text1: resp.message || "Actualizado" });
         emitViewerChanged();
       } catch (err: any) {
@@ -206,9 +286,15 @@ export const CurrencyPicker: React.FC<CurrencyPickerProps> = ({
           text1: "Error",
           text2: err?.message || "No se pudo actualizar favorita",
         });
+      } finally {
+        setPendingFavorites((prevState) => {
+          const nextState = { ...prevState };
+          delete nextState[codigoMoneda];
+          return nextState;
+        });
       }
     },
-    [API_BASE_URL, data, getHeaders]
+    [data, pendingFavorites]
   );
 
   const Row: React.FC<{ m: Moneda }> = ({ m }) => {
@@ -235,11 +321,11 @@ export const CurrencyPicker: React.FC<CurrencyPickerProps> = ({
         </Pressable>
 
         <Animated.View style={{ transform: [{ scale: s }] }}>
-          <Pressable onPress={() => toggleFavorita(m.codigo)} hitSlop={8} style={styles.starBtn}>
+          <Pressable onPress={() => toggleFavorita(m.codigo)} hitSlop={8} style={styles.starBtn} disabled={!!pendingFavorites[m.codigo]}>
             <Ionicons
               name={m.esFavorita ? "star" : "star-outline"}
               size={20}
-              color={m.esFavorita ? "#F4B400" : colors.textSecondary}
+              color={pendingFavorites[m.codigo] ? colors.placeholder : (m.esFavorita ? "#F4B400" : colors.textSecondary)}
             />
           </Pressable>
         </Animated.View>
