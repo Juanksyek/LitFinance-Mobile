@@ -1,3 +1,5 @@
+import type { SharedSpacesSummary } from './sharedSpaces';
+
 export type DashboardRange = 'day' | 'week' | 'month' | '3months' | '6months' | 'year' | 'all';
 
 export type DashboardRangeOption = {
@@ -177,6 +179,8 @@ export type DashboardSnapshot = {
     active: { total: number; count: number; byCurrency: Array<{ moneda: string; total: number; count: number }> };
     paused: { total: number; count: number; byCurrency: Array<{ moneda: string; total: number; count: number }> };
   };
+
+  sharedSpacesSummary?: SharedSpacesSummary;
 };
 
 export type SnapshotFetchResult =

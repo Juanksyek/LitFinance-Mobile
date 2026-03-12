@@ -5,7 +5,7 @@ import { useStableSafeInsets } from '../hooks/useStableSafeInsets';
 import { useKeyboardVisible } from '../hooks/useKeyboardVisible';
 import { useThemeColors } from '../theme/useThemeColors';
 
-type DockKey = 'home' | 'bloc' | 'reports' | 'settings';
+type DockKey = 'home' | 'bloc' | 'reports' | 'shared';
 
 type Props = {
   active?: DockKey;
@@ -13,7 +13,7 @@ type Props = {
   onPressBloc: () => void;
   onPressCenter: () => void;
   onPressReports: () => void;
-  onPressSettings: () => void;
+  onPressShared: () => void;
   reportsLocked?: boolean;
 };
 
@@ -26,7 +26,7 @@ export default function DashboardBottomDock({
   onPressBloc,
   onPressCenter,
   onPressReports,
-  onPressSettings,
+  onPressShared,
   reportsLocked = false,
 }: Props) {
   const colors = useThemeColors();
@@ -88,9 +88,9 @@ export default function DashboardBottomDock({
             lockedTint={colors.textSecondary}
           />
           <DockIconButton
-            icon={active === 'settings' ? 'person' : 'person-outline'}
-            color={active === 'settings' ? activeColor : inactive}
-            onPress={onPressSettings}
+            icon={active === 'shared' ? 'people' : 'people-outline'}
+            color={active === 'shared' ? activeColor : inactive}
+            onPress={onPressShared}
           />
         </View>
 

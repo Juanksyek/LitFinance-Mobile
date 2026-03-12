@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_BASE_URL } from '../constants/api';
 import { authService } from './authService';
+import { userProfileService } from './userProfileService';
 import type { DashboardRange, DashboardSnapshot, SnapshotFetchResult, RateLimitedError, UnauthorizedError } from '../types/dashboardSnapshot';
 
 const memoryCache = new Map<string, { snapshot: DashboardSnapshot; etag: string | null }>();
@@ -11,12 +12,44 @@ export function getLatestMetasSummary() {
   return latestMetasSummary;
 }
 
+// NOTE: sharedSpaces summaries are persisted per-user in AsyncStorage.
+// getLatestSharedSpacesSummary will return null here to force storage-backed, per-user lookup
+export function getLatestSharedSpacesSummary() {
+  return null;
+}
+
 export async function invalidateLatestMetasSummary(): Promise<void> {
   latestMetasSummary = null;
   try {
     await AsyncStorage.removeItem('metasSummary:latest');
   } catch {
     // ignore
+  }
+}
+
+export async function invalidateLatestSharedSpacesSummary(): Promise<void> {
+  try {
+    const profile = await userProfileService.getCachedProfile();
+    const userId = profile?.id ?? 'anon';
+    await AsyncStorage.removeItem(`sharedSpacesSummary:latest:${userId}`);
+    // Also remove legacy global key if present
+    try { await AsyncStorage.removeItem('sharedSpacesSummary:latest'); } catch {}
+  } catch {
+    // ignore
+  }
+}
+
+export async function getLatestSharedSpacesSummaryFromStorage(): Promise<DashboardSnapshot['sharedSpacesSummary'] | null> {
+  try {
+    const profile = await userProfileService.getCachedProfile();
+    const userId = profile?.id ?? 'anon';
+    const key = `sharedSpacesSummary:latest:${userId}`;
+    const raw = await AsyncStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as DashboardSnapshot['sharedSpacesSummary'];
+    return parsed ?? null;
+  } catch {
+    return null;
   }
 }
 
@@ -66,7 +99,7 @@ export async function setCachedDashboardSnapshot(params: {
   memoryCache.set(key, value);
   try {
     await AsyncStorage.setItem(key, JSON.stringify(value));
-    // also persist metasSummary (if present) to a global key for quick access
+    // also persist dashboard summary fragments (if present) to global keys for quick access
     try {
       const metas = params.snapshot?.metasSummary ?? null;
       if (metas) {
@@ -74,6 +107,16 @@ export async function setCachedDashboardSnapshot(params: {
         await AsyncStorage.setItem(`${key}:metasSummary`, JSON.stringify(metas));
         // also keep a short global key for fastest lookup across screens
         await AsyncStorage.setItem('metasSummary:latest', JSON.stringify(metas));
+      }
+
+      const sharedSpaces = params.snapshot?.sharedSpacesSummary ?? null;
+      if (sharedSpaces) {
+        await AsyncStorage.setItem(`${key}:sharedSpacesSummary`, JSON.stringify(sharedSpaces));
+        // persist per-user "latest" key
+        try {
+          const uid = params.userId ?? 'anon';
+          await AsyncStorage.setItem(`sharedSpacesSummary:latest:${uid}`, JSON.stringify(sharedSpaces));
+        } catch {}
       }
     } catch {
       // ignore

@@ -24,6 +24,11 @@ import CreateMetaScreen from '../screens/CreateMetaScreen';
 import MetaDetailScreen from '../screens/MetaDetailScreen';
 import BlocCuentasScreen from '../screens/BlocCuentasScreen';
 import BlocDetailScreen from '../screens/BlocDetailScreen';
+import SharedSpacesScreen from '../screens/SharedSpacesScreen';
+import SpaceDetailScreen from '../screens/SpaceDetailScreen';
+import SharedNotificationsScreen from '../screens/SharedNotificationsScreen';
+import SharedMovementDetailScreen from '../screens/SharedMovementDetailScreen';
+import QRScannerScreen from '../screens/QRScannerScreen';
 
 export type Subcuenta = {
   _id: string;
@@ -91,6 +96,11 @@ export type RootStackParamList = {
   MetaDetail: { metaId: string };
   BlocCuentas: undefined;
   BlocDetail: { blocId: string };
+  SharedSpaces: undefined;
+  SpaceDetail: { spaceId: string };
+  SharedMovementDetail: { movementId: string; spaceId: string };
+  SharedNotifications: undefined;
+  QRScanner: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -122,6 +132,11 @@ export default function AppNavigator() {
       <Stack.Screen name="MetaDetail" component={MetaDetailScreen} />
       <Stack.Screen name="BlocCuentas" component={BlocCuentasScreen} />
       <Stack.Screen name="BlocDetail" component={BlocDetailScreen} />
+      <Stack.Screen name="SharedSpaces" component={SharedSpacesScreen} />
+      <Stack.Screen name="SpaceDetail" component={SpaceDetailScreen} />
+      <Stack.Screen name="SharedMovementDetail" component={SharedMovementDetailScreen} />
+      <Stack.Screen name="SharedNotifications" component={SharedNotificationsScreen} />
+      <Stack.Screen name="QRScanner" component={QRScannerScreen} />
     </Stack.Navigator>
   );
 }

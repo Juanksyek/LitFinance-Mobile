@@ -572,7 +572,19 @@ class ApiRateLimiter {
         const directOptions = Object.assign({}, options, { headers: normalizedHeaders });
         return await fetch(url, directOptions);
       } catch (e) {
-        console.error('🔒 [ApiRateLimiter] Error en fetch directo para auth endpoint:', e);
+        // Mejor logging para diagnosticar problemas de red desde dispositivos físicos
+        try {
+          const hdrs: Record<string,string> = {};
+          for (const [k,v] of Array.from((normalizedHeaders as Headers).entries())) hdrs[k] = String(v);
+          console.error('🔒 [ApiRateLimiter] Error en fetch directo para auth endpoint:', {
+            url,
+            message: (e as any)?.message ?? String(e),
+            stack: (e as any)?.stack ?? null,
+            headers: hdrs,
+          });
+        } catch (logErr) {
+          console.error('🔒 [ApiRateLimiter] Error en fetch directo para auth endpoint (no pudo serializar headers):', e);
+        }
         throw e;
       }
     }
