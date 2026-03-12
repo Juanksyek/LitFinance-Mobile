@@ -549,9 +549,9 @@ export default function DashboardScreen() {
           // @ts-ignore
           navigation.navigate('ReportesExport' as never);
         }}
-        onPressSettings={() => {
+        onPressShared={() => {
           // @ts-ignore
-          navigation.navigate('Settings' as never);
+          navigation.navigate('SharedSpaces' as never);
         }}
         onPressCenter={() => {
           const y = Math.max(0, actionButtonsYRef.current - 12);
