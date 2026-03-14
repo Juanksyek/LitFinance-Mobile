@@ -10,21 +10,26 @@ function startOfDay(d: Date) {
 export function daysUntil(iso: string, tipo?: string, valor?: string): number {
   try {
     const now = startOfDay(new Date());
-    let target = new Date(iso);
+    // Prefer an explicit ISO `proximaEjecucion` provided by the backend when available
+    // Fallback to deriving a target date from the frequency rule only when `iso` is missing/invalid.
+    let target = new Date(String(iso ?? ''));
+    const isoValid = !Number.isNaN(target.getTime());
 
-    // For weekly/monthly rules where iso may point to time of next execution
-    if (tipo === 'dia_mes' && valor) {
-      // If valor like '15' => day of month
-      const day = parseInt(valor, 10);
-      if (!isNaN(day) && day >= 1 && day <= 31) {
-        const t = new Date();
-        t.setDate(day);
-        t.setHours(0,0,0,0);
-        if (t < now) {
-          // next month
-          t.setMonth(t.getMonth() + 1);
+    if (!isoValid) {
+      // For monthly rules derive the next matching day-of-month when ISO is not present
+      if (tipo === 'dia_mes' && valor) {
+        const day = parseInt(valor, 10);
+        if (!isNaN(day) && day >= 1 && day <= 31) {
+          const t = new Date();
+          t.setHours(0, 0, 0, 0);
+          t.setDate(day);
+          if (t < now) t.setMonth(t.getMonth() + 1);
+          target = t;
         }
-        target = t;
+      } else {
+        // If no special rule, and no ISO, default to now (0 days)
+        target = new Date();
+        target.setHours(0, 0, 0, 0);
       }
     }
 
