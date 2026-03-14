@@ -155,6 +155,21 @@ const TransactionHistory = ({ refreshKey, dashboardSnapshot }: { refreshKey?: nu
     return isIngresoEgreso && Boolean(getTransaccionId(item));
   };
 
+  const isCancelledOrDeleted = (item: HistorialItem) => {
+    const distintivoTipo = String((item as any)?.detalles?.distintivo?.tipo ?? '').toLowerCase();
+    return [
+      'deleted',
+      'eliminado',
+      'cancelled',
+      'cancelado',
+      'canceled',
+    ].includes(distintivoTipo);
+  };
+
+  const canInteractMovimiento = (item: HistorialItem) => {
+    return canEditMovimiento(item) && !isCancelledOrDeleted(item);
+  };
+
   const normalizeHistorialItem = (raw: any, cuentaIdFallback?: string): HistorialItem => {
     // En /cuenta-historial, `id` es movimientoId del historial
     const rawMovimientoId = raw?.id != null ? String(raw.id) : '';
@@ -811,11 +826,20 @@ const TransactionHistory = ({ refreshKey, dashboardSnapshot }: { refreshKey?: nu
   }, [refreshKey, search]);
 
   const openEdit = (item: HistorialItem) => {
-    if (!canEditMovimiento(item)) {
+    if (!canInteractMovimiento(item)) {
+      if (isCancelledOrDeleted(item)) {
+        Toast.show({
+          type: 'info',
+          text1: 'No editable',
+          text2: 'No podemos editar registros eliminados.',
+        });
+        return;
+      }
+
       Toast.show({
         type: 'info',
         text1: 'No editable',
-        text2: 'Solo puedes editar transacciones (ingreso/egreso) con transaccionId.',
+        text2: 'Solo puedes editar transacciones (ingreso/egreso) con transacciónId.',
       });
       return;
     }
@@ -850,11 +874,20 @@ const TransactionHistory = ({ refreshKey, dashboardSnapshot }: { refreshKey?: nu
   };
 
   const openDelete = (item: HistorialItem) => {
-    if (!canEditMovimiento(item)) {
+    if (!canInteractMovimiento(item)) {
+      if (isCancelledOrDeleted(item)) {
+        Toast.show({
+          type: 'info',
+          text1: 'No eliminable',
+          text2: 'No podemos eliminar registros que ya están marcados como eliminados.',
+        });
+        return;
+      }
+
       Toast.show({
         type: 'info',
         text1: 'No eliminable',
-        text2: 'Solo puedes eliminar transacciones (ingreso/egreso) con transaccionId.',
+        text2: 'Solo puedes eliminar transacciones (ingreso/egreso) con transacciónId.',
       });
       return;
     }
@@ -936,11 +969,18 @@ const TransactionHistory = ({ refreshKey, dashboardSnapshot }: { refreshKey?: nu
 
       closeDelete();
     } catch (err: any) {
-      Toast.show({
-        type: 'error',
-        text1: 'Error al eliminar',
-        text2: err?.message || 'No se pudo eliminar',
-      });
+      const msg = String(err?.message ?? '').toLowerCase();
+      if (msg.includes('deleted') || msg.includes('eliminado') || msg.includes('cancel')) {
+        Toast.show({ type: 'info', text1: 'No eliminable', text2: 'El registro ya fue eliminado.' });
+      } else if (isCancelledOrDeleted(deleteItem)) {
+        Toast.show({ type: 'info', text1: 'No eliminable', text2: 'El registro ya fue eliminado.' });
+      } else {
+        Toast.show({
+          type: 'error',
+          text1: 'Error al eliminar',
+          text2: err?.message || 'No se pudo eliminar',
+        });
+      }
     } finally {
       setDeleting(false);
     }
@@ -1073,11 +1113,19 @@ const TransactionHistory = ({ refreshKey, dashboardSnapshot }: { refreshKey?: nu
 
       closeEdit();
     } catch (err: any) {
-      Toast.show({
-        type: 'error',
-        text1: 'Error al editar',
-        text2: err?.message || 'No se pudo editar el movimiento',
-      });
+      // Si el movimiento fue marcado como eliminado en backend, mostrar mensaje claro
+      const msg = String(err?.message ?? '').toLowerCase();
+      if (msg.includes('deleted') || msg.includes('eliminado') || msg.includes('cancel')) {
+        Toast.show({ type: 'info', text1: 'No editable', text2: 'No podemos editar registros eliminados.' });
+      } else if (isCancelledOrDeleted(editItem)) {
+        Toast.show({ type: 'info', text1: 'No editable', text2: 'No podemos editar registros eliminados.' });
+      } else {
+        Toast.show({
+          type: 'error',
+          text1: 'Error al editar',
+          text2: err?.message || 'No se pudo editar el movimiento',
+        });
+      }
     } finally {
       setSavingEdit(false);
     }
@@ -1306,9 +1354,9 @@ const TransactionHistory = ({ refreshKey, dashboardSnapshot }: { refreshKey?: nu
                   distintivo={distintivo}
                   tipo={item.tipo}
                   plataforma={item.detalles?.plataforma}
-                  canEdit={canEditMovimiento(item)}
+                  canEdit={canInteractMovimiento(item)}
                   onEdit={() => openEdit(item)}
-                  canDelete={canEditMovimiento(item)}
+                  canDelete={canInteractMovimiento(item)}
                   onDelete={() => openDelete(item)}
                   onPress={() => {
                     setItemSeleccionado(item);
