@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import {
   ActivityIndicator,
   LayoutAnimation,
   UIManager,
+  PanResponder,
 } from 'react-native';
 import Modal from 'react-native-modal';
 import { Ionicons } from "@expo/vector-icons";
@@ -257,6 +258,17 @@ const MovementModal: React.FC<Props> = ({
       } catch {}
     }
   }, []);
+
+  // PanResponder para cerrar solo desde el handle superior
+  const pan = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (_evt, gs) => Math.abs(gs.dy) > 6 && Math.abs(gs.dx) < 20,
+      onPanResponderRelease: (_evt, gs) => {
+        if (gs.dy > 80) onClose();
+      },
+    })
+  ).current;
 
   const icon = tipo === 'ingreso' ? 'arrow-up-outline' : 'arrow-down-outline';
   const tipoColor = tipo === 'ingreso' ? '#4CAF50' : '#F44336';
@@ -558,8 +570,6 @@ const MovementModal: React.FC<Props> = ({
     <Modal
       isVisible={visible}
       onBackdropPress={onClose}
-      onSwipeComplete={onClose}
-      swipeDirection="down"
       style={styles.modalContainer}
       backdropOpacity={0.14}
       animationIn="slideInUp"
@@ -567,7 +577,6 @@ const MovementModal: React.FC<Props> = ({
       animationInTiming={320}
       animationOutTiming={260}
       useNativeDriver
-      propagateSwipe
       avoidKeyboard
       statusBarTranslucent
     >
@@ -577,7 +586,7 @@ const MovementModal: React.FC<Props> = ({
         style={{ flex: 1, justifyContent: 'flex-end' }}
       >
         <View style={[styles.modal, { backgroundColor: colors.card }]}>
-          <View style={[styles.handle, { backgroundColor: colors.border }]} />
+          <View {...pan.panHandlers} style={[styles.handle, { backgroundColor: colors.border }]} />
 
         <View style={styles.header}>
           <View style={styles.headerLeft}>
