@@ -156,14 +156,24 @@ const TransactionHistory = ({ refreshKey, dashboardSnapshot }: { refreshKey?: nu
   };
 
   const isCancelledOrDeleted = (item: HistorialItem) => {
+    // Check distintivo flag
     const distintivoTipo = String((item as any)?.detalles?.distintivo?.tipo ?? '').toLowerCase();
-    return [
-      'deleted',
-      'eliminado',
-      'cancelled',
-      'cancelado',
-      'canceled',
-    ].includes(distintivoTipo);
+    if (['deleted', 'eliminado', 'cancelled', 'cancelado', 'canceled'].includes(distintivoTipo)) return true;
+
+    // Check common fields that backends sometimes use to mark deletion
+    const tipoField = String(item.tipo ?? '').toLowerCase();
+    if (['deleted', 'eliminado', 'cancelled', 'cancelado', 'canceled'].includes(tipoField)) return true;
+
+    const metadata = (item as any)?.metadata ?? {};
+    const metaFlag = String(metadata?.estado ?? metadata?.status ?? '').toLowerCase();
+    if (['deleted', 'eliminado', 'cancelled', 'cancelado', 'canceled'].includes(metaFlag)) return true;
+    if (metadata?.deleted === true || metadata?.isDeleted === true) return true;
+
+    // Fallback: if any textual field contains keywords like 'elimin' or 'deleted'
+    const combined = `${String(item.descripcion || '')} ${String(item.motivo || '')} ${JSON.stringify(metadata)}`.toLowerCase();
+    if (combined.includes('elimin') || combined.includes('deleted') || combined.includes('cancel')) return true;
+
+    return false;
   };
 
   const canInteractMovimiento = (item: HistorialItem) => {
@@ -1238,7 +1248,7 @@ const TransactionHistory = ({ refreshKey, dashboardSnapshot }: { refreshKey?: nu
       </View>
       <View style={{ alignItems: 'flex-end', justifyContent: 'center', gap: 6 }}>
         <Text style={[styles.transactionAmount, { color: colors.text }]}>{amount}</Text>
-        {canEdit && onEdit ? (
+        {canEdit && onEdit && distintivo?.tone !== 'error' ? (
           <TouchableOpacity
             onPress={(e) => {
               e?.stopPropagation?.();
@@ -1254,7 +1264,7 @@ const TransactionHistory = ({ refreshKey, dashboardSnapshot }: { refreshKey?: nu
           </TouchableOpacity>
         ) : null}
 
-        {canDelete && onDelete ? (
+        {canDelete && onDelete && distintivo?.tone !== 'error' ? (
           <TouchableOpacity
             onPress={(e) => {
               e?.stopPropagation?.();
