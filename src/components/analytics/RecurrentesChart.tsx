@@ -614,4 +614,3 @@ const styles = StyleSheet.create({
 });
 
 export default RecurrentesChart;
-// commit
