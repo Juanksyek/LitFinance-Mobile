@@ -29,6 +29,11 @@ import SpaceDetailScreen from '../screens/SpaceDetailScreen';
 import SharedNotificationsScreen from '../screens/SharedNotificationsScreen';
 import SharedMovementDetailScreen from '../screens/SharedMovementDetailScreen';
 import QRScannerScreen from '../screens/QRScannerScreen';
+import TicketScanScreen from '../screens/TicketScanScreen';
+import TicketReviewScreen from '../screens/TicketReviewScreen';
+import TicketManualScreen from '../screens/TicketManualScreen';
+import TicketScanHistoryScreen from '../screens/TicketScanHistoryScreen';
+import TicketScanDetailScreen from '../screens/TicketScanDetailScreen';
 
 export type Subcuenta = {
   _id: string;
@@ -101,6 +106,11 @@ export type RootStackParamList = {
   SharedMovementDetail: { movementId: string; spaceId: string };
   SharedNotifications: undefined;
   QRScanner: undefined;
+  TicketScan: { source?: 'camera' | 'gallery' };
+  TicketReview: { ticket: any };
+  TicketManual: undefined;
+  TicketScanHistory: undefined;
+  TicketScanDetail: { ticketId: string };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -137,6 +147,11 @@ export default function AppNavigator() {
       <Stack.Screen name="SharedMovementDetail" component={SharedMovementDetailScreen} />
       <Stack.Screen name="SharedNotifications" component={SharedNotificationsScreen} />
       <Stack.Screen name="QRScanner" component={QRScannerScreen} />
+      <Stack.Screen name="TicketScan" component={TicketScanScreen} />
+      <Stack.Screen name="TicketReview" component={TicketReviewScreen} />
+      <Stack.Screen name="TicketManual" component={TicketManualScreen} />
+      <Stack.Screen name="TicketScanHistory" component={TicketScanHistoryScreen} />
+      <Stack.Screen name="TicketScanDetail" component={TicketScanDetailScreen} />
     </Stack.Navigator>
   );
 }
