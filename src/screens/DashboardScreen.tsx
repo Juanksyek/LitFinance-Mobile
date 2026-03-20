@@ -26,6 +26,7 @@ import { userProfileService } from "../services/userProfileService";
 import type { DashboardRange, DashboardSnapshot } from "../types/dashboardSnapshot";
 import { fetchDashboardSnapshot, getCachedDashboardSnapshot, setCachedDashboardSnapshot } from "../services/dashboardSnapshotService";
 import DashboardBottomDock, { DASHBOARD_DOCK_APPROX_HEIGHT } from "../components/DashboardBottomDock";
+import ScanActionModal from "../components/ScanActionModal";
 import { getPlanTypeFromStorage } from '../services/planConfigService';
 
 export default function DashboardScreen() {
@@ -38,6 +39,7 @@ export default function DashboardScreen() {
   const [refreshKey, setRefreshKey] = useState(Date.now());
   const [recurrentesRefreshKey, setRecurrentesRefreshKey] = useState(Date.now());
   const [subcuentasRefreshKey, setSubcuentasRefreshKey] = useState(Date.now());
+  const [scanModalVisible, setScanModalVisible] = useState(false);
   const route = useRoute<RouteProp<RootStackParamList, "Dashboard">>();
   const navigation = useNavigation();
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -553,11 +555,28 @@ export default function DashboardScreen() {
           // @ts-ignore
           navigation.navigate('SharedSpaces' as never);
         }}
-        onPressCenter={() => {
-          const y = Math.max(0, actionButtonsYRef.current - 12);
-          scrollRef.current?.scrollTo({ y, animated: true });
-        }}
+        onPressCenter={() => setScanModalVisible(true)}
         reportsLocked={!isPremium}
+      />
+      <ScanActionModal
+        visible={scanModalVisible}
+        onClose={() => setScanModalVisible(false)}
+        onScanCamera={() => {
+          // @ts-ignore
+          navigation.navigate('TicketScan', { source: 'camera' });
+        }}
+        onScanGallery={() => {
+          // @ts-ignore
+          navigation.navigate('TicketScan', { source: 'gallery' });
+        }}
+        onManualEntry={() => {
+          // @ts-ignore
+          navigation.navigate('TicketManual');
+        }}
+        onViewHistory={() => {
+          // @ts-ignore
+          navigation.navigate('TicketScanHistory');
+        }}
       />
     </View>
   );
