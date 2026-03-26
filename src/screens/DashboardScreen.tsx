@@ -28,6 +28,8 @@ import { fetchDashboardSnapshot, getCachedDashboardSnapshot, setCachedDashboardS
 import DashboardBottomDock, { DASHBOARD_DOCK_APPROX_HEIGHT } from "../components/DashboardBottomDock";
 import ScanActionModal from "../components/ScanActionModal";
 import { getPlanTypeFromStorage } from '../services/planConfigService';
+import SpendingByCategory from "../components/SpendingByCategory";
+import UpcomingRenewals from "../components/UpcomingRenewals";
 
 export default function DashboardScreen() {
   const colors = useThemeColors();
@@ -510,7 +512,18 @@ export default function DashboardScreen() {
           <SubaccountsList userId={userId} refreshKey={subcuentasRefreshKey} dashboardSnapshot={dashboardSnapshot} />
         )}
 
-        <ExpensesChart refreshKey={refreshKey} dashboardSnapshot={dashboardSnapshot} selectedRange={snapshotRange} onRequestRangeChange={(r) => { setSnapshotRange(r); void refreshSnapshot({ force: true }); }} />
+        <ExpensesChart refreshKey={refreshKey} dashboardSnapshot={dashboardSnapshot} />
+
+        <SpendingByCategory
+          initialSnapshot={dashboardSnapshot}
+          onViewAll={() => navigation.navigate('Analytics' as never)}
+        />
+
+        <UpcomingRenewals
+          snapshot={dashboardSnapshot}
+          onViewAll={() => navigation.navigate('RecurrentesEstadisticas' as never)}
+        />
+
         <TransactionHistory refreshKey={refreshKey} dashboardSnapshot={dashboardSnapshot} />
       </ScrollView>
 

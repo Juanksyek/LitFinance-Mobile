@@ -469,72 +469,67 @@ const RecurrentesList = ({
     return (
         <View style={[styles.wrapper, { backgroundColor: colors.chartBackground, shadowColor: colors.shadow, borderColor: colors.border }]}>
             <View style={styles.headerBlock}>
-                <Text style={[styles.title, { color: colors.text }, { marginBottom: 0 }]}>Recurrentes</Text>
+                <View style={styles.titleRow}>
+                    <Text style={[styles.title, { color: colors.text, marginBottom: 0 }]}>Recurrentes</Text>
+                    {showRecurrentesTotals && (
+                        <View style={[styles.totalsBadge, { backgroundColor: colors.button + '15', borderColor: colors.button + '35' }]}>
+                            <Ionicons name="stats-chart" size={10} color={colors.button} />
+                            <Text style={[styles.totalsBadgeText, { color: colors.button }]}>Totales</Text>
+                        </View>
+                    )}
+                </View>
 
                 {showRecurrentesTotals && (
                     <View style={[styles.totalsContainer, { backgroundColor: colors.cardSecondary, borderColor: colors.border }]}>
-                        <View style={[styles.totalsPill, { borderColor: colors.button }]}>
-                            <Ionicons name="stats-chart" size={12} color={colors.button} />
-                            <Text style={[styles.totalsPillText, { color: colors.text }]}>Totales</Text>
-                        </View>
-
                         {Array.isArray(recurrentesTotals?.active?.byCurrency) && recurrentesTotals!.active.byCurrency.length > 0 && (
-                            <View style={styles.totalsSection}>
-                                <View
-                                    style={[
-                                        styles.totalsSectionLabelPill,
-                                        { backgroundColor: colors.card, borderColor: colors.border },
-                                    ]}
-                                >
-                                    <Text style={[styles.totalsLabel, { color: colors.textSecondary }]}>Activos</Text>
+                            <View style={styles.totalsRow}>
+                                <View style={styles.totalsStatusLabel}>
+                                    <View style={[styles.statusDot, { backgroundColor: '#10B981' }]} />
+                                    <Text style={[styles.totalsStatusText, { color: colors.textSecondary }]}>Activos</Text>
                                 </View>
 
-                                {recurrentesTotals!.active.byCurrency.map((x) => (
-                                    <View
-                                        key={`active-${x.moneda}`}
-                                        style={[
-                                            styles.totalsCurrencyPill,
-                                            { backgroundColor: colors.card, borderColor: colors.border },
-                                        ]}
-                                    >
-                                        <SmartNumber
-                                            value={Number(x.total || 0)}
-                                            textStyle={[styles.totalsValue, { color: colors.text }]}
-                                            options={{ context: 'list', currency: x.moneda, maxLength: 14 }}
-                                        />
-                                        <Text style={[styles.totalsCount, { color: colors.textTertiary }]}>{`(${Number(x.count || 0)})`}</Text>
-                                    </View>
-                                ))}
+                                <View style={styles.totalsCurrencyRow}>
+                                    {recurrentesTotals!.active.byCurrency.map((x) => (
+                                        <View
+                                            key={`active-${x.moneda}`}
+                                            style={[styles.totalsCurrencyPill, { backgroundColor: '#10B98112', borderColor: '#10B98132' }]}
+                                        >
+                                            <SmartNumber
+                                                value={Number(x.total || 0)}
+                                                textStyle={[styles.totalsValue, { color: colors.text }]}
+                                                options={{ context: 'list', currency: x.moneda, maxLength: 14 }}
+                                            />
+                                            <Text style={[styles.totalsCount, { color: '#10B981' }]}>{Number(x.count || 0)}</Text>
+                                        </View>
+                                    ))}
+                                </View>
                             </View>
                         )}
-
+                        {Array.isArray(recurrentesTotals?.active?.byCurrency) && recurrentesTotals!.active.byCurrency.length > 0 &&
+                         Array.isArray(recurrentesTotals?.paused?.byCurrency) && recurrentesTotals!.paused.byCurrency.length > 0 && (
+                            <View style={[styles.totalsDivider, { backgroundColor: colors.border }]} />
+                        )}
                         {Array.isArray(recurrentesTotals?.paused?.byCurrency) && recurrentesTotals!.paused.byCurrency.length > 0 && (
-                            <View style={styles.totalsSection}>
-                                <View
-                                    style={[
-                                        styles.totalsSectionLabelPill,
-                                        { backgroundColor: colors.card, borderColor: colors.border },
-                                    ]}
-                                >
-                                    <Text style={[styles.totalsLabel, { color: colors.textSecondary }]}>Pausados</Text>
+                            <View style={styles.totalsRow}>
+                                <View style={styles.totalsStatusLabel}>
+                                    <View style={[styles.statusDot, { backgroundColor: '#F59E0B' }]} />
+                                    <Text style={[styles.totalsStatusText, { color: colors.textSecondary }]}>Pausados</Text>
                                 </View>
-
-                                {recurrentesTotals!.paused.byCurrency.map((x) => (
-                                    <View
-                                        key={`paused-${x.moneda}`}
-                                        style={[
-                                            styles.totalsCurrencyPill,
-                                            { backgroundColor: colors.card, borderColor: colors.border },
-                                        ]}
-                                    >
-                                        <SmartNumber
-                                            value={Number(x.total || 0)}
-                                            textStyle={[styles.totalsValue, { color: colors.text }]}
-                                            options={{ context: 'list', currency: x.moneda, maxLength: 14 }}
-                                        />
-                                        <Text style={[styles.totalsCount, { color: colors.textTertiary }]}>{`(${Number(x.count || 0)})`}</Text>
-                                    </View>
-                                ))}
+                                <View style={styles.totalsCurrencyRow}>
+                                    {recurrentesTotals!.paused.byCurrency.map((x) => (
+                                        <View
+                                            key={`paused-${x.moneda}`}
+                                            style={[styles.totalsCurrencyPill, { backgroundColor: '#F59E0B12', borderColor: '#F59E0B32' }]}
+                                        >
+                                            <SmartNumber
+                                                value={Number(x.total || 0)}
+                                                textStyle={[styles.totalsValue, { color: colors.text }]}
+                                                options={{ context: 'list', currency: x.moneda, maxLength: 14 }}
+                                            />
+                                            <Text style={[styles.totalsCount, { color: '#F59E0B' }]}>{Number(x.count || 0)}</Text>
+                                        </View>
+                                    ))}
+                                </View>
                             </View>
                         )}
                     </View>
@@ -612,37 +607,57 @@ const styles = StyleSheet.create({
         marginBottom: 10,
     },
     totalsContainer: {
-        width: '100%',
-        alignSelf: 'stretch',
         borderWidth: 1,
-        borderRadius: 12,
+        borderRadius: 10,
         paddingHorizontal: 10,
-        paddingVertical: 8,
-        marginTop: 8,
-        flexDirection: 'column',
-        gap: 8,
+        paddingVertical: 7,
+        marginTop: 6,
+        gap: 6,
+        
     },
-    totalsPill: {
+    titleRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        alignSelf: 'flex-start',
-        gap: 6,
-        borderWidth: 1,
-        borderRadius: 999,
-        paddingHorizontal: 8,
-        paddingVertical: 4,
+        justifyContent: 'space-between',
     },
-    totalsSection: {
+    totalsBadge: {
         flexDirection: 'row',
-        flexWrap: 'wrap',
         alignItems: 'center',
-        gap: 6,
-    },
-    totalsSectionLabelPill: {
+        gap: 4,
         borderWidth: 1,
         borderRadius: 999,
         paddingHorizontal: 8,
         paddingVertical: 3,
+    },
+    totalsBadgeText: {
+        fontSize: 10,
+        fontWeight: '700',
+    },
+    totalsRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    totalsStatusLabel: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 5,
+        width: 66,
+    },
+    statusDot: {
+        width: 6,
+        height: 6,
+        borderRadius: 3,
+    },
+    totalsStatusText: {
+        fontSize: 10,
+        fontWeight: '600',
+    },
+    totalsCurrencyRow: {
+        flex: 1,
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 5,
     },
     totalsCurrencyPill: {
         flexDirection: 'row',
@@ -650,30 +665,12 @@ const styles = StyleSheet.create({
         gap: 4,
         borderWidth: 1,
         borderRadius: 999,
-        paddingHorizontal: 8,
+        paddingHorizontal: 7,
         paddingVertical: 3,
     },
-    totalsPillText: {
-        fontSize: 11,
-        fontWeight: '700',
-        letterSpacing: -0.1,
-    },
-    totalsLine: {
-        marginTop: 2,
-    },
-    totalsLabel: {
-        fontSize: 10,
-        fontWeight: '700',
-    },
-    totalsCurrencies: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: 8,
-    },
-    totalsItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 4,
+    totalsDivider: {
+        height: 1,
+        marginVertical: 1,
     },
     totalsValue: {
         fontSize: 11,
@@ -682,7 +679,7 @@ const styles = StyleSheet.create({
     },
     totalsCount: {
         fontSize: 10,
-        fontWeight: '700',
+        fontWeight: '600',
     },
     searchInput: {
         borderRadius: 10,

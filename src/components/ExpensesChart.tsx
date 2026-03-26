@@ -73,15 +73,8 @@ const ExpensesChart: React.FC<ExpensesChartProps> = ({ refreshKey = 0, dashboard
   const snapshotMatchesSelection = snapshotRange !== null && snapshotRange === periodoSeleccionado;
   const canUseSnapshotData = hasSnapshot && !!dashboardSnapshot?.chartAggregates?.points?.length && snapshotMatchesSelection;
 
-  // When parent controls the selected range, sync immediately
-  useEffect(() => {
-    if (typeof selectedRange !== 'undefined' && selectedRange !== null && isDashboardRange(String(selectedRange))) {
-      setPeriodoSeleccionado(selectedRange as PeriodoFiltro);
-      if (selectedRange === 'day') {
-        setTipoSeleccionado('ambos');
-      }
-    }
-  }, [selectedRange]);
+  // selectedRange prop is intentionally ignored — ExpensesChart manages its own range state
+  // to stay independent from other dashboard components.
 
   // Manejador inteligente para cambio de tipo
   const handleTipoChange = (nuevoTipo: TipoTransaccionFiltro) => {
@@ -559,48 +552,46 @@ const ExpensesChart: React.FC<ExpensesChartProps> = ({ refreshKey = 0, dashboard
         },
       ]}
     >
-      {/* Filtros minimalistas (solo Día / Semana / Mes — rangos largos están en BalanceCard) */}
+      {/* Título */}
+      <Text style={[styles.chartTitle, { color: colors.text }]}>Gráfico de gastos</Text>
+
+      {/* Filtros: range chips + tipo (flechitas) en la misma fila */}
       <View style={styles.filtersRow}>
         <View style={styles.filterGroup}>
-          {
-            // Preferir valores del snapshot solo si contienen keys permitidas
-            (snapshotMode && Array.isArray(dashboardSnapshot?.meta?.ranges?.available)
-              ? dashboardSnapshot!.meta!.ranges!.available.filter((opt: any) => isDashboardRange(String(opt.key)) && ['day', 'week', 'month', 'all'].includes(String(opt.key)))
-              : [
-                  { key: 'day', label: 'Día' },
-                  { key: 'week', label: 'Semana' },
-                  { key: 'month', label: 'Mes' },
-                  { key: 'all', label: 'Desde siempre' },
-                ] as Array<{ key: string; label: string }>)
-            .map((opt) => {
-              const periodo = opt.key as PeriodoFiltro;
-              return (
-                <TouchableOpacity
-                  key={periodo}
+          {([
+            { key: 'day',      label: 'Día' },
+            { key: 'week',     label: 'Semana' },
+            { key: 'month',    label: 'Mes' },
+            { key: '3months',  label: '3 meses' },
+            { key: '6months',  label: '6 meses' },
+          ] as Array<{ key: string; label: string }>).map((opt) => {
+            const periodo = opt.key as PeriodoFiltro;
+            return (
+              <TouchableOpacity
+                key={periodo}
+                style={[
+                  styles.filterChip,
+                  { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow },
+                  periodoSeleccionado === periodo && { backgroundColor: colors.button, borderColor: colors.button },
+                  loading && { opacity: 0.6 },
+                ]}
+                onPress={() => handlePeriodoChange(periodo)}
+                activeOpacity={0.7}
+                hitSlop={{ top: 10, left: 10, right: 10, bottom: 10 }}
+                disabled={loading}
+              >
+                <Text
                   style={[
-                    styles.filterChip,
-                    { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow },
-                    periodoSeleccionado === periodo && { backgroundColor: colors.button, borderColor: colors.button },
-                    loading && { opacity: 0.6 },
+                    styles.filterChipText,
+                    { color: colors.text },
+                    periodoSeleccionado === periodo && { color: '#fff' },
                   ]}
-                  onPress={() => handlePeriodoChange(periodo)}
-                  activeOpacity={0.7}
-                  hitSlop={{ top: 10, left: 10, right: 10, bottom: 10 }}
-                  disabled={loading}
                 >
-                  <Text
-                    style={[
-                      styles.filterChipText,
-                      { color: colors.text },
-                      periodoSeleccionado === periodo && { color: '#fff' },
-                    ]}
-                  >
-                    {rangeChipLabel(opt.key, opt.label)}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })
-          }
+                  {rangeChipLabel(opt.key, opt.label)}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
         </View>
 
         <View style={styles.filterGroup}>
@@ -653,6 +644,11 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.06,
     shadowRadius: 5,
   },
+  chartTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 12,
+  },
   loadingContainer: {
     height: 200,
     justifyContent: 'center',
@@ -689,6 +685,26 @@ const styles = StyleSheet.create({
   },
   filterChipTextActive: {
     color: '#fff',
+  },
+  tipoSegmented: {
+    flexDirection: 'row',
+    borderRadius: 10,
+    padding: 2,
+    marginBottom: 8,
+  },
+  tipoSeg: {
+    flex: 1,
+    paddingVertical: 7,
+    alignItems: 'center',
+    borderRadius: 8,
+  },
+  tipoSegText: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  tipoSegTextActive: {
+    color: '#fff',
+    fontWeight: '700',
   },
   chartContainer: {
     marginTop: 8,
