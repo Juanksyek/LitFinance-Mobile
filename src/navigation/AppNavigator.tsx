@@ -34,6 +34,7 @@ import TicketReviewScreen from '../screens/TicketReviewScreen';
 import TicketManualScreen from '../screens/TicketManualScreen';
 import TicketScanHistoryScreen from '../screens/TicketScanHistoryScreen';
 import TicketScanDetailScreen from '../screens/TicketScanDetailScreen';
+import TicketEvaluationScreen from '../screens/TicketEvaluationScreen';
 
 export type Subcuenta = {
   _id: string;
@@ -111,6 +112,7 @@ export type RootStackParamList = {
   TicketManual: undefined;
   TicketScanHistory: undefined;
   TicketScanDetail: { ticketId: string };
+  TicketEvaluation: { desde?: string; hasta?: string } | undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -152,6 +154,7 @@ export default function AppNavigator() {
       <Stack.Screen name="TicketManual" component={TicketManualScreen} />
       <Stack.Screen name="TicketScanHistory" component={TicketScanHistoryScreen} />
       <Stack.Screen name="TicketScanDetail" component={TicketScanDetailScreen} />
+      <Stack.Screen name="TicketEvaluation" component={TicketEvaluationScreen} />
     </Stack.Navigator>
   );
 }
