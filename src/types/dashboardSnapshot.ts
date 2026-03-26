@@ -87,6 +87,8 @@ export type DashboardSnapshot = {
     id: string;
     nombre: string;
     color: string | null;
+    /** Platform category from backend OCR, e.g. "Streaming", "Música", "Software" */
+    categoria?: string | null;
     monto: number;
     moneda: string;
     frecuenciaTipo: string | null;
@@ -166,6 +168,14 @@ export type DashboardSnapshot = {
     start: string;
     end: string;
     points: Array<{ x: string; in: number; out: number }>;
+  };
+
+  /** Pre-aggregated concepto breakdown computed server-side for the selected range. */
+  conceptoBreakdown?: {
+    egresos: Array<{ concepto: string; total: number; maxPrecio: number; count: number; moneda: string }>;
+    ingresos: Array<{ concepto: string; total: number; maxPrecio: number; count: number; moneda: string }>;
+    totalEgresos: number;
+    totalIngresos: number;
   };
 
   // Global (non-paginated) totals to support multi-currency UX.
