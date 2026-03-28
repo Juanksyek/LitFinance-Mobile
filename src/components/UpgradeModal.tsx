@@ -17,7 +17,7 @@ export default function UpgradeModal({ visible, onClose, message, feature }: Upg
 
   const handleUpgrade = () => {
     onClose();
-    // Navigate to settings/premium screen
+    // si Navigate to settings/premium screen
     navigation.navigate('Settings');
   };
 
@@ -243,3 +243,4 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
+
