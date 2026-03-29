@@ -10,7 +10,7 @@ type Props = {
 const MetasCard: React.FC<Props> = ({ onPress }) => {
   const colors = useThemeColors();
 
-  // Animations (no reanimated needed)
+  // Animations (no reanimated needed) :)
   const scale = useRef(new Animated.Value(1)).current;
   const glow = useRef(new Animated.Value(0)).current;
   const chevronX = useRef(new Animated.Value(0)).current;
