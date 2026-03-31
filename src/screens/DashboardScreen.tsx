@@ -42,6 +42,17 @@ export default function DashboardScreen() {
   const [recurrentesRefreshKey, setRecurrentesRefreshKey] = useState(Date.now());
   const [subcuentasRefreshKey, setSubcuentasRefreshKey] = useState(Date.now());
   const [scanModalVisible, setScanModalVisible] = useState(false);
+
+  // Open scan modal when another screen requests it via navigation params
+  useEffect(() => {
+    const p: any = (route as any)?.params;
+    if (p && p.openScan === 'menu') {
+      setScanModalVisible(true);
+      // clear the param so it doesn't reopen accidentally
+      // @ts-ignore
+      navigation.setParams?.({ openScan: undefined });
+    }
+  }, [(route as any)?.params]);
   const route = useRoute<RouteProp<RootStackParamList, "Dashboard">>();
   const navigation = useNavigation();
   const [isRefreshing, setIsRefreshing] = useState(false);
