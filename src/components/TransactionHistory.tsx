@@ -155,31 +155,6 @@ const TransactionHistory = ({ refreshKey, dashboardSnapshot }: { refreshKey?: nu
     return isIngresoEgreso && Boolean(getTransaccionId(item));
   };
 
-  const isCancelledOrDeleted = (item: HistorialItem) => {
-    // Check distintivo flag
-    const distintivoTipo = String((item as any)?.detalles?.distintivo?.tipo ?? '').toLowerCase();
-    if (['deleted', 'eliminado', 'cancelled', 'cancelado', 'canceled'].includes(distintivoTipo)) return true;
-
-    // Check common fields that backends sometimes use to mark deletion
-    const tipoField = String(item.tipo ?? '').toLowerCase();
-    if (['deleted', 'eliminado', 'cancelled', 'cancelado', 'canceled'].includes(tipoField)) return true;
-
-    const metadata = (item as any)?.metadata ?? {};
-    const metaFlag = String(metadata?.estado ?? metadata?.status ?? '').toLowerCase();
-    if (['deleted', 'eliminado', 'cancelled', 'cancelado', 'canceled'].includes(metaFlag)) return true;
-    if (metadata?.deleted === true || metadata?.isDeleted === true) return true;
-
-    // Fallback: if any textual field contains keywords like 'elimin' or 'deleted'
-    const combined = `${String(item.descripcion || '')} ${String(item.motivo || '')} ${JSON.stringify(metadata)}`.toLowerCase();
-    if (combined.includes('elimin') || combined.includes('deleted') || combined.includes('cancel')) return true;
-
-    return false;
-  };
-
-  const canInteractMovimiento = (item: HistorialItem) => {
-    return canEditMovimiento(item) && !isCancelledOrDeleted(item);
-  };
-
   const normalizeHistorialItem = (raw: any, cuentaIdFallback?: string): HistorialItem => {
     // En /cuenta-historial, `id` es movimientoId del historial
     const rawMovimientoId = raw?.id != null ? String(raw.id) : '';
@@ -836,20 +811,11 @@ const TransactionHistory = ({ refreshKey, dashboardSnapshot }: { refreshKey?: nu
   }, [refreshKey, search]);
 
   const openEdit = (item: HistorialItem) => {
-    if (!canInteractMovimiento(item)) {
-      if (isCancelledOrDeleted(item)) {
-        Toast.show({
-          type: 'info',
-          text1: 'No editable',
-          text2: 'No podemos editar registros eliminados.',
-        });
-        return;
-      }
-
+    if (!canEditMovimiento(item)) {
       Toast.show({
         type: 'info',
         text1: 'No editable',
-        text2: 'Solo puedes editar transacciones (ingreso/egreso) con transacciónId.',
+        text2: 'Solo puedes editar transacciones (ingreso/egreso) con transaccionId.',
       });
       return;
     }
@@ -884,20 +850,11 @@ const TransactionHistory = ({ refreshKey, dashboardSnapshot }: { refreshKey?: nu
   };
 
   const openDelete = (item: HistorialItem) => {
-    if (!canInteractMovimiento(item)) {
-      if (isCancelledOrDeleted(item)) {
-        Toast.show({
-          type: 'info',
-          text1: 'No eliminable',
-          text2: 'No podemos eliminar registros que ya están marcados como eliminados.',
-        });
-        return;
-      }
-
+    if (!canEditMovimiento(item)) {
       Toast.show({
         type: 'info',
         text1: 'No eliminable',
-        text2: 'Solo puedes eliminar transacciones (ingreso/egreso) con transacciónId.',
+        text2: 'Solo puedes eliminar transacciones (ingreso/egreso) con transaccionId.',
       });
       return;
     }
@@ -979,18 +936,11 @@ const TransactionHistory = ({ refreshKey, dashboardSnapshot }: { refreshKey?: nu
 
       closeDelete();
     } catch (err: any) {
-      const msg = String(err?.message ?? '').toLowerCase();
-      if (msg.includes('deleted') || msg.includes('eliminado') || msg.includes('cancel')) {
-        Toast.show({ type: 'info', text1: 'No eliminable', text2: 'El registro ya fue eliminado.' });
-      } else if (isCancelledOrDeleted(deleteItem)) {
-        Toast.show({ type: 'info', text1: 'No eliminable', text2: 'El registro ya fue eliminado.' });
-      } else {
-        Toast.show({
-          type: 'error',
-          text1: 'Error al eliminar',
-          text2: err?.message || 'No se pudo eliminar',
-        });
-      }
+      Toast.show({
+        type: 'error',
+        text1: 'Error al eliminar',
+        text2: err?.message || 'No se pudo eliminar',
+      });
     } finally {
       setDeleting(false);
     }
@@ -1123,19 +1073,11 @@ const TransactionHistory = ({ refreshKey, dashboardSnapshot }: { refreshKey?: nu
 
       closeEdit();
     } catch (err: any) {
-      // Si el movimiento fue marcado como eliminado en backend, mostrar mensaje claro
-      const msg = String(err?.message ?? '').toLowerCase();
-      if (msg.includes('deleted') || msg.includes('eliminado') || msg.includes('cancel')) {
-        Toast.show({ type: 'info', text1: 'No editable', text2: 'No podemos editar registros eliminados.' });
-      } else if (isCancelledOrDeleted(editItem)) {
-        Toast.show({ type: 'info', text1: 'No editable', text2: 'No podemos editar registros eliminados.' });
-      } else {
-        Toast.show({
-          type: 'error',
-          text1: 'Error al editar',
-          text2: err?.message || 'No se pudo editar el movimiento',
-        });
-      }
+      Toast.show({
+        type: 'error',
+        text1: 'Error al editar',
+        text2: err?.message || 'No se pudo editar el movimiento',
+      });
     } finally {
       setSavingEdit(false);
     }
@@ -1248,7 +1190,7 @@ const TransactionHistory = ({ refreshKey, dashboardSnapshot }: { refreshKey?: nu
       </View>
       <View style={{ alignItems: 'flex-end', justifyContent: 'center', gap: 6 }}>
         <Text style={[styles.transactionAmount, { color: colors.text }]}>{amount}</Text>
-        {canEdit && onEdit && distintivo?.tone !== 'error' ? (
+        {canEdit && onEdit ? (
           <TouchableOpacity
             onPress={(e) => {
               e?.stopPropagation?.();
@@ -1264,7 +1206,7 @@ const TransactionHistory = ({ refreshKey, dashboardSnapshot }: { refreshKey?: nu
           </TouchableOpacity>
         ) : null}
 
-        {canDelete && onDelete && distintivo?.tone !== 'error' ? (
+        {canDelete && onDelete ? (
           <TouchableOpacity
             onPress={(e) => {
               e?.stopPropagation?.();
@@ -1364,9 +1306,9 @@ const TransactionHistory = ({ refreshKey, dashboardSnapshot }: { refreshKey?: nu
                   distintivo={distintivo}
                   tipo={item.tipo}
                   plataforma={item.detalles?.plataforma}
-                  canEdit={canInteractMovimiento(item)}
+                  canEdit={canEditMovimiento(item)}
                   onEdit={() => openEdit(item)}
-                  canDelete={canInteractMovimiento(item)}
+                  canDelete={canEditMovimiento(item)}
                   onDelete={() => openDelete(item)}
                   onPress={() => {
                     setItemSeleccionado(item);

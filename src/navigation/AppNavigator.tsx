@@ -58,7 +58,7 @@ export type RootStackParamList = {
   Register: undefined;
   ForgotPassword: undefined;
   VerifyOtp: { email: string };
-  Dashboard: { updated?: boolean } | undefined;
+  Dashboard: { updated?: boolean; openScan?: 'menu' | 'camera' | 'gallery' } | undefined;
   SubaccountDetail: { subcuenta: Subcuenta; onGlobalRefresh?: () => void };
   RecurrenteDetail: {
     recurrente: {

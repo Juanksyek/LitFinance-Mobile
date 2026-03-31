@@ -296,6 +296,22 @@ class TicketScanService {
     return res.json();
   }
 
+  /** POST /tickets/:id/liquidar — liquidate ticket into an account/subaccount */
+  async liquidar(ticketId: string, payload: { monto: number; cuentaId?: string; subCuentaId?: string | null; concepto?: string }, idempotencyKey?: string): Promise<{ message: string; ticket: Ticket; transaccion?: { transaccionId: string; tipo: string; monto: number; moneda: string; concepto: string; motivo?: string; fecha?: string } }> {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (idempotencyKey) headers['Idempotency-Key'] = idempotencyKey;
+    const res = await apiRateLimiter.fetch(`${this.base}/${encodeURIComponent(ticketId)}/liquidar`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload ?? {}),
+    });
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      throw new Error(body || `Error ${res.status}`);
+    }
+    return res.json();
+  }
+
   /** GET /tickets — list with filters */
   async list(params?: TicketListParams): Promise<TicketListResponse> {
     const qs = new URLSearchParams();
