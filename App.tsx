@@ -11,7 +11,7 @@ import { StripeProvider } from '@stripe/stripe-react-native';
 import { STRIPE_PUBLISHABLE_KEY } from './src/constants/stripe';
 import { applyStoredAppIconVariant } from './src/services/appIconService';
 import { SafeAreaProvider, useSafeAreaInsets, initialWindowMetrics } from 'react-native-safe-area-context';
-import { KeyboardAvoidingView, Platform, View, StyleSheet, AppState, AppStateStatus, Keyboard } from 'react-native';
+import { KeyboardAvoidingView, Platform, View, StyleSheet, AppState, AppStateStatus, Keyboard, Linking } from 'react-native';
 import { TextInput } from 'react-native';
 import { useThemeColors } from './src/theme/useThemeColors';
 import { useTheme } from './src/theme/ThemeContext';
