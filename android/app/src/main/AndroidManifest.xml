@@ -30,6 +30,12 @@
         <category android:name="android.intent.category.BROWSABLE"/>
         <data android:scheme="exp+litfinance-mobile"/>
       </intent-filter>
+      <intent-filter>
+        <action android:name="android.intent.action.VIEW"/>
+        <category android:name="android.intent.category.DEFAULT"/>
+        <category android:name="android.intent.category.BROWSABLE"/>
+        <data android:scheme="litfinance" android:host="widget"/>
+      </intent-filter>
     </activity>
     <activity-alias android:name=".MainActivityLauncherLight" android:enabled="true" android:exported="true" android:icon="@mipmap/ic_launcher_light" android:roundIcon="@mipmap/ic_launcher_light" android:targetActivity=".MainActivity">
       <intent-filter>
@@ -43,5 +49,47 @@
         <category android:name="android.intent.category.LAUNCHER"/>
       </intent-filter>
     </activity-alias>
+
+    <!-- Balance Widget -->
+    <receiver
+      android:name=".widgets.BalanceWidgetProvider"
+      android:exported="true"
+      android:label="@string/widget_balance_label">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+        <action android:name="com.litfinance.app.WIDGET_BALANCE_REFRESH"/>
+      </intent-filter>
+      <meta-data
+        android:name="android.appwidget.provider"
+        android:resource="@xml/widget_balance_info"/>
+    </receiver>
+
+    <!-- Quick Actions Widget -->
+    <receiver
+      android:name=".widgets.QuickActionsWidgetProvider"
+      android:exported="true"
+      android:label="@string/widget_actions_label">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+      </intent-filter>
+      <meta-data
+        android:name="android.appwidget.provider"
+        android:resource="@xml/widget_quick_actions_info"/>
+    </receiver>
+
+    <!-- Recent Transactions Widget -->
+    <receiver
+      android:name=".widgets.RecentTransactionsWidgetProvider"
+      android:exported="true"
+      android:label="@string/widget_transactions_label">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+        <action android:name="com.litfinance.app.WIDGET_TRANSACTIONS_REFRESH"/>
+      </intent-filter>
+      <meta-data
+        android:name="android.appwidget.provider"
+        android:resource="@xml/widget_transactions_info"/>
+    </receiver>
+
   </application>
 </manifest>
