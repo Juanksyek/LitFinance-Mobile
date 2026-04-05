@@ -3,7 +3,7 @@ import * as Sharing from 'expo-sharing';
 
 function safeFilename(name: string): string {
   const trimmed = (name || 'archivo').trim();
-  // Remove path separators and other problematic chars
+  // :) Remove path separators and other problematic chars
   const sanitized = trimmed.replace(/[\\/\0<>:"|?*]+/g, '_');
   return sanitized.length > 0 ? sanitized : 'archivo';
 }
