@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Animated, Alert, Platform } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
@@ -37,11 +37,46 @@ export default function SettingsScreen() {
     auto: new Animated.Value(themeMode === "auto" ? 1 : 0.5),
   }).current;
 
+  // Entrance animations
+  const headerOpacity = useRef(new Animated.Value(0)).current;
+  const sectionAnims = useRef(
+    Array.from({ length: 6 }, () => ({
+      opacity: new Animated.Value(0),
+      translateY: new Animated.Value(18),
+    }))
+  ).current;
+
   useEffect(() => {
     checkNotificationStatus();
     checkUserRole();
     loadAppIconSettings();
     loadUserProfile();
+
+    // Header fade
+    Animated.timing(headerOpacity, {
+      toValue: 1,
+      duration: 350,
+      useNativeDriver: true,
+    }).start();
+
+    // Staggered sections
+    const sectionSequence = sectionAnims.map((anim, i) =>
+      Animated.parallel([
+        Animated.timing(anim.opacity, {
+          toValue: 1,
+          duration: 380,
+          delay: 80 + i * 60,
+          useNativeDriver: true,
+        }),
+        Animated.timing(anim.translateY, {
+          toValue: 0,
+          duration: 380,
+          delay: 80 + i * 60,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    Animated.parallel(sectionSequence).start();
   }, []);
 
   const loadUserProfile = async () => {
@@ -168,7 +203,7 @@ export default function SettingsScreen() {
       <StatusBar style={isDark ? "light" : "dark"} />
       
       {/* Header */}
-      <View style={[styles.header, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
+      <Animated.View style={[styles.header, { backgroundColor: colors.card, borderBottomColor: colors.border, opacity: headerOpacity }]}>
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => navigation.goBack()}
@@ -178,11 +213,11 @@ export default function SettingsScreen() {
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.text }]}>Configuración</Text>
         <View style={styles.placeholder} />
-      </View>
+      </Animated.View>
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {/* Sección de Apariencia */}
-        <View style={styles.section}>
+        <Animated.View style={[styles.section, { opacity: sectionAnims[0].opacity, transform: [{ translateY: sectionAnims[0].translateY }] }]}>
           <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Apariencia</Text>
           
           <View style={[styles.card, { backgroundColor: colors.card, shadowColor: colors.shadow, borderColor: colors.border }]}>
@@ -388,10 +423,10 @@ export default function SettingsScreen() {
               </Text>
             )}
           </View>
-        </View>
+        </Animated.View>
 
         {/* Sección de Cuenta - Placeholder para futuras opciones */}
-        <View style={styles.section}>
+        <Animated.View style={[styles.section, { opacity: sectionAnims[1].opacity, transform: [{ translateY: sectionAnims[1].translateY }] }]}>
           <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Cuenta</Text>
           
           <TouchableOpacity 
@@ -417,10 +452,10 @@ export default function SettingsScreen() {
             </View>
             <Ionicons name="chevron-forward" size={20} color={colors.textTertiary} />
           </TouchableOpacity>
-        </View>
+        </Animated.View>
 
         {/* Sección de Plan */}
-        <View style={styles.section}>
+        <Animated.View style={[styles.section, { opacity: sectionAnims[2].opacity, transform: [{ translateY: sectionAnims[2].translateY }] }]}>
           <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Plan y Suscripción</Text>
           
           <View style={[styles.card, { backgroundColor: colors.card, shadowColor: colors.shadow, borderColor: colors.border }]}>
@@ -486,10 +521,10 @@ export default function SettingsScreen() {
               </TouchableOpacity>
             )}
           </View>
-        </View>
+        </Animated.View>
 
         {/* Sección de Notificaciones */}
-        <View style={styles.section}>
+        <Animated.View style={[styles.section, { opacity: sectionAnims[3].opacity, transform: [{ translateY: sectionAnims[3].translateY }] }]}>
           <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Notificaciones</Text>
           
           <View style={[styles.card, { backgroundColor: colors.card, shadowColor: colors.shadow, borderColor: colors.border }]}>
@@ -536,10 +571,30 @@ export default function SettingsScreen() {
               </View>
             </View>
           </View>
-        </View>
+        </Animated.View>
 
-        {/* Sección Acerca de - Placeholder */}
-        <View style={styles.section}>
+        {/* Sección Zona de Peligro */}
+        <Animated.View style={[styles.section, { opacity: sectionAnims[4].opacity, transform: [{ translateY: sectionAnims[4].translateY }] }]}>
+          <Text style={[styles.sectionTitle, { color: colors.error }]}>Zona de peligro</Text>
+
+          <TouchableOpacity
+            style={[styles.settingItem, { backgroundColor: colors.card, borderColor: colors.error + '40' }]}
+            activeOpacity={0.7}
+            onPress={() => (navigation as any).navigate('DeleteAccount')}
+          >
+            <View style={styles.settingItemLeft}>
+              <Ionicons name="trash-outline" size={20} color={colors.error} />
+              <View>
+                <Text style={[styles.settingItemText, { color: colors.error }]}>Eliminar cuenta</Text>
+                <Text style={{ fontSize: 12, color: colors.textTertiary, marginTop: 2 }}>Elimina permanentemente tu cuenta y todos tus datos</Text>
+              </View>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={colors.error} />
+          </TouchableOpacity>
+        </Animated.View>
+
+        {/* Sección Acerca de */}
+        <Animated.View style={[styles.section, { opacity: sectionAnims[5].opacity, transform: [{ translateY: sectionAnims[5].translateY }] }]}>
           <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Acerca de</Text>
           
           <TouchableOpacity 
@@ -552,7 +607,7 @@ export default function SettingsScreen() {
             </View>
             <Text style={[styles.versionText, { color: colors.textTertiary }]}>1.0.0</Text>
           </TouchableOpacity>
-        </View>
+        </Animated.View>
       </ScrollView>
       <PremiumModal
         visible={premiumModalVisible}
