@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   FlatList,
   RefreshControl,
   ActivityIndicator,
+  Animated,
 } from "react-native";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import EventBus from "../utils/eventBus";
@@ -23,6 +24,19 @@ const SupportScreen: React.FC = () => {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+
+  // Entrance animations
+  const headerOpacity = useRef(new Animated.Value(0)).current;
+  const listOpacity = useRef(new Animated.Value(0)).current;
+  const listSlide = useRef(new Animated.Value(18)).current;
+
+  useEffect(() => {
+    Animated.timing(headerOpacity, { toValue: 1, duration: 350, useNativeDriver: true }).start();
+    Animated.parallel([
+      Animated.timing(listOpacity, { toValue: 1, duration: 420, delay: 120, useNativeDriver: true }),
+      Animated.timing(listSlide, { toValue: 0, duration: 420, delay: 120, useNativeDriver: true }),
+    ]).start();
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
@@ -252,7 +266,7 @@ const SupportScreen: React.FC = () => {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={styles.header}>
+      <Animated.View style={[styles.header, { opacity: headerOpacity }]}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
@@ -260,8 +274,9 @@ const SupportScreen: React.FC = () => {
           Soporte
         </Text>
         <View style={{ width: 24 }} />
-      </View>
+      </Animated.View>
 
+      <Animated.View style={{ flex: 1, opacity: listOpacity, transform: [{ translateY: listSlide }] }}>
       <FlatList
         data={tickets}
         renderItem={renderTicket}
@@ -288,6 +303,7 @@ const SupportScreen: React.FC = () => {
           </View>
         }
       />
+      </Animated.View>
 
       <TouchableOpacity
         style={[styles.fab, { backgroundColor: colors.button }]}
