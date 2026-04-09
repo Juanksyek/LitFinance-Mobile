@@ -138,6 +138,7 @@ const MainAccountScreen = () => {
   const profileSlideAnim = useRef(new Animated.Value(15)).current;
   const gridItemsAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(1)).current;
+  const headerOpacity = useRef(new Animated.Value(0)).current;
 
   const scrollRef = useRef<ScrollView | null>(null);
 
@@ -238,6 +239,7 @@ const MainAccountScreen = () => {
         setCuenta(payload);
 
         Animated.parallel([
+          Animated.timing(headerOpacity, { toValue: 1, duration: 350, useNativeDriver: true }),
           Animated.timing(fadeAnim, { toValue: 1, duration: 400, useNativeDriver: true }),
           Animated.timing(slideAnim, { toValue: 0, duration: 300, useNativeDriver: true }),
         ]).start();
@@ -436,10 +438,10 @@ const MainAccountScreen = () => {
       <StatusBar barStyle="light-content" />
 
       <View style={[styles.headerWrap, { backgroundColor: colors.background }]}>
-        <View
+        <Animated.View
           style={[
             styles.headerBar,
-            { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow },
+            { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow, opacity: headerOpacity },
           ]}
         >
           <TouchableOpacity
@@ -458,7 +460,7 @@ const MainAccountScreen = () => {
             <Ionicons name="cash-outline" size={14} color={colors.text} />
             <Text style={[styles.headerChipText, { color: colors.text }]}>{cuenta.moneda}</Text>
           </View>
-        </View>
+        </Animated.View>
       </View>
 
       <BodyWrapper style={{ flex: 1 }} {...bodyWrapperProps}>
