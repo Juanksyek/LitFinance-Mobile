@@ -1,6 +1,7 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
+  Animated,
   Linking,
   ScrollView,
   StyleSheet,
@@ -30,10 +31,8 @@ const PS_KEYS = {
   useBiometrics: 'ps_useBiometrics',
   hideAppSwitcher: 'ps_hideAppSwitcher',
   securityLoginAlerts: 'ps_securityLoginAlerts',
-  shareAnalytics: 'ps_shareAnalytics',
   shareCrashReports: 'ps_shareCrashReports',
   discreetMode: 'ps_discreetMode',
-  confirmMovements: 'ps_confirmMovements',
   autoLock: 'ps_autoLock',
 } as const;
 
@@ -62,16 +61,27 @@ export default function PrivacySecurityScreen() {
   const { isDark } = useTheme();
   const colors = useThemeColors();
 
+  // Entrance animations
+  const headerOpacity = useRef(new Animated.Value(0)).current;
+  const sectionAnims = useRef(
+    Array.from({ length: 6 }, () => ({
+      opacity: new Animated.Value(0),
+      translateY: new Animated.Value(18),
+    }))
+  ).current;
+
   const [useBiometrics, setUseBiometrics] = useState(false);
   const [hideAppSwitcher, setHideAppSwitcher] = useState(false);
 
   const [securityLoginAlerts, setSecurityLoginAlerts] = useState(true);
 
-  const [shareAnalytics, setShareAnalytics] = useState(false);
   const [shareCrashReports, setShareCrashReports] = useState(true);
 
   const [discreetMode, setDiscreetMode] = useState(false);
-  const [confirmMovements, setConfirmMovements] = useState(false);
+
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [loggingOutAll, setLoggingOutAll] = useState(false);
+  const [changingPassword, setChangingPassword] = useState(false);
 
   const [autoLock, setAutoLock] = useState<AutoLockValue>('off');
   const [autoLockModalVisible, setAutoLockModalVisible] = useState(false);
@@ -94,10 +104,8 @@ export default function PrivacySecurityScreen() {
         PS_KEYS.useBiometrics,
         PS_KEYS.hideAppSwitcher,
         PS_KEYS.securityLoginAlerts,
-        PS_KEYS.shareAnalytics,
         PS_KEYS.shareCrashReports,
         PS_KEYS.discreetMode,
-        PS_KEYS.confirmMovements,
         PS_KEYS.autoLock,
       ]);
 
@@ -107,11 +115,9 @@ export default function PrivacySecurityScreen() {
 
       setSecurityLoginAlerts(map.get(PS_KEYS.securityLoginAlerts) !== '0');
 
-      setShareAnalytics(map.get(PS_KEYS.shareAnalytics) === '1');
       setShareCrashReports(map.get(PS_KEYS.shareCrashReports) !== '0');
 
       setDiscreetMode(map.get(PS_KEYS.discreetMode) === '1');
-      setConfirmMovements(map.get(PS_KEYS.confirmMovements) === '1');
 
       const storedAutoLock = (map.get(PS_KEYS.autoLock) as AutoLockValue | null) ?? 'off';
       setAutoLock(autoLockOptions.some((o) => o.value === storedAutoLock) ? storedAutoLock : 'off');
@@ -125,10 +131,28 @@ export default function PrivacySecurityScreen() {
     } catch (e) {
       setPinConfigured(false);
     }
+
+    try {
+      const userData = await AsyncStorage.getItem('userData');
+      if (userData) {
+        const parsed = JSON.parse(userData);
+        setUserEmail(parsed.email || parsed.correo || null);
+      }
+    } catch {}
   }, []);
 
   useEffect(() => {
     loadSettings();
+
+    // Entrance animations
+    Animated.timing(headerOpacity, { toValue: 1, duration: 350, useNativeDriver: true }).start();
+    const sectionSequence = sectionAnims.map((anim, i) =>
+      Animated.parallel([
+        Animated.timing(anim.opacity, { toValue: 1, duration: 380, delay: 80 + i * 60, useNativeDriver: true }),
+        Animated.timing(anim.translateY, { toValue: 0, duration: 380, delay: 80 + i * 60, useNativeDriver: true }),
+      ])
+    );
+    Animated.parallel(sectionSequence).start();
   }, [loadSettings]);
 
   const persistBool = useCallback(async (key: string, next: boolean) => {
@@ -306,73 +330,64 @@ export default function PrivacySecurityScreen() {
   const logoutAllDevices = useCallback(() => {
     Alert.alert(
       'Cerrar sesión en todos los dispositivos',
-      'Esta acción requiere soporte del servidor. ¿Deseas continuar?',
+      'Se cerrará tu sesión en este y todos los demás dispositivos. Tendrás que volver a iniciar sesión.',
       [
         { text: 'Cancelar', style: 'cancel' },
         {
-          text: 'Continuar',
+          text: 'Cerrar todas',
           style: 'destructive',
-          onPress: () => {
-            Toast.show({ type: 'info', text1: 'No disponible', text2: 'Se requiere endpoint de backend.' });
+          onPress: async () => {
+            setLoggingOutAll(true);
+            try {
+              await authService.logoutDevice();
+              await authService.clearAll();
+              await AsyncStorage.removeItem('userData');
+              Toast.show({ type: 'success', text1: 'Sesiones cerradas', text2: 'Se cerró la sesión en todos los dispositivos.' });
+              (navigation as any).reset({ index: 0, routes: [{ name: 'Login' }] });
+            } catch {
+              Toast.show({ type: 'error', text1: 'Error', text2: 'No se pudo cerrar las sesiones.' });
+            } finally {
+              setLoggingOutAll(false);
+            }
           },
         },
       ]
     );
-  }, []);
+  }, [navigation]);
 
-  const exportData = useCallback(() => {
+  const navigateDeleteAccount = useCallback(() => {
+    (navigation as any).navigate('DeleteAccount');
+  }, [navigation]);
+
+  const handleChangePassword = useCallback(async () => {
+    if (!userEmail) {
+      Toast.show({ type: 'error', text1: 'Error', text2: 'No se encontró tu correo electrónico.' });
+      return;
+    }
     Alert.alert(
-      'Exportar mis datos',
-      'Incluye: cuentas, movimientos, recurrentes y configuración local (según disponibilidad).',
+      'Cambiar contraseña',
+      `Se enviará un código de verificación a ${userEmail} para iniciar el cambio de contraseña.`,
       [
         { text: 'Cancelar', style: 'cancel' },
         {
-          text: 'Exportar',
-          onPress: () => {
-            Toast.show({ type: 'info', text1: 'Pendiente', text2: 'Exportación se habilitará con backend/archivos.' });
+          text: 'Enviar código',
+          onPress: async () => {
+            setChangingPassword(true);
+            try {
+              const { passwordResetService } = await import('../services/passwordResetService');
+              await passwordResetService.requestOtp(userEmail);
+              Toast.show({ type: 'success', text1: 'Código enviado', text2: `Revisa tu correo ${userEmail}` });
+              (navigation as any).navigate('VerifyOtp', { email: userEmail });
+            } catch {
+              Toast.show({ type: 'error', text1: 'Error', text2: 'No se pudo enviar el código.' });
+            } finally {
+              setChangingPassword(false);
+            }
           },
         },
       ]
     );
-  }, []);
-
-  const deleteAccount = useCallback(() => {
-    Alert.alert(
-      'Eliminar mi cuenta',
-      'Se elimina tu perfil y datos asociados. Esta acción es irreversible.',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Eliminar',
-          style: 'destructive',
-          onPress: () => {
-            Toast.show({ type: 'info', text1: 'Pendiente', text2: 'Se requiere endpoint de backend.' });
-          },
-        },
-      ]
-    );
-  }, []);
-
-  const clearLocalCache = useCallback(() => {
-    Alert.alert('Borrar caché local', 'Borra configuraciones locales de privacidad/seguridad en este dispositivo.', [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Borrar',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            const keys = Object.values(PS_KEYS);
-            await AsyncStorage.multiRemove(keys);
-            Toast.show({ type: 'success', text1: 'Caché borrada' });
-            loadSettings();
-            notifyPrivacySecurityChanged();
-          } catch {
-            Toast.show({ type: 'error', text1: 'Error', text2: 'No se pudo borrar la caché.' });
-          }
-        },
-      },
-    ]);
-  }, [loadSettings, notifyPrivacySecurityChanged]);
+  }, [navigation, userEmail]);
 
   const openSystemSettings = useCallback(async () => {
     try {
@@ -450,7 +465,7 @@ export default function PrivacySecurityScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <StatusBar style={isDark ? 'light' : 'dark'} />
 
-      <View style={[styles.header, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
+      <Animated.View style={[styles.header, { backgroundColor: colors.card, borderBottomColor: colors.border, opacity: headerOpacity }]}>
         <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()} activeOpacity={0.7}>
           <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
@@ -458,10 +473,10 @@ export default function PrivacySecurityScreen() {
           {headerTitle}
         </Text>
         <View style={styles.placeholder} />
-      </View>
+      </Animated.View>
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        <View style={styles.section}>
+        <Animated.View style={[styles.section, { opacity: sectionAnims[0].opacity, transform: [{ translateY: sectionAnims[0].translateY }] }]}>
           <SectionTitle>Bloqueo</SectionTitle>
 
           <Card>
@@ -518,19 +533,11 @@ export default function PrivacySecurityScreen() {
               }
             />
           </Card>
-        </View>
+        </Animated.View>
 
-        <View style={styles.section}>
+        <Animated.View style={[styles.section, { opacity: sectionAnims[1].opacity, transform: [{ translateY: sectionAnims[1].translateY }] }]}>
           <SectionTitle>Sesiones</SectionTitle>
           <Card>
-            <Row
-              icon="phone-portrait-outline"
-              title="Dispositivos conectados"
-              description="Lista de sesiones (pendiente)"
-              onPress={() => Toast.show({ type: 'info', text1: 'Pendiente', text2: 'Se requiere backend.' })}
-              right={<Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />}
-            />
-
             <Row
               icon="log-out-outline"
               title="Cerrar sesión en este dispositivo"
@@ -543,104 +550,79 @@ export default function PrivacySecurityScreen() {
             <Row
               icon="alert-circle-outline"
               title="Cerrar sesión en todos los dispositivos"
-              description="Acción crítica + confirmación"
-              onPress={logoutAllDevices}
+              description="Cierra sesión en todos tus dispositivos vinculados"
+              onPress={loggingOutAll ? undefined : logoutAllDevices}
               right={<Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />}
               danger
             />
 
             <Row
               icon="notifications-outline"
-              title="Notificaciones de seguridad"
-              description="Avisarme si hay un nuevo inicio de sesión"
+              title="Notificaciones de inicio de sesión"
+              description="Avisarme si hay un nuevo inicio de sesión en otro dispositivo"
               right={
                 <Toggle
                   value={securityLoginAlerts}
                   onChange={async (v) => {
                     setSecurityLoginAlerts(v);
                     await persistBool(PS_KEYS.securityLoginAlerts, v);
+                    notifyPrivacySecurityChanged();
+                    Toast.show({ type: 'success', text1: v ? 'Notificaciones activadas' : 'Notificaciones desactivadas' });
                   }}
                 />
               }
             />
           </Card>
-        </View>
+        </Animated.View>
 
-        <View style={styles.section}>
+        <Animated.View style={[styles.section, { opacity: sectionAnims[2].opacity, transform: [{ translateY: sectionAnims[2].translateY }] }]}>
           <SectionTitle>Contraseña y recuperación</SectionTitle>
           <Card>
             <Row
               icon="lock-closed-outline"
               title="Cambiar contraseña"
-              description="Actualiza tu contraseña de acceso"
-              onPress={() => Toast.show({ type: 'info', text1: 'Pendiente', text2: 'Conectar a flujo de cambio.' })}
+              description="Actualiza tu contraseña de acceso vía código OTP"
+              onPress={changingPassword ? undefined : handleChangePassword}
               right={<Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />}
             />
 
             <Row
               icon="mail-outline"
               title="Método de recuperación"
-              description="Correo / OTP (si aplica)"
-              onPress={() => Toast.show({ type: 'info', text1: 'Pendiente' })}
-              right={<Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />}
+              description={userEmail ? `Correo vinculado: ${userEmail}` : 'Correo electrónico vinculado a tu cuenta'}
+              right={<Ionicons name="checkmark-circle" size={20} color={colors.success} />}
             />
 
             <Row
               icon="shield-outline"
               title="Verificación en 2 pasos (2FA)"
-              description="Authenticator o email/SMS (si aplica)"
-              onPress={() => Toast.show({ type: 'info', text1: 'Opcional', text2: 'Se implementa después.' })}
-              right={<Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />}
+              description="Próximamente — seguridad adicional con authenticator"
+              right={
+                <View style={[styles.smallPill, { borderColor: colors.border }]}>
+                  <Text style={[styles.smallPillText, { color: colors.textSecondary }]}>Próximo</Text>
+                </View>
+              }
             />
           </Card>
-        </View>
+        </Animated.View>
 
-        <View style={styles.section}>
+        <Animated.View style={[styles.section, { opacity: sectionAnims[3].opacity, transform: [{ translateY: sectionAnims[3].translateY }] }]}>
           <SectionTitle>Cuenta</SectionTitle>
           <Card>
-            <Row
-              icon="download-outline"
-              title="Exportar mis datos"
-              description="Cuentas, movimientos, recurrentes…"
-              onPress={exportData}
-              right={<Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />}
-            />
             <Row
               icon="trash-outline"
               title="Eliminar mi cuenta"
               description="Se elimina tu perfil y datos asociados"
-              onPress={deleteAccount}
+              onPress={navigateDeleteAccount}
               right={<Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />}
               danger
             />
-            <Row
-              icon="refresh-outline"
-              title="Borrar caché local"
-              description="Borra preferencias locales en este dispositivo"
-              onPress={clearLocalCache}
-              right={<Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />}
-            />
           </Card>
-        </View>
+        </Animated.View>
 
-        <View style={styles.section}>
+        <Animated.View style={[styles.section, { opacity: sectionAnims[4].opacity, transform: [{ translateY: sectionAnims[4].translateY }] }]}>
           <SectionTitle>Analítica y permisos</SectionTitle>
           <Card>
-            <Row
-              icon="analytics-outline"
-              title="Compartir analítica anónima"
-              description="Enviar datos de uso (anónimos)"
-              right={
-                <Toggle
-                  value={shareAnalytics}
-                  onChange={async (v) => {
-                    setShareAnalytics(v);
-                    await persistBool(PS_KEYS.shareAnalytics, v);
-                  }}
-                />
-              }
-            />
-
             <Row
               icon="bug-outline"
               title="Enviar reportes de fallos"
@@ -664,9 +646,9 @@ export default function PrivacySecurityScreen() {
               right={<Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />}
             />
           </Card>
-        </View>
+        </Animated.View>
 
-        <View style={styles.section}>
+        <Animated.View style={[styles.section, { opacity: sectionAnims[5].opacity, transform: [{ translateY: sectionAnims[5].translateY }] }]}>
           <SectionTitle>Seguridad extra</SectionTitle>
           <Card>
             <Row
@@ -679,27 +661,14 @@ export default function PrivacySecurityScreen() {
                   onChange={async (v) => {
                     setDiscreetMode(v);
                     await persistBool(PS_KEYS.discreetMode, v);
-                  }}
-                />
-              }
-            />
-
-            <Row
-              icon="checkmark-done-outline"
-              title="Confirmación para movimientos"
-              description="Confirmar antes de registrar un movimiento"
-              right={
-                <Toggle
-                  value={confirmMovements}
-                  onChange={async (v) => {
-                    setConfirmMovements(v);
-                    await persistBool(PS_KEYS.confirmMovements, v);
+                    notifyPrivacySecurityChanged();
+                    Toast.show({ type: 'success', text1: v ? 'Modo discreto activado' : 'Modo discreto desactivado', text2: v ? 'Los montos se ocultarán por defecto' : 'Los montos se mostrarán normalmente' });
                   }}
                 />
               }
             />
           </Card>
-        </View>
+        </Animated.View>
 
         <View style={{ height: 28 }} />
       </ScrollView>

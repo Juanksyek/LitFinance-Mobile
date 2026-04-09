@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, Image, KeyboardAvoidingView, Platform, ScrollView } from "react-native";
+import React, { useState, useRef, useEffect } from "react";
+import { View, Text, StyleSheet, TouchableOpacity, Image, KeyboardAvoidingView, Platform, ScrollView, Animated } from "react-native";
 import { apiRateLimiter } from "../services/apiRateLimiter";
 import { authService } from "../services/authService";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -23,6 +23,41 @@ const LoginScreen: React.FC = () => {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+
+  // Animations
+  const logoScale = useRef(new Animated.Value(0.7)).current;
+  const logoOpacity = useRef(new Animated.Value(0)).current;
+  const titleOpacity = useRef(new Animated.Value(0)).current;
+  const titleSlide = useRef(new Animated.Value(16)).current;
+  const formOpacity = useRef(new Animated.Value(0)).current;
+  const formSlide = useRef(new Animated.Value(24)).current;
+  const buttonOpacity = useRef(new Animated.Value(0)).current;
+  const buttonSlide = useRef(new Animated.Value(20)).current;
+
+  useEffect(() => {
+    Animated.sequence([
+      // Logo bounce in
+      Animated.parallel([
+        Animated.spring(logoScale, { toValue: 1, tension: 50, friction: 7, useNativeDriver: true }),
+        Animated.timing(logoOpacity, { toValue: 1, duration: 400, useNativeDriver: true }),
+      ]),
+      // Title fade+slide
+      Animated.parallel([
+        Animated.timing(titleOpacity, { toValue: 1, duration: 350, useNativeDriver: true }),
+        Animated.timing(titleSlide, { toValue: 0, duration: 350, useNativeDriver: true }),
+      ]),
+      // Form fade+slide
+      Animated.parallel([
+        Animated.timing(formOpacity, { toValue: 1, duration: 380, useNativeDriver: true }),
+        Animated.timing(formSlide, { toValue: 0, duration: 380, useNativeDriver: true }),
+      ]),
+      // Button fade+slide
+      Animated.parallel([
+        Animated.timing(buttonOpacity, { toValue: 1, duration: 300, useNativeDriver: true }),
+        Animated.timing(buttonSlide, { toValue: 0, duration: 300, useNativeDriver: true }),
+      ]),
+    ]).start();
+  }, []);
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -184,20 +219,20 @@ const LoginScreen: React.FC = () => {
         showsVerticalScrollIndicator={false}
       >
         {/* Logo Container with Neumorphic Effect */}
-        <View style={[{ backgroundColor: colors.background }]}>
+        <Animated.View style={[{ backgroundColor: colors.background }, { opacity: logoOpacity, transform: [{ scale: logoScale }] }]}>
           <Image
             source={require("../images/LitFinance.png")}
             style={styles.logo}
           />
-        </View>
+        </Animated.View>
 
-        <Text style={[styles.title, { color: colors.text }]}>LitFinance</Text>
-        <Text style={[styles.subtitle, { color: colors.placeholder }]}>
+        <Animated.Text style={[styles.title, { color: colors.text }, { opacity: titleOpacity, transform: [{ translateY: titleSlide }] }]}>LitFinance</Animated.Text>
+        <Animated.Text style={[styles.subtitle, { color: colors.placeholder }, { opacity: titleOpacity, transform: [{ translateY: titleSlide }] }]}>
           Bienvenido de vuelta
-        </Text>
+        </Animated.Text>
 
         {/* Main Card Container */}
-        <View style={[styles.cardContainer, { backgroundColor: colors.background }]}>
+        <Animated.View style={[styles.cardContainer, { backgroundColor: colors.background }, { opacity: formOpacity, transform: [{ translateY: formSlide }] }]}>
           <View style={styles.inputContainer}>
             <View style={[styles.inputWrapper, { backgroundColor: colors.background }]}>
               <FormInput
@@ -243,31 +278,33 @@ const LoginScreen: React.FC = () => {
           </View>
 
           {/* Login Button with Neumorphic Effect */}
-          <TouchableOpacity
-            style={[
-              styles.button, 
-              { backgroundColor: loading ? colors.placeholder : colors.button },
-              loading && styles.buttonDisabled
-            ]}
-            onPress={handleLogin}
-            disabled={loading}
-            activeOpacity={0.8}
-          >
-            <Text style={[styles.buttonText, { opacity: loading ? 0.7 : 1 }]}>
-              {loading ? "Iniciando sesión..." : "Iniciar Sesión"}
-            </Text>
-          </TouchableOpacity>
-        </View>
+          <Animated.View style={{ opacity: buttonOpacity, transform: [{ translateY: buttonSlide }] }}>
+            <TouchableOpacity
+              style={[
+                styles.button, 
+                { backgroundColor: loading ? colors.placeholder : colors.button },
+                loading && styles.buttonDisabled
+              ]}
+              onPress={handleLogin}
+              disabled={loading}
+              activeOpacity={0.8}
+            >
+              <Text style={[styles.buttonText, { opacity: loading ? 0.7 : 1 }]}>
+                {loading ? "Iniciando sesión..." : "Iniciar Sesión"}
+              </Text>
+            </TouchableOpacity>
+          </Animated.View>
+        </Animated.View>
 
         {/* Sign up section */}
-        <View style={styles.signupContainer}>
+        <Animated.View style={[styles.signupContainer, { opacity: buttonOpacity }]}>
           <Text style={[styles.signupText, { color: colors.placeholder }]}>
             ¿Aún no tienes cuenta?{" "}
           </Text>
           <TouchableOpacity onPress={() => navigation.navigate("Register")}>
             <Text style={styles.signupLink}>Registrarse</Text>
           </TouchableOpacity>
-        </View>
+        </Animated.View>
       </ScrollView>
     </KeyboardAvoidingView>
   );

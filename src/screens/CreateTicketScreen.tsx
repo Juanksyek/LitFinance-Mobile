@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Animated,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { useThemeColors } from "../theme/useThemeColors";
@@ -23,6 +24,19 @@ const CreateTicketScreen: React.FC = () => {
   const [titulo, setTitulo] = useState("");
   const [descripcion, setDescripcion] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // Entrance animations
+  const headerOpacity = useRef(new Animated.Value(0)).current;
+  const formOpacity = useRef(new Animated.Value(0)).current;
+  const formSlide = useRef(new Animated.Value(18)).current;
+
+  useEffect(() => {
+    Animated.timing(headerOpacity, { toValue: 1, duration: 350, useNativeDriver: true }).start();
+    Animated.parallel([
+      Animated.timing(formOpacity, { toValue: 1, duration: 420, delay: 100, useNativeDriver: true }),
+      Animated.timing(formSlide, { toValue: 0, duration: 420, delay: 100, useNativeDriver: true }),
+    ]).start();
+  }, []);
 
   const handleSubmit = async () => {
     if (!titulo.trim()) {
@@ -100,7 +114,7 @@ const CreateTicketScreen: React.FC = () => {
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 80}
     >
-      <View style={styles.header}>
+      <Animated.View style={[styles.header, { opacity: headerOpacity }]}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
@@ -108,8 +122,9 @@ const CreateTicketScreen: React.FC = () => {
           Nuevo ticket
         </Text>
         <View style={{ width: 24 }} />
-      </View>
+      </Animated.View>
 
+      <Animated.View style={{ flex: 1, opacity: formOpacity, transform: [{ translateY: formSlide }] }}>
       <ScrollView
         style={styles.content}
         contentContainerStyle={[
@@ -213,6 +228,7 @@ const CreateTicketScreen: React.FC = () => {
           )}
         </TouchableOpacity>
       </ScrollView>
+      </Animated.View>
     </KeyboardAvoidingView>
   );
 };

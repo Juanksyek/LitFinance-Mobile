@@ -189,6 +189,50 @@ export const CATEGORY_CONFIG: Record<TicketCategoria, { icon: string; color: str
 class TicketScanService {
   private base = `${API_BASE_URL}/tickets`;
 
+  /**
+   * Normalize a raw ticket object coming from the API or the list endpoint.
+   * Handles MongoDB Extended JSON dates ({ $date: '...' }) and missing fields.
+   */
+  private normalizeTicket(raw: any): Ticket {
+    // Extract fechaCompra / createdAt from Extended JSON format { $date: '...' }
+    let fechaCompra: string | undefined = raw.fechaCompra;
+    if (fechaCompra && typeof fechaCompra === 'object' && (fechaCompra as any).$date) {
+      fechaCompra = (fechaCompra as any).$date;
+    }
+    let createdAt: string | undefined = raw.createdAt;
+    if (createdAt && typeof createdAt === 'object' && (createdAt as any).$date) {
+      createdAt = (createdAt as any).$date;
+    }
+
+    // Extract _id.$oid as fallback for ticketId
+    let oid: string | undefined;
+    if (raw._id && typeof raw._id === 'object' && raw._id.$oid) {
+      oid = raw._id.$oid;
+    } else if (typeof raw._id === 'string') {
+      oid = raw._id;
+    }
+
+    const ticket: Ticket = {
+      ...raw,
+      ticketId: raw.ticketId ?? oid ?? '',
+      tienda: raw.tienda ?? '',
+      fechaCompra: fechaCompra ?? createdAt ?? new Date().toISOString(),
+      createdAt: createdAt ?? fechaCompra ?? new Date().toISOString(),
+      items: Array.isArray(raw.items) ? raw.items : [],
+      subtotal: raw.subtotal ?? 0,
+      impuestos: raw.impuestos ?? 0,
+      descuentos: raw.descuentos ?? 0,
+      propina: raw.propina ?? 0,
+      total: raw.total ?? 0,
+      moneda: raw.moneda ?? 'MXN',
+      estado: raw.estado ?? 'review',
+      confirmado: raw.confirmado ?? false,
+      hasImage: raw.hasImage ?? false,
+      resumenCategorias: raw.resumenCategorias ?? {},
+    };
+    return ticket;
+  }
+
   /** POST /tickets/scan — send image + optional OCR text */
   async scan(data: TicketScanRequest): Promise<{ message: string; ticket: Ticket }> {
     console.log('[TicketScanService] scan() llamado, payload size ~', Math.round((data.imagenBase64?.length ?? 0) / 1024), 'KB');
@@ -326,7 +370,19 @@ class TicketScanService {
       const body = await res.text().catch(() => '');
       throw new Error(body || `Error ${res.status}`);
     }
-    return res.json();
+    const json = await res.json();
+    console.log('[TicketScanService] list() respuesta keys:', Object.keys(json));
+
+    // Normalize response shape — backend may use 'data', 'tickets', or 'items' as the array key
+    const rawData: any[] = json.data ?? json.tickets ?? json.items ?? [];
+    const total: number = json.total ?? json.count ?? rawData.length;
+
+    return {
+      total,
+      page: json.page ?? params?.page ?? 1,
+      limit: json.limit ?? params?.limit ?? 15,
+      data: rawData.map((t: any) => this.normalizeTicket(t)),
+    };
   }
 
   /** GET /tickets/:id */
@@ -337,7 +393,12 @@ class TicketScanService {
       const body = await res.text().catch(() => '');
       throw new Error(body || `Error ${res.status}`);
     }
-    return res.json();
+    const json = await res.json();
+    console.log('[TicketScanService] getDetail() respuesta keys:', Object.keys(json));
+
+    // Normalize: backend may wrap in { ticket: {...} } or { data: {...} }
+    const raw = json.ticket ?? json.data ?? json;
+    return this.normalizeTicket(raw);
   }
 
   /** GET /tickets/:id/image */
@@ -348,7 +409,46 @@ class TicketScanService {
       const body = await res.text().catch(() => '');
       throw new Error(body || `Error ${res.status}`);
     }
-    return res.json();
+    const json = await res.json();
+
+    // Normalizar respuesta para evitar que la UI reciba data-uris o base64 con saltos
+    // Soportamos distintas claves devueltas por el backend
+    let rawB64: string | undefined = (json as any).imagenBase64 ?? (json as any).imageBase64 ?? (json as any).base64 ?? (json as any).data ?? undefined;
+    let mime: string | undefined = (json as any).mimeType ?? (json as any).imagenMimeType ?? (json as any).mime ?? 'image/jpeg';
+
+    if (!rawB64 || typeof rawB64 !== 'string') {
+      throw new Error('No se encontró imagen en la respuesta del servidor');
+    }
+
+    // Si viene con prefijo data:<mime>;base64,xxx — eliminar prefijo
+    const dataUriMatch = rawB64.match(/^data:([\w/+.-]+);base64,(.*)$/s);
+    if (dataUriMatch) {
+      mime = mime || dataUriMatch[1];
+      rawB64 = dataUriMatch[2];
+    }
+
+    // Quitar espacios en blanco y saltos de línea
+    rawB64 = rawB64.replace(/\s+/g, '');
+
+    // Convertir URL-safe base64 a estándar ( - -> +, _ -> / )
+    rawB64 = rawB64.replace(/-/g, '+').replace(/_/g, '/');
+
+    // Asegurar padding (módulo 4)
+    const pad = rawB64.length % 4;
+    if (pad === 2) rawB64 += '==';
+    else if (pad === 3) rawB64 += '=';
+    else if (pad === 1) {
+      // improbable pero incompatible — recortar hasta múltiplo de 4
+      rawB64 = rawB64.slice(0, rawB64.length - 1);
+    }
+
+    // Debug info (helps reproduce issues en runtime)
+    try {
+      console.log(`[TicketScanService.getImage] ticket=${ticketId} mime=${mime} base64_len=${rawB64.length}`);
+      console.log(`[TicketScanService.getImage] prefix='${rawB64.slice(0,20)}'`);
+    } catch {}
+
+    return { imagenBase64: rawB64, mimeType: mime || 'image/jpeg' };
   }
 
   /** DELETE /tickets/:id */
