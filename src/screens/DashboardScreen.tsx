@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
-import { View, StyleSheet, ScrollView, RefreshControl, Platform } from "react-native";
+import { View, StyleSheet, ScrollView, RefreshControl, Platform, Linking } from "react-native";
 import { useStableSafeInsets } from '../hooks/useStableSafeInsets';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from "expo-status-bar";
@@ -28,6 +28,7 @@ import { fetchDashboardSnapshot, getCachedDashboardSnapshot, setCachedDashboardS
 import DashboardBottomDock, { DASHBOARD_DOCK_APPROX_HEIGHT } from "../components/DashboardBottomDock";
 import ScanActionModal from "../components/ScanActionModal";
 import { getPlanTypeFromStorage } from '../services/planConfigService';
+import WidgetBridge from '../native/WidgetBridge';
 import SpendingByCategory from "../components/SpendingByCategory";
 import UpcomingRenewals from "../components/UpcomingRenewals";
 
@@ -54,7 +55,33 @@ export default function DashboardScreen() {
     }
   }, [(route as any)?.params]);
   const route = useRoute<RouteProp<RootStackParamList, "Dashboard">>();
-  const navigation = useNavigation();
+  const navigation = useNavigation<any>();
+
+  // Handle deep links from Android widgets (litfinance://widget/*)
+  useEffect(() => {
+    const handleWidgetLink = (url: string | null) => {
+      if (!url || !url.startsWith('litfinance://widget/')) return;
+      const path = url.replace('litfinance://widget/', '');
+      switch (path) {
+        case 'scan':
+          setScanModalVisible(true);
+          break;
+        case 'movement':
+          // Scroll to action buttons area where "add movement" lives
+          scrollRef.current?.scrollTo({ y: actionButtonsYRef.current, animated: true });
+          break;
+        case 'analytics':
+          navigation.navigate('Analytics');
+          break;
+        case 'settings':
+          navigation.navigate('Settings');
+          break;
+      }
+    };
+    Linking.getInitialURL().then(handleWidgetLink);
+    const sub = Linking.addEventListener('url', (e) => handleWidgetLink(e.url));
+    return () => sub.remove();
+  }, [navigation]);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastRefreshTime, setLastRefreshTime] = useState(0);
   const isMountedRef = useRef(true);
@@ -231,6 +258,23 @@ export default function DashboardScreen() {
       setDashboardSnapshot(res.snapshot);
       setDashboardEtag(res.etag);
       setCuentaId(res.snapshot?.accountSummary?.cuentaId ?? null);
+
+      // Push data to Android home screen widgets
+      if (Platform.OS === 'android' && res.snapshot) {
+        const snap = res.snapshot;
+        const sym = snap.preferences?.monedaPrincipal === 'USD' ? '$' : '$';
+        const bal = `${sym}${snap.accountSummary.saldo.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        WidgetBridge.updateBalance(bal, snap.accountSummary.moneda).catch(() => {});
+
+        const txns = (snap.recentTransactions ?? []).slice(0, 3).map(t => ({
+          icon: t.tipo === 'ingreso' ? '\u{1F4B0}' : '\u{1F4B8}',
+          concept: t.concepto || '',
+          date: t.createdAt ? new Date(t.createdAt).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' }) : '',
+          amount: `${t.tipo === 'ingreso' ? '+' : '-'}${sym}${Math.abs(t.monto).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+          isIncome: t.tipo === 'ingreso',
+        }));
+        WidgetBridge.updateTransactions(txns).catch(() => {});
+      }
 
       // Si el backend provee límites administrativos actualizados, sincronizarlos
       const newRecentLimitFromMeta = res.snapshot?.meta?.limits?.historicoLimitadoDias ??
