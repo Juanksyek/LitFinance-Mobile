@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView, Image, Modal, TextInput, FlatList } from 'react-native';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView, Image, Modal, TextInput, FlatList, Switch, Linking, Animated } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { apiRateLimiter } from '../services/apiRateLimiter';
 import Toast from 'react-native-toast-message';
@@ -20,6 +20,31 @@ const RegisterScreen: React.FC = () => {
   const colors = useThemeColors();
   const navigation = useNavigation();
 
+  // Entrance animations
+  const logoScale = useRef(new Animated.Value(0.6)).current;
+  const logoOpacity = useRef(new Animated.Value(0)).current;
+  const titleOpacity = useRef(new Animated.Value(0)).current;
+  const titleSlide = useRef(new Animated.Value(12)).current;
+  const formOpacity = useRef(new Animated.Value(0)).current;
+  const formSlide = useRef(new Animated.Value(18)).current;
+
+  useEffect(() => {
+    Animated.sequence([
+      Animated.parallel([
+        Animated.spring(logoScale, { toValue: 1, speed: 18, bounciness: 6, useNativeDriver: true }),
+        Animated.timing(logoOpacity, { toValue: 1, duration: 350, useNativeDriver: true }),
+      ]),
+      Animated.parallel([
+        Animated.timing(titleOpacity, { toValue: 1, duration: 300, useNativeDriver: true }),
+        Animated.timing(titleSlide, { toValue: 0, duration: 300, useNativeDriver: true }),
+      ]),
+      Animated.parallel([
+        Animated.timing(formOpacity, { toValue: 1, duration: 380, useNativeDriver: true }),
+        Animated.timing(formSlide, { toValue: 0, duration: 380, useNativeDriver: true }),
+      ]),
+    ]).start();
+  }, []);
+
   const [form, setForm] = useState({
     email: '',
     password: '',
@@ -28,6 +53,8 @@ const RegisterScreen: React.FC = () => {
     edad: '',
     ocupacion: '',
     monedaPrincipal: 'MXN',
+    aceptaTerminos: false,
+    aceptaDatosFinancieros: false,
   });
 
   const [showPassword, setShowPassword] = useState(false);
@@ -37,6 +64,11 @@ const RegisterScreen: React.FC = () => {
   const [monedaSearch, setMonedaSearch] = useState('');
   const [ocupacionesModalVisible, setOcupacionesModalVisible] = useState(false);
   const [ocupSearch, setOcupSearch] = useState('');
+  const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
+
+  // Step transition animations
+  const stepSlide = useRef(new Animated.Value(0)).current;
+  const stepOpacity = useRef(new Animated.Value(1)).current;
 
   const handleChange = (key: keyof typeof form, value: string | boolean) => {
     setForm(prev => ({ ...prev, [key]: value }));
@@ -79,10 +111,42 @@ const RegisterScreen: React.FC = () => {
     setMonedas(monedasPredefinidas);
   };
 
+  // Normalize strings for diacritics/accents and collapse whitespace
+  const normalize = (s: string) =>
+    s
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase();
+
+  const formatSymbol = (m: Moneda) => {
+    if (m && m.simbolo && m.simbolo.length > 0) return m.simbolo;
+    const fallback: Record<string, string> = {
+      USD: '$',
+      MXN: '$',
+      EUR: '€',
+      GBP: '£',
+      JPY: '¥',
+      PEN: 'S/',
+      BRL: 'R$',
+      CAD: 'C$',
+      AUD: 'A$',
+      NZD: 'NZ$',
+      CHF: 'CHF',
+    };
+    return fallback[m.codigo] || m.codigo;
+  };
+
   const filteredMonedas = useMemo(() => {
-    const q = monedaSearch.trim().toLowerCase();
+    const q = normalize(monedaSearch || '');
     if (!q) return monedas;
-    return monedas.filter(m => ((m.nombre || '') + ' ' + (m.codigo || '')).toLowerCase().includes(q));
+    return monedas.filter(m => {
+      const name = normalize(m.nombre || '');
+      const code = (m.codigo || '').toLowerCase();
+      const symbol = normalize(String(m.simbolo || ''));
+      return name.includes(q) || code.includes(q) || symbol.includes(q);
+    });
   }, [monedaSearch, monedas]);
 
   useEffect(() => {
@@ -139,6 +203,22 @@ const RegisterScreen: React.FC = () => {
       });
     }
 
+    if (!form.aceptaTerminos) {
+      return Toast.show({
+        type: 'error',
+        text1: 'Términos requeridos',
+        text2: 'Debes aceptar los Términos y la Política de Privacidad.',
+      });
+    }
+
+    if (!form.aceptaDatosFinancieros) {
+      return Toast.show({
+        type: 'error',
+        text1: 'Consentimiento requerido',
+        text2: 'Debes otorgar tu consentimiento para el tratamiento de datos patrimoniales y financieros.',
+      });
+    }
+
     try {
       const payload = {
         email: form.email,
@@ -148,6 +228,8 @@ const RegisterScreen: React.FC = () => {
         edad: Number(form.edad),
         ocupacion: form.ocupacion.trim(),
         monedaPrincipal: form.monedaPrincipal,
+        aceptaTerminos: form.aceptaTerminos,
+        aceptaDatosFinancieros: form.aceptaDatosFinancieros,
       };
 
       const response = await apiRateLimiter.fetch(`${API_BASE_URL}/auth/register`, {
@@ -177,6 +259,48 @@ const RegisterScreen: React.FC = () => {
     }
   };
 
+  const goToStep = (nextStep: 1 | 2 | 3) => {
+    const direction = nextStep > currentStep ? 1 : -1;
+    Animated.parallel([
+      Animated.timing(stepOpacity, { toValue: 0, duration: 140, useNativeDriver: true }),
+      Animated.timing(stepSlide, { toValue: direction * -24, duration: 140, useNativeDriver: true }),
+    ]).start(() => {
+      setCurrentStep(nextStep);
+      stepSlide.setValue(direction * 24);
+      Animated.parallel([
+        Animated.timing(stepOpacity, { toValue: 1, duration: 200, useNativeDriver: true }),
+        Animated.timing(stepSlide, { toValue: 0, duration: 200, useNativeDriver: true }),
+      ]).start();
+    });
+  };
+
+  const handleNextStep = () => {
+    if (currentStep === 1) {
+      if (!form.nombreCompleto.trim()) {
+        return Toast.show({ type: 'error', text1: 'Nombre requerido', text2: 'Ingresa tu nombre completo.' });
+      }
+      const edadTrim = (form.edad || '').toString().trim();
+      const edadNum = Number(edadTrim);
+      if (!edadTrim || !Number.isFinite(edadNum) || !Number.isInteger(edadNum) || edadNum < 13 || edadNum > 100) {
+        return Toast.show({ type: 'error', text1: 'Edad inválida', text2: 'Ingresa un número entero entre 13 y 100.' });
+      }
+      if (!form.ocupacion.trim()) {
+        return Toast.show({ type: 'error', text1: 'Ocupación requerida', text2: 'Selecciona tu ocupación.' });
+      }
+      goToStep(2);
+    } else if (currentStep === 2) {
+      if (!form.email || !form.password || !form.confirmPassword) {
+        return Toast.show({ type: 'error', text1: 'Campos requeridos', text2: 'Completa todos los campos.' });
+      }
+      if (!passwordsMatch) {
+        return Toast.show({ type: 'error', text1: 'Contraseñas no coinciden' });
+      }
+      goToStep(3);
+    } else {
+      handleRegister();
+    }
+  };
+
   return (
     <KeyboardAvoidingView
       style={[styles.container, { backgroundColor: colors.background }]}
@@ -184,195 +308,287 @@ const RegisterScreen: React.FC = () => {
     >
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         <View style={styles.header}>
-          <View style={styles.logoContainer}>
+          <Animated.View style={[styles.logoContainer, { opacity: logoOpacity, transform: [{ scale: logoScale }] }]}>
             <Image source={require('../images/LitFinance.png')} style={styles.logo} />
-          </View>
-          <Text style={[styles.title, { color: colors.text }]}>Crear cuenta</Text>
-          <Text style={[styles.subtitle, { color: colors.placeholder }]}>
-            Únete a la comunidad financiera
-          </Text>
+          </Animated.View>
+          <Animated.Text style={[styles.title, { color: colors.text, opacity: titleOpacity, transform: [{ translateY: titleSlide }] }]}>Crear cuenta</Animated.Text>
+          <Animated.Text style={[styles.subtitle, { color: colors.placeholder, opacity: titleOpacity, transform: [{ translateY: titleSlide }] }]}>
+            Solo 3 pasos rápidos
+          </Animated.Text>
         </View>
 
-        <View style={[styles.formCard, { backgroundColor: colors.card }]}>
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <View style={[styles.sectionIcon, { backgroundColor: colors.inputBackground }]}>
-                <Ionicons name="person-outline" size={20} color="#EF7725" />
+        <Animated.View style={[styles.formCard, { backgroundColor: colors.card, opacity: formOpacity, transform: [{ translateY: formSlide }] }]}>
+
+          {/* Step progress indicator */}
+          <View style={styles.stepperContainer}>
+            <View style={styles.stepItem}>
+              <View style={[styles.stepCircle, { backgroundColor: '#EF7725' }]}>
+                {currentStep > 1
+                  ? <Ionicons name="checkmark" size={16} color="white" />
+                  : <Ionicons name="person-outline" size={16} color="white" />
+                }
               </View>
-              <Text style={[styles.sectionTitle, { color: colors.text }]}>Datos personales</Text>
+              <Text style={[styles.stepLabel, styles.stepLabelActive]}>Personal</Text>
             </View>
-            
-            <View style={styles.inputContainer}>
-              <View style={[styles.inputWrapper, { backgroundColor: colors.background }]}>
-                <FormInput
-                  placeholder="Nombre completo"
-                  value={form.nombreCompleto}
-                  onChangeText={(v) => handleChange('nombreCompleto', v)}
-                  style={[styles.input, { borderWidth: 0 }]}
-                />
+            <View style={[styles.stepLine, { backgroundColor: currentStep > 1 ? '#EF7725' : colors.border }]} />
+            <View style={styles.stepItem}>
+              <View style={[styles.stepCircle, { backgroundColor: currentStep >= 2 ? '#EF7725' : colors.inputBackground }]}>
+                {currentStep > 2
+                  ? <Ionicons name="checkmark" size={16} color="white" />
+                  : <Ionicons name="lock-closed-outline" size={16} color={currentStep >= 2 ? 'white' : colors.placeholder} />
+                }
               </View>
+              <Text style={[styles.stepLabel, currentStep >= 2 && styles.stepLabelActive]}>Acceso</Text>
             </View>
-            
-            <View style={styles.row}>
-              <View style={[styles.rowInput, styles.inputContainer]}>
+            <View style={[styles.stepLine, { backgroundColor: currentStep > 2 ? '#EF7725' : colors.border }]} />
+            <View style={styles.stepItem}>
+              <View style={[styles.stepCircle, { backgroundColor: currentStep >= 3 ? '#EF7725' : colors.inputBackground }]}>
+                <Ionicons name="checkmark-circle-outline" size={16} color={currentStep >= 3 ? 'white' : colors.placeholder} />
+              </View>
+              <Text style={[styles.stepLabel, currentStep >= 3 && styles.stepLabelActive]}>Finalizar</Text>
+            </View>
+          </View>
+
+          {/* Animated step content */}
+          <Animated.View style={{ opacity: stepOpacity, transform: [{ translateX: stepSlide }] }}>
+
+            {/* Step 1: Personal info */}
+            {currentStep === 1 && (
+              <View style={styles.stepContent}>
+                <Text style={[styles.stepTitle, { color: colors.text }]}>¿Cómo te llamas?</Text>
+                <Text style={[styles.stepSubtitle, { color: colors.placeholder }]}>Cuéntanos un poco sobre ti</Text>
+
                 <View style={[styles.inputWrapper, { backgroundColor: colors.background }]}>
                   <FormInput
-                    placeholder="Edad"
-                    keyboardType="numeric"
-                    value={form.edad}
-                    onChangeText={(v) => handleChange('edad', v)}
+                    placeholder="Nombre completo"
+                    value={form.nombreCompleto}
+                    onChangeText={(v) => handleChange('nombreCompleto', v)}
                     style={[styles.input, { borderWidth: 0 }]}
                   />
                 </View>
+
+                <View style={styles.row}>
+                  <View style={styles.rowInput}>
+                    <View style={[styles.inputWrapper, { backgroundColor: colors.background }]}>
+                      <FormInput
+                        placeholder="Edad"
+                        keyboardType="numeric"
+                        value={form.edad}
+                        onChangeText={(v) => handleChange('edad', v)}
+                        style={[styles.input, { borderWidth: 0 }]}
+                      />
+                    </View>
+                  </View>
+                  <View style={styles.rowInput}>
+                    <TouchableOpacity
+                      activeOpacity={0.8}
+                      style={[styles.inputWrapper, { backgroundColor: colors.background }]}
+                      onPress={() => setOcupacionesModalVisible(true)}
+                    >
+                      <View style={[styles.selectInner, { paddingHorizontal: 16, paddingVertical: 12 }]}>
+                        <Text style={[styles.selectValue, { color: form.ocupacion ? colors.text : colors.placeholder }]}>
+                          {form.ocupacion || 'Ocupación'}
+                        </Text>
+                        <View style={styles.selectIcon}>
+                          <Ionicons name="chevron-down" size={20} color={colors.placeholder} />
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+                <Text style={[styles.ageHint, { color: colors.placeholder }]}>Edad: número entero entre 13 y 100</Text>
               </View>
-              <View style={[styles.rowInput, styles.inputContainer]}>
+            )}
+
+            {/* Step 2: Account access */}
+            {currentStep === 2 && (
+              <View style={styles.stepContent}>
+                <Text style={[styles.stepTitle, { color: colors.text }]}>Tu acceso</Text>
+                <Text style={[styles.stepSubtitle, { color: colors.placeholder }]}>Configura cómo entrarás a la app</Text>
+
+                <View style={[styles.inputWrapper, { backgroundColor: colors.background }]}>
+                  <FormInput
+                    placeholder="Correo electrónico"
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    value={form.email}
+                    onChangeText={(v) => handleChange('email', v)}
+                    style={[styles.input, { borderWidth: 0 }]}
+                  />
+                </View>
+
+                <View style={[styles.inputWrapper, { backgroundColor: colors.background }]}>
+                  <FormInput
+                    placeholder="Contraseña"
+                    secureTextEntry={!showPassword}
+                    value={form.password}
+                    onChangeText={(v) => handleChange('password', v)}
+                    style={[styles.input, { borderWidth: 0 }]}
+                    rightIcon={
+                      <TouchableOpacity
+                        style={styles.iconButton}
+                        onPress={() => setShowPassword(!showPassword)}
+                      >
+                        <Ionicons
+                          name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                          size={22}
+                          color={colors.placeholder}
+                        />
+                      </TouchableOpacity>
+                    }
+                  />
+                </View>
+
+                {form.password.length > 0 && (
+                  <View style={styles.passwordStrengthContainer}>
+                    <View style={[styles.strengthIndicator, { backgroundColor: strengthColor }]} />
+                    <Text style={[styles.strengthText, { color: strengthColor }]}>
+                      Fortaleza: {passwordStrength}
+                    </Text>
+                  </View>
+                )}
+
+                <View style={[styles.inputWrapper, { backgroundColor: colors.background }]}>
+                  <FormInput
+                    placeholder="Confirmar contraseña"
+                    secureTextEntry={!showConfirmPassword}
+                    value={form.confirmPassword}
+                    onChangeText={(v) => handleChange('confirmPassword', v)}
+                    style={[styles.input, { borderWidth: 0 }]}
+                    rightIcon={
+                      <TouchableOpacity
+                        style={styles.iconButton}
+                        onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                      >
+                        <Ionicons
+                          name={showConfirmPassword ? 'eye-off-outline' : 'eye-outline'}
+                          size={22}
+                          color={colors.placeholder}
+                        />
+                      </TouchableOpacity>
+                    }
+                  />
+                </View>
+
+                {form.confirmPassword.length > 0 && (
+                  <View style={styles.matchContainer}>
+                    <View style={[styles.matchIcon, { backgroundColor: passwordsMatch ? '#10B981' : '#EF4444' }]}>
+                      <Ionicons
+                        name={passwordsMatch ? 'checkmark' : 'close'}
+                        size={14}
+                        color="white"
+                      />
+                    </View>
+                    <Text style={[styles.matchText, { color: passwordsMatch ? '#10B981' : '#EF4444' }]}>
+                      {passwordsMatch ? 'Las contraseñas coinciden' : 'Las contraseñas no coinciden'}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            )}
+
+            {/* Step 3: Preferences & consent */}
+            {currentStep === 3 && (
+              <View style={styles.stepContent}>
+                <Text style={[styles.stepTitle, { color: colors.text }]}>Últimos detalles</Text>
+                <Text style={[styles.stepSubtitle, { color: colors.placeholder }]}>Ya casi terminas, ¡ánimo!</Text>
+
                 <TouchableOpacity
                   activeOpacity={0.8}
                   style={[styles.inputWrapper, { backgroundColor: colors.background }]}
-                  onPress={() => setOcupacionesModalVisible(true)}
+                  onPress={() => setMonedaModalVisible(true)}
                 >
                   <View style={[styles.selectInner, { paddingHorizontal: 16, paddingVertical: 12 }]}>
-                    <Text style={[styles.selectValue, { color: form.ocupacion ? colors.text : colors.placeholder }]}> 
-                      {form.ocupacion || 'Ocupación'}
-                    </Text>
+                    <Ionicons name="wallet-outline" size={20} color="#EF7725" style={{ marginRight: 10 }} />
+                    <Text style={[styles.selectValue, { color: colors.text }]}>{
+                      (() => {
+                        const m = monedas.find(m => m.codigo === form.monedaPrincipal);
+                        return m ? `${formatSymbol(m)}  ${m.nombre}` : form.monedaPrincipal;
+                      })()
+                    }</Text>
                     <View style={styles.selectIcon}>
                       <Ionicons name="chevron-down" size={20} color={colors.placeholder} />
                     </View>
                   </View>
                 </TouchableOpacity>
-              </View>
-            </View>
-            <Text style={[styles.ageHint, { color: colors.placeholder }]}>Debes ingresar un número entero entre 13 y 100.</Text>
-          </View>
+                <Text style={[styles.ageHint, { color: '#EF7725' }]}>⚠️ La moneda no podrá cambiarse después</Text>
 
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <View style={[styles.sectionIcon, { backgroundColor: colors.inputBackground }]}>
-                <Ionicons name="shield-checkmark-outline" size={20} color="#EF7725" />
-              </View>
-              <Text style={[styles.sectionTitle, { color: colors.text }]}>Datos de cuenta</Text>
-            </View>
-            
-            <View style={styles.inputContainer}>
-              <View style={[styles.inputWrapper, { backgroundColor: colors.background }]}>
-                <FormInput
-                  placeholder="Correo electrónico"
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  value={form.email}
-                  onChangeText={(v) => handleChange('email', v)}
-                  style={[styles.input, { borderWidth: 0 }]}
-                />
-              </View>
-            </View>
-            
-            <View style={styles.inputContainer}>
-              <View style={[styles.inputWrapper, { backgroundColor: colors.background }]}>
-                <FormInput
-                  placeholder="Contraseña"
-                  secureTextEntry={!showPassword}
-                  value={form.password}
-                  onChangeText={(v) => handleChange('password', v)}
-                  style={[styles.input, { borderWidth: 0 }]}
-                  rightIcon={
-                    <TouchableOpacity 
-                      style={styles.iconButton}
-                      onPress={() => setShowPassword(!showPassword)}
-                    >
-                      <Ionicons
-                        name={showPassword ? 'eye-off-outline' : 'eye-outline'}
-                        size={22}
-                        color={colors.placeholder}
-                      />
-                    </TouchableOpacity>
-                  }
-                />
-              </View>
-            </View>
-            
-            {form.password.length > 0 && (
-              <View style={styles.passwordStrengthContainer}>
-                <View style={[styles.strengthIndicator, { backgroundColor: strengthColor }]} />
-                <Text style={[styles.strengthText, { color: strengthColor }]}>
-                  Fortaleza: {passwordStrength}
-                </Text>
-              </View>
-            )}
-
-            <View style={styles.inputContainer}>
-              <View style={[styles.inputWrapper, { backgroundColor: colors.background }]}>
-                <FormInput
-                  placeholder="Confirmar contraseña"
-                  secureTextEntry={!showConfirmPassword}
-                  value={form.confirmPassword}
-                  onChangeText={(v) => handleChange('confirmPassword', v)}
-                  style={[styles.input, { borderWidth: 0 }]}
-                  rightIcon={
-                    <TouchableOpacity 
-                      style={styles.iconButton}
-                      onPress={() => setShowConfirmPassword(!showConfirmPassword)}
-                    >
-                      <Ionicons
-                        name={showConfirmPassword ? 'eye-off-outline' : 'eye-outline'}
-                        size={22}
-                        color={colors.placeholder}
-                      />
-                    </TouchableOpacity>
-                  }
-                />
-              </View>
-            </View>
-            
-            {form.confirmPassword.length > 0 && (
-              <View style={styles.matchContainer}>
-                <View style={[styles.matchIcon, { backgroundColor: passwordsMatch ? '#10B981' : '#EF4444' }]}>
-                  <Ionicons
-                    name={passwordsMatch ? 'checkmark' : 'close'}
-                    size={14}
-                    color="white"
-                  />
-                </View>
-                <Text style={[styles.matchText, { color: passwordsMatch ? '#10B981' : '#EF4444' }]}>
-                  {passwordsMatch ? 'Las contraseñas coinciden' : 'Las contraseñas no coinciden'}
-                </Text>
-              </View>
-            )}
-          </View>
-
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <View style={[styles.sectionIcon, { backgroundColor: colors.inputBackground }]}>
-                <Ionicons name="settings-outline" size={20} color="#EF7725" />
-              </View>
-              <Text style={[styles.sectionTitle, { color: colors.text }]}>Preferencias</Text>
-            </View>
-            
-            <TouchableOpacity
-              activeOpacity={0.8}
-              style={[styles.inputWrapper, { backgroundColor: colors.background }]}
-              onPress={() => setMonedaModalVisible(true)}
-            >
-                <View style={[styles.selectInner, { paddingHorizontal: 16, paddingVertical: 12 }]}>
-                  <Text style={[styles.selectValue, { color: colors.text }]}>
-                    {monedas.find(m => m.codigo === form.monedaPrincipal)?.nombre || form.monedaPrincipal}
-                  </Text>
-                  <View style={styles.selectIcon}>
-                    <Ionicons name="chevron-down" size={20} color={colors.placeholder} />
+                <View style={[styles.consentCard, { backgroundColor: colors.inputBackground }]}>
+                  <View style={styles.consentRow}>
+                    <Switch
+                      value={form.aceptaTerminos}
+                      onValueChange={(v) => handleChange('aceptaTerminos', v)}
+                      trackColor={{ false: '#ccc', true: '#EF7725' }}
+                      thumbColor={form.aceptaTerminos ? '#fff' : '#f4f3f4'}
+                    />
+                    <Text style={[styles.checkboxLabel, { color: colors.text }]}>
+                      {'He leído y acepto los '}
+                      <Text
+                        style={styles.checkboxLink}
+                        onPress={() => Linking.openURL('https://thelitfinance.com/terminos')}
+                      >
+                        Términos y Condiciones
+                      </Text>
+                      {' y la '}
+                      <Text
+                        style={styles.checkboxLink}
+                        onPress={() => Linking.openURL('https://thelitfinance.com/privacidad')}
+                      >
+                        Política de Privacidad
+                      </Text>
+                      .
+                    </Text>
+                  </View>
+                  <View style={[styles.consentDivider, { backgroundColor: colors.border }]} />
+                  <View style={styles.consentRow}>
+                    <Switch
+                      value={form.aceptaDatosFinancieros}
+                      onValueChange={(v) => handleChange('aceptaDatosFinancieros', v)}
+                      trackColor={{ false: '#ccc', true: '#EF7725' }}
+                      thumbColor={form.aceptaDatosFinancieros ? '#fff' : '#f4f3f4'}
+                    />
+                    <Text style={[styles.checkboxLabel, { color: colors.text }]}>
+                      {'Otorgo mi consentimiento para el tratamiento de mis datos financieros conforme al '}
+                      <Text
+                        style={styles.checkboxLink}
+                        onPress={() => Linking.openURL('https://thelitfinance.com/terminos')}
+                      >
+                        Aviso de Datos Financieros
+                      </Text>
+                      .
+                    </Text>
                   </View>
                 </View>
+              </View>
+            )}
+
+          </Animated.View>
+
+          {/* Navigation buttons */}
+          <View style={styles.navRow}>
+            {currentStep > 1 && (
+              <TouchableOpacity
+                style={[styles.backButton, { borderColor: colors.border }]}
+                onPress={() => goToStep((currentStep - 1) as 1 | 2 | 3)}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="arrow-back" size={20} color={colors.text} />
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity
+              style={[styles.nextButton, currentStep === 3 && !(form.aceptaTerminos && form.aceptaDatosFinancieros) && styles.buttonDisabled]}
+              onPress={handleNextStep}
+              activeOpacity={0.8}
+              disabled={currentStep === 3 && !(form.aceptaTerminos && form.aceptaDatosFinancieros)}
+            >
+              <View style={styles.buttonContent}>
+                <Text style={styles.buttonText}>
+                  {currentStep === 3 ? 'Crear mi cuenta' : 'Continuar'}
+                </Text>
+                <Ionicons name={currentStep === 3 ? 'checkmark' : 'arrow-forward'} size={20} color="white" />
+              </View>
             </TouchableOpacity>
           </View>
-
-          <TouchableOpacity 
-            style={[styles.button, styles.neumorphicButton]} 
-            onPress={handleRegister}
-            activeOpacity={0.8}
-          >
-            <View style={styles.buttonContent}>
-              <Text style={styles.buttonText}>Crear mi cuenta</Text>
-              <Ionicons name="arrow-forward" size={20} color="white" />
-            </View>
-          </TouchableOpacity>
 
           <View style={styles.loginLinkContainer}>
             <Text style={[styles.loginText, { color: colors.placeholder }]}>
@@ -382,7 +598,7 @@ const RegisterScreen: React.FC = () => {
               <Text style={styles.loginLink}>Inicia sesión</Text>
             </TouchableOpacity>
           </View>
-        </View>
+        </Animated.View>
 
         <Modal
           visible={monedaModalVisible}
@@ -439,7 +655,7 @@ const RegisterScreen: React.FC = () => {
                       >
                         <View style={styles.monedaOptionContent}>
                           <View style={[styles.monedaSymbol, { backgroundColor: colors.background }]}>
-                            <Text style={[styles.symbolText, { color: colors.textSecondary }]}>{moneda.simbolo}</Text>
+                            <Text style={[styles.symbolText, { color: colors.textSecondary }]}>{formatSymbol(moneda)}</Text>
                           </View>
                           <View style={styles.monedaInfo}>
                             <Text style={[styles.monedaOptionText, { color: colors.text }]}>
@@ -534,40 +750,39 @@ const RegisterScreen: React.FC = () => {
 };
 // Styles
 const styles = StyleSheet.create({
-  container: { 
+  container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
   },
   scroll: {
     flexGrow: 1,
     paddingHorizontal: 20,
-    paddingVertical: 32,
+    paddingVertical: 24,
   },
   header: {
     alignItems: 'center',
-    marginBottom: 32,
+    marginBottom: 24,
   },
   logoContainer: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 20,
-  },
-  logo: {
     width: 80,
     height: 80,
+    borderRadius: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  logo: {
+    width: 56,
+    height: 56,
     resizeMode: 'contain',
   },
   title: {
-    fontSize: 32,
+    fontSize: 28,
     fontWeight: '800',
-    marginBottom: 8,
+    marginBottom: 4,
     letterSpacing: -0.5,
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '500',
   },
   formCard: {
@@ -579,38 +794,59 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     elevation: 8,
   },
-  section: {
-    marginBottom: 28,
-  },
-  sectionHeader: {
+  // Step progress indicator
+  stepperContainer: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
+    alignItems: 'flex-start',
+    marginBottom: 24,
+    paddingHorizontal: 4,
   },
-  sectionIcon: {
+  stepItem: {
+    alignItems: 'center',
+    width: 60,
+  },
+  stepCircle: {
     width: 36,
     height: 36,
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
-    shadowColor: '#64748B',
-    shadowOffset: { width: 2, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
   },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    letterSpacing: -0.3,
+  stepLine: {
+    flex: 1,
+    height: 2,
+    marginTop: 17,
   },
-  inputContainer: {
-    marginBottom: 16,
+  stepLabel: {
+    fontSize: 11,
+    color: '#94A3B8',
+    fontWeight: '500',
+    marginTop: 6,
+    textAlign: 'center',
   },
+  stepLabelActive: {
+    color: '#EF7725',
+    fontWeight: '600',
+  },
+  // Step content
+  stepContent: {
+    minHeight: 240,
+  },
+  stepTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    marginBottom: 4,
+    letterSpacing: -0.4,
+  },
+  stepSubtitle: {
+    fontSize: 14,
+    fontWeight: '500',
+    marginBottom: 20,
+  },
+  // Inputs
   row: {
     flexDirection: 'row',
-    gap: 16,
+    gap: 12,
   },
   rowInput: {
     flex: 1,
@@ -623,16 +859,13 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   inputWrapper: {
-    marginBottom: 20,
+    marginBottom: 14,
     borderRadius: 16,
     shadowColor: '#000',
-    shadowOffset: {
-      width: 4,
-      height: 4,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
+    shadowOffset: { width: 2, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 2,
     borderWidth: 1,
     borderColor: 'rgba(0, 0, 0, 0.05)',
   },
@@ -661,21 +894,23 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 8,
+    marginTop: -4,
   },
   strengthIndicator: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
     marginRight: 8,
   },
   strengthText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
   },
   matchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 8,
+    marginTop: -4,
   },
   matchIcon: {
     width: 20,
@@ -686,59 +921,62 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   matchText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
   },
-  monedaSelector: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    height: 56,
+  // Consent card
+  consentCard: {
     borderRadius: 16,
-    paddingHorizontal: 20,
+    padding: 16,
+    marginTop: 8,
   },
-  neumorphicSelector: {
-    borderWidth: 1,
-    shadowColor: '#64748B',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  monedaSelectorContent: {
+  consentRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  consentDivider: {
+    height: 1,
+    marginVertical: 12,
+  },
+  checkboxLabel: {
     flex: 1,
-  },
-  monedaIcon: {
-    marginRight: 12,
-  },
-  monedaText: {
-    fontSize: 16,
+    fontSize: 13,
     fontWeight: '500',
+    lineHeight: 19,
   },
-  chevronContainer: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+  checkboxLink: {
+    color: '#EF7725',
+    textDecorationLine: 'underline',
+    fontWeight: '600',
+  },
+  // Navigation
+  navRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 20,
+    marginBottom: 8,
+  },
+  backButton: {
+    width: 52,
+    height: 52,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1.5,
   },
-  button: {
-    height: 56,
-    borderRadius: 16,
+  nextButton: {
+    flex: 1,
+    height: 52,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 16,
-    marginBottom: 24,
-  },
-  neumorphicButton: {
     backgroundColor: '#EF7725',
     shadowColor: '#EF7725',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 8,
+    shadowRadius: 10,
+    elevation: 6,
   },
   buttonContent: {
     flexDirection: 'row',
@@ -747,25 +985,37 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     color: '#FFFFFF',
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '700',
-    letterSpacing: -0.3,
+    letterSpacing: -0.2,
+  },
+  buttonDisabled: {
+    opacity: 0.45,
   },
   loginLinkContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 4,
+    marginTop: 8,
   },
   loginText: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '500',
   },
   loginLink: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700',
     color: '#EF7725',
   },
+  ageHint: {
+    fontSize: 12,
+    fontWeight: '500',
+    marginTop: -8,
+    marginBottom: 14,
+    paddingHorizontal: 4,
+  },
+  // Modals
   modalOverlay: {
     flex: 1,
     justifyContent: 'center',
@@ -786,14 +1036,6 @@ const styles = StyleSheet.create({
     shadowRadius: 24,
     elevation: 16,
   },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-  },
   modalHeaderContainer: {
     marginBottom: 20,
     paddingBottom: 16,
@@ -806,14 +1048,14 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   modalTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '700',
     letterSpacing: -0.3,
   },
   modalWarning: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '600',
-    marginTop: 4,
+    marginTop: 2,
     textAlign: 'center',
   },
   closeButton: {
@@ -823,20 +1065,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  modalScroll: {
-    maxHeight: 300,
-  },
-  monedaOption: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    marginBottom: 8,
-  },
-  selectedMonedaOption: {
-    borderWidth: 1,
+  modalListWrapper: {
+    height: 320,
+    position: 'relative',
   },
   monedaOptionContent: {
     flexDirection: 'row',
@@ -859,12 +1090,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   monedaOptionText: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
     marginBottom: 2,
   },
   monedaCode: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '500',
   },
   checkIcon: {
@@ -883,31 +1114,20 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     marginBottom: 8,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  modalListWrapper: {
-    height: 320,
-    position: 'relative',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
   },
   ocupacionItem: {
     borderRadius: 12,
     paddingVertical: 12,
     paddingHorizontal: 14,
-    marginBottom: 10,
+    marginBottom: 8,
   },
   ocupacionText: {
     fontSize: 15,
     fontWeight: '600',
-  },
-  ageHint: {
-    fontSize: 12,
-    fontWeight: '500',
-    marginTop: -8,
-    marginBottom: 16,
-    paddingHorizontal: 4,
   },
   modalBottomGradient: {
     position: 'absolute',
@@ -921,3 +1141,4 @@ const styles = StyleSheet.create({
 });
 
 export default RegisterScreen;
+
