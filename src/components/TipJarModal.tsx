@@ -29,6 +29,10 @@ export default function TipJarModal({ visible, onClose, token, onRefresh }: Prop
       });
       return;
     }
+    if (!token) {
+      Toast.show({ type: 'error', text1: 'Error', text2: 'No se pudo verificar tu sesión. Intenta de nuevo.' });
+      return;
+    }
     setLoading(true);
     try {
       const res = await fetch(`${API_BASE_URL}/stripe/mobile/paymentsheet/tipjar`, {
@@ -41,6 +45,7 @@ export default function TipJarModal({ visible, onClose, token, onRefresh }: Prop
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message || 'Error al procesar el pago');
+      if (!data?.paymentIntentClientSecret) throw new Error('Respuesta inválida del servidor');
       const init = await stripe.initPaymentSheet({
         merchantDisplayName: 'LitFinance',
         customerId: data.customerId,
