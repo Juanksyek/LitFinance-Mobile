@@ -339,6 +339,7 @@ const ConceptsScreen: React.FC = () => {
 
   // Main scroll refs (single scroll for entire screen)
   const scrollRef = useRef<ScrollView | null>(null);
+  const listSectionYRef = useRef(0);
   const loadMoreLockRef = useRef(false);
   const lastLoadMoreAtRef = useRef(0);
 
@@ -541,6 +542,9 @@ const ConceptsScreen: React.FC = () => {
 
       Toast.show({ type: "success", text1: "Concepto creado" });
       resetToCreate();
+      setTimeout(() => {
+        scrollRef.current?.scrollTo({ y: Math.max(0, listSectionYRef.current - 10), animated: true });
+      }, 80);
 
       try {
         EventBus.emit("conceptChanged", { type: "created", item: created });
@@ -1125,7 +1129,7 @@ const ConceptsScreen: React.FC = () => {
         </View>
 
         {/* List header */}
-        <View style={styles.sectionHeader}>
+        <View style={styles.sectionHeader} onLayout={(e) => { listSectionYRef.current = e.nativeEvent.layout.y; }}>
           <Text style={[styles.sectionHeaderTitle, { color: colors.text }]}>Tus conceptos</Text>
           <Text style={[styles.sectionHeaderMeta, { color: colors.textSecondary }]}>
             {totalCount ? `${totalCount} en total` : "—"}
