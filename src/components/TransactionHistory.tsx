@@ -642,19 +642,7 @@ const TransactionHistory = ({ refreshKey, dashboardSnapshot }: { refreshKey?: nu
         const data = await res.json();
 
         // Solo actualizar estado si el componente está montado
-        if (isMountedRef.current && !signal.aborted) {
-          // Verificar si la respuesta tiene error 429
-          if (data?.statusCode === 429 || data?.message?.includes('Too Many')) {
-            Toast.show({
-              type: "warning",
-              text1: "⚠️ Demasiadas peticiones",
-              text2: "Por favor espera 10 segundos antes de actualizar",
-              position: "bottom",
-              visibilityTime: 4000,
-            });
-            return;
-          }
-          
+        if (isMountedRef.current && !signal.aborted) {     
           if (Array.isArray(data?.data)) {
             const normalized = data.data.map((row: any) => normalizeHistorialItem(row, cuentaId));
             const sorted = sortChronologicalDesc(normalized);
@@ -727,18 +715,6 @@ const TransactionHistory = ({ refreshKey, dashboardSnapshot }: { refreshKey?: nu
         
         // Detectar errores de rate limiting
         const errorMsg = (typeof err === 'object' && err !== null && 'message' in err) ? String((err as any).message) : String(err);
-        if (errorMsg.includes('Rate limit') || errorMsg.includes('429') || errorMsg.includes('Too Many')) {
-          if (isMountedRef.current) {
-            Toast.show({
-              type: "warning",
-              text1: "⚠️ Demasiadas peticiones",
-              text2: "Por favor espera 10 segundos antes de actualizar",
-              position: "bottom",
-              visibilityTime: 4000,
-            });
-          }
-          return;
-        }
 
         const isOfflineErr =
           errorMsg.toLowerCase().includes('network request failed') ||
