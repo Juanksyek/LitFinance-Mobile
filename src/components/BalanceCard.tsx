@@ -261,18 +261,7 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
         timestamp: new Date().toISOString()
       });
 
-      if (!isMountedRef.current) return;
-
-      if (err?.statusCode === 429 || String(err?.message || '').includes('429') || String(err?.message || '').includes('Too Many')) {
-        Toast.show({
-          type: 'warning',
-          text1: '⚠️ Demasiadas peticiones',
-          text2: 'Espera 10 segundos e intenta de nuevo',
-          position: 'bottom',
-          visibilityTime: 4000,
-        });
-      }
-      
+      if (!isMountedRef.current) return;      
     }
     finally {
       if (isMountedRef.current) {
@@ -404,13 +393,6 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
         timestamp: new Date().toISOString()
       });
       
-      if (isMountedRef.current) {
-        Toast.show({
-          type: err?.statusCode === 429 ? 'warning' : 'error',
-          text1: err?.statusCode === 429 ? 'Demasiadas peticiones' : 'Error al obtener transacciones',
-          text2: err?.statusCode === 429 ? 'Espera 10 segundos e intenta de nuevo' : undefined,
-        });
-      }
     } finally {
       if (isMountedRef.current && requestId === txRequestIdRef.current) {
         setIsFetching(false);
@@ -457,18 +439,6 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
       setEgresos(Number(res?.totals?.egresos ?? 0));
     } catch (err: any) {
       if (err?.name === 'AbortError' || signal.aborted) return;
-
-      if (err?.statusCode === 429 || String(err?.message || '').includes('429') || String(err?.message || '').includes('Too Many')) {
-        const retry = Number(err?.retryAfterSeconds || 0);
-        Toast.show({
-          type: 'warning',
-          text1: 'Demasiadas peticiones',
-          text2: retry > 0 ? `Espera ${retry}s e intenta de nuevo` : 'Espera un momento e intenta de nuevo',
-          position: 'bottom',
-          visibilityTime: 3500,
-        });
-        return;
-      }
 
       console.error('❌ [BalanceCard] Error /dashboard/balance-card:', err);
     } finally {
