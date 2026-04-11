@@ -13,13 +13,11 @@ import RecurrentesList from "../components/RecurrenteList";
 import MetasCard from "../components/MetasCard";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { authService } from "../services/authService";
-import { API_BASE_URL } from "../constants/api";
 import { useFocusEffect, useRoute, useNavigation, RouteProp, CommonActions } from "@react-navigation/native";
 import Toast from "react-native-toast-message";
 import { RootStackParamList } from "../navigation/AppNavigator";
 import { useThemeColors } from "../theme/useThemeColors";
 import { useTheme } from "../theme/ThemeContext";
-import { useSafeApi } from "../hooks/useSafeApi";
 import { jwtDecode } from "../utils/jwtDecode";
 import { dashboardRefreshBus } from "../utils/dashboardRefreshBus";
 import { userProfileService } from "../services/userProfileService";
@@ -44,6 +42,9 @@ export default function DashboardScreen() {
   const [subcuentasRefreshKey, setSubcuentasRefreshKey] = useState(Date.now());
   const [scanModalVisible, setScanModalVisible] = useState(false);
 
+  const route = useRoute<RouteProp<RootStackParamList, "Dashboard">>();
+  const navigation = useNavigation<any>();
+ 
   // Open scan modal when another screen requests it via navigation params
   useEffect(() => {
     const p: any = (route as any)?.params;
@@ -54,8 +55,6 @@ export default function DashboardScreen() {
       navigation.setParams?.({ openScan: undefined });
     }
   }, [(route as any)?.params]);
-  const route = useRoute<RouteProp<RootStackParamList, "Dashboard">>();
-  const navigation = useNavigation<any>();
 
   // Handle deep links from Android widgets (litfinance://widget/*)
   useEffect(() => {
@@ -88,6 +87,10 @@ export default function DashboardScreen() {
   const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const previousPremiumStatusRef = useRef<boolean | null>(null);
+  // Track last successful snapshot fetch time for smart focus-refresh.
+  const lastSnapshotFetchTimeRef = useRef<number>(Date.now());
+  // Skip the very first focus event (init useEffect already handles the first fetch).
+  const focusRefreshSkipFirstRef = useRef<boolean>(true);
 
   const scrollRef = useRef<ScrollView>(null);
   const actionButtonsYRef = useRef<number>(0);
@@ -255,6 +258,7 @@ export default function DashboardScreen() {
         return;
       }
 
+      lastSnapshotFetchTimeRef.current = Date.now();
       setDashboardSnapshot(res.snapshot);
       setDashboardEtag(res.etag);
       setCuentaId(res.snapshot?.accountSummary?.cuentaId ?? null);
@@ -302,16 +306,6 @@ export default function DashboardScreen() {
     } catch (err: any) {
       if (err?.name === 'AbortError' || err?.code === 'ERR_CANCELED') return;
       if (!isMountedRef.current) return;
-
-      if (err?.code === 'RATE_LIMITED' && typeof err?.retryAfterSeconds === 'number') {
-        Toast.show({
-          type: 'warning',
-          text1: '⚠️ Demasiadas peticiones',
-          text2: `Espera ${Math.max(1, Math.round(err.retryAfterSeconds))}s e intenta de nuevo`,
-          visibilityTime: 4000,
-        });
-        return;
-      }
 
       if (err?.code === 'UNAUTHORIZED') {
         Toast.show({
@@ -514,10 +508,20 @@ export default function DashboardScreen() {
   // Use stable insets that don't change with keyboard/modals
   const dockInset = insets.bottom + (Platform.OS === 'android' ? 2 : 0);
 
-  // Nota: removimos auto-refresh en focus y el refresh automático por `route.params.updated`
-  // para evitar múltiples fetches y recargas costosas. El refresh queda en:
-  // - Pull-to-refresh (manual)
-  // - Cambio de moneda (handleCurrencyChange)
+  // Smart focus-refresh: refresca el snapshot cuando el usuario vuelve al dashboard
+  // si han pasado más de 2 minutos desde el último fetch exitoso. Esto evita que datos
+  // de plan (pausadoPorPlan) queden caducados sin ser abusivo con la API.
+  useFocusEffect(useCallback(() => {
+    if (focusRefreshSkipFirstRef.current) {
+      // Primer foco corresponde al montaje inicial; init useEffect ya hace el fetch.
+      focusRefreshSkipFirstRef.current = false;
+      return;
+    }
+    const STALE_MS = 2 * 60 * 1000; // 2 minutos
+    if (Date.now() - lastSnapshotFetchTimeRef.current > STALE_MS) {
+      void refreshSnapshot({ force: true, silent: true });
+    }
+  }, [refreshSnapshot]));
 
   return (
     <View style={[styles.wrapper, { backgroundColor: colors.background }]}>
