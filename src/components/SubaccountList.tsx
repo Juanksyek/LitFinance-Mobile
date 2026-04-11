@@ -196,17 +196,7 @@ const SubaccountsList: React.FC<Props> = ({ userId, refreshKey = 0, dashboardSna
         console.error("❌ [SubaccountsList] Respuesta inválida:", data);
         if (isMountedRef.current && !signal.aborted) {
           setSubcuentas([]);
-          setHasMore(false);
-          
-          // Mostrar mensaje específico para error 429
-          if (data?.statusCode === 429 || data?.message?.includes('Too Many')) {
-            Toast.show({
-              type: 'error',
-              text1: '⚠️ Demasiadas peticiones',
-              text2: 'Por favor espera 10 segundos antes de actualizar',
-              visibilityTime: 5000,
-            });
-          }
+          setHasMore(false);          
         }
         return;
       }
@@ -323,18 +313,6 @@ const SubaccountsList: React.FC<Props> = ({ userId, refreshKey = 0, dashboardSna
         return;
       }
       console.error("❌ [SubaccountsList] Error al obtener subcuentas:", err);
-      
-      if (isMountedRef.current && !signal.aborted) {
-        const isRateLimit = err.message?.includes('Rate limit') || err.message?.includes('429') || err.message?.includes('Too Many');
-        if (isRateLimit) {
-          Toast.show({
-            type: 'error',
-            text1: '⚠️ Demasiadas peticiones',
-            text2: 'Espera 10 segundos e intenta de nuevo',
-            visibilityTime: 5000,
-          });
-        }
-      }
     } finally {
       if (isMountedRef.current) {
         setLoading(false);
