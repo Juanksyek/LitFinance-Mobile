@@ -253,7 +253,7 @@ export default function App() {
   };
 
   return (
-    <StripeProvider publishableKey={STRIPE_PUBLISHABLE_KEY}>
+    <StripeProvider publishableKey={STRIPE_PUBLISHABLE_KEY} urlScheme="litfinance">
       <ThemeProvider>
         <SafeAreaProvider initialMetrics={initialWindowMetrics}>
           <NavigationContainer ref={navigationRef}>

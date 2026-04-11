@@ -336,17 +336,6 @@ const ExpensesChart: React.FC<ExpensesChartProps> = ({ refreshKey = 0, dashboard
         return;
       }
 
-      // Friendly rate-limit message for dashboard endpoint
-      if (error?.statusCode === 429) {
-        const retry = Number(error?.retryAfterSeconds || 0);
-        Toast.show({
-          type: 'info',
-          text1: '⚠️ Demasiadas peticiones',
-          text2: retry > 0 ? `Intenta de nuevo en ${retry}s` : 'Espera un momento e intenta de nuevo',
-          position: 'bottom',
-          visibilityTime: 2500,
-        });
-      }
     } finally {
       if (isMountedRef.current) {
         setLoading(false);

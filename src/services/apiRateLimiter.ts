@@ -682,16 +682,6 @@ class ApiRateLimiter {
               const retryOptions = Object.assign({}, options, { headers: newHeaders });
               const retryResponse = await fetch(url, retryOptions);
 
-              if (retryResponse.status === 429) {
-                const retryAfter = retryResponse.headers.get('Retry-After');
-                const retryAfterSeconds = retryAfter ? Number(retryAfter) : NaN;
-                const waitMs = Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0
-                  ? retryAfterSeconds * 1000
-                  : 10000;
-                await new Promise(resolve => setTimeout(resolve, waitMs));
-                throw new Error('Demasiadas peticiones. Por favor espera un momento.');
-              }
-
               if (retryResponse.ok && this.shouldUseCache(options)) {
                 try {
                   const sharedRetryForCache = await this.toSharedResponse(retryResponse);
@@ -733,19 +723,6 @@ class ApiRateLimiter {
             return await this.toSharedResponse(retryResponse);
           }
           // If handle403Response returns null, continue with original 403 response
-        }
-
-        // Detectar 429 (Too Many Requests)
-        if (response.status === 429) {
-          console.error('🚨 [ApiRateLimiter] 429 Too Many Requests detectado!');
-          // Respetar Retry-After si existe; si no, pausar 10s
-          const retryAfter = response.headers.get('Retry-After');
-          const retryAfterSeconds = retryAfter ? Number(retryAfter) : NaN;
-          const waitMs = Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0
-            ? retryAfterSeconds * 1000
-            : 10000;
-          await new Promise(resolve => setTimeout(resolve, waitMs));
-          throw new Error('Demasiadas peticiones. Por favor espera un momento.');
         }
 
         // Guardar en cache si fue exitoso Y no tiene skip-cache

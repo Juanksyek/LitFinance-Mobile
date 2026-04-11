@@ -11,6 +11,8 @@ import { describeFrequencyShort } from '../utils/recurrentUtils';
 import SmartNumber from './SmartNumber';
 import apiRateLimiter from "../services/apiRateLimiter";
 import Toast from "react-native-toast-message";
+import RecurrentModal from './RecurrentModal';
+import { emitRecurrentesChanged } from '../utils/dashboardRefreshBus';
 import { canPerform } from '../services/planConfigService';
 import type { DashboardSnapshot } from "../types/dashboardSnapshot";
 
@@ -63,6 +65,7 @@ const RecurrentesList = ({
     const [hasMore, setHasMore] = useState(true);
     const [loading, setLoading] = useState(false);
     const [hasReachedLimit, setHasReachedLimit] = useState(false);
+    const [createModalVisible, setCreateModalVisible] = useState(false);
     const [allowedLimit, setAllowedLimit] = useState<number | null>(null);
     const [recurrentesWithPauseStatus, setRecurrentesWithPauseStatus] = useState<Recurrente[]>([]);
 
@@ -133,24 +136,42 @@ const RecurrentesList = ({
                 const max = dashboardSnapshot.meta?.limits?.maxRecurrentes ?? null;
                 const unlimited = max === -1 || max === null;
 
-                // If backend didn't flag pausadoPorPlan but we are over limit on free, apply a defensive mark.
+                // Re-apply plan enforcement using the server-provided total count, not the page-slice
+                // length. This corrects stale pausadoPorPlan flags that may linger in cached snapshots:
+                // - If realTotal <= max → no item should be plan-paused; clear any stale flags.
+                // - If realTotal >  max → keep the most-recent `max` active; pause the rest.
+                const planEnfTotal = (dashboardSnapshot.meta?.planEnforcement?.recurrentes as any)?.total;
+                const realTotal = typeof planEnfTotal === 'number' ? planEnfTotal : allBase.length;
+                const isOverLimit = !isPremium && !unlimited && typeof max === 'number' && realTotal > max;
+
                 let all = allBase;
-                const hasAnyPlanPaused = allBase.some((x) => x.pausadoPorPlan);
-                if (!isPremium && !unlimited && typeof max === 'number' && allBase.length > max && !hasAnyPlanPaused) {
+                if (!isPremium && !unlimited && typeof max === 'number') {
                     const getTime = (x: Recurrente) => {
-                        const ts = x.createdAt || x.updatedAt || '';
+                        const ts = (x.createdAt as string | undefined) || (x.updatedAt as string | undefined) || '';
                         const t = ts ? new Date(ts).getTime() : 0;
                         return Number.isFinite(t) ? t : 0;
                     };
 
-                    // Keep most recent active; pause the oldest beyond the limit.
-                    const sorted = [...allBase].sort((a, b) => getTime(b) - getTime(a));
-                    const allowedIds = new Set(sorted.slice(0, max).map((x) => x.recurrenteId));
-                    all = allBase.map((x) =>
-                        allowedIds.has(x.recurrenteId)
-                            ? x
-                            : { ...x, pausadoPorPlan: true, pausado: true, estado: 'pausado' }
-                    );
+                    if (isOverLimit) {
+                        // Keep most recent `max` active; pause the oldest beyond the limit.
+                        const sorted = [...allBase].sort((a, b) => getTime(b) - getTime(a));
+                        const allowedIds = new Set(sorted.slice(0, max).map((x) => x.recurrenteId));
+                        all = allBase.map((x) =>
+                            allowedIds.has(x.recurrenteId)
+                                ? x.pausadoPorPlan ? { ...x, pausadoPorPlan: false } : x
+                                : { ...x, pausadoPorPlan: true, pausado: true, estado: 'pausado' }
+                        );
+                    } else {
+                        // Within limit: clear any stale pausadoPorPlan flags from cached snapshot.
+                        const hasStale = allBase.some((x) => x.pausadoPorPlan);
+                        if (hasStale) {
+                            all = allBase.map((x) =>
+                                x.pausadoPorPlan
+                                    ? { ...x, pausadoPorPlan: false, pausado: false, estado: 'activo' as const }
+                                    : x
+                            );
+                        }
+                    }
                 }
 
         const q = debouncedSearch.trim().toLowerCase();
@@ -343,19 +364,7 @@ const RecurrentesList = ({
                 console.log('📋 [RecurrentesList] Fetch cancelado');
                 return;
             }
-            console.error("❌ [RecurrentesList] Error al obtener recurrentes:", err);
-            
-            if (isMountedRef.current && !signal.aborted) {
-                const isRateLimit = err.message?.includes('Rate limit') || err.message?.includes('429') || err.message?.includes('Too Many');
-                if (isRateLimit) {
-                    Toast.show({
-                        type: 'error',
-                        text1: '⚠️ Demasiadas peticiones',
-                        text2: 'Espera 10 segundos e intenta de nuevo',
-                        visibilityTime: 5000,
-                    });
-                }
-            }
+            console.error("❌ [RecurrentesList] Error al obtener recurrentes:", err);            
         } finally {
             if (isMountedRef.current) {
                 setLoading(false);
@@ -378,6 +387,22 @@ const RecurrentesList = ({
             fetchRecurrentes(true);
         }
     }, [refreshKey, snapshotMode]);
+
+    const handleCreateSubmit = async (data: any) => {
+        try {
+            await fetch(`${API_BASE_URL}/recurrentes`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data),
+            });
+
+            emitRecurrentesChanged();
+            setCreateModalVisible(false);
+            Toast.show({ type: 'success', text1: 'Recurrente creado', visibilityTime: 2500 });
+        } catch (err) {
+            Toast.show({ type: 'error', text1: 'Error al crear el recurrente', text2: 'Intenta nuevamente' });
+        }
+    };
 
         const renderItem = ({ item }: { item: Recurrente }) => {
         const obtenerPeriodo = () => describeFrequencyShort(item.frecuenciaTipo as any, item.frecuenciaValor as any);
@@ -546,6 +571,16 @@ const RecurrentesList = ({
                 <ActivityIndicator color={colors.button} style={{ marginTop: 20 }} />
             ) : (
                 <>
+                    {(!recurrentes || recurrentes.length === 0) && (
+                        <View style={{ alignItems: 'center', paddingVertical: 18 }}>
+                            <TouchableOpacity
+                                onPress={() => setCreateModalVisible(true)}
+                                style={{ paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }}
+                            >
+                                <Text style={{ color: colors.button, fontWeight: '700' }}>Añade un recurrente +</Text>
+                            </TouchableOpacity>
+                        </View>
+                    )}
                     <FlatList
                         data={recurrentes}
                         keyExtractor={(item) => item.recurrenteId}
@@ -582,6 +617,15 @@ const RecurrentesList = ({
                     </View>
                 </>
             )}
+            <RecurrentModal
+                visible={createModalVisible}
+                onClose={() => setCreateModalVisible(false)}
+                onSubmit={handleCreateSubmit}
+                plataformas={[]}
+                cuentaId={''}
+                subcuentaId={subcuentaId}
+                userId={userId ?? ''}
+            />
         </View>
     );
 };

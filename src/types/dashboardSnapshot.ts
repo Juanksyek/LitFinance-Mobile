@@ -8,6 +8,7 @@ export type DashboardRangeOption = {
 };
 
 export type DashboardSnapshot = {
+  preferences: any;
   meta: {
     version: string;
     generatedAt: string;

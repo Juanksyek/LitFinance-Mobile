@@ -124,6 +124,7 @@ export default function PremiumModal({ visible, onClose, token, onRefresh }: Pro
       customerEphemeralKeySecret: data.customerEphemeralKeySecret,
       setupIntentClientSecret: data.setupIntentClientSecret,
       allowsDelayedPaymentMethods: false,
+      returnURL: 'litfinance://payment-success',
     });
 
     if (init.error) throw new Error(init.error.message);
@@ -161,6 +162,7 @@ export default function PremiumModal({ visible, onClose, token, onRefresh }: Pro
       customerEphemeralKeySecret: data.ephemeralKeySecret,
       paymentIntentClientSecret: data.paymentIntentClientSecret,
       allowsDelayedPaymentMethods: false,
+      returnURL: 'litfinance://payment-success',
     });
 
     if (init.error) throw new Error(init.error.message);
@@ -322,6 +324,10 @@ export default function PremiumModal({ visible, onClose, token, onRefresh }: Pro
   // 4. Flujo completo: guardar tarjeta + suscribirse + polling
   // ============================================
   const subscribe = async (priceId: string, planName: string) => {
+    if (!token) {
+      Toast.show({ type: 'error', text1: 'Error', text2: 'No se pudo verificar tu sesión. Intenta de nuevo.' });
+      return;
+    }
     setLoading(true);
     setStatusText('Preparando pago…');
     try {

@@ -291,7 +291,7 @@ const AccountSettingsModal: React.FC<Props> = ({ visible, onClose }) => {
           {/* Siempre mostrar opción de donación */}
           <TouchableOpacity
             style={[styles.tipJarOption, { backgroundColor: colors.cardSecondary, borderColor: colors.border }]}
-            onPress={() => setTipJarModalVisible(true)}
+            onPress={() => { if (token) setTipJarModalVisible(true); }}
           >
             <View style={styles.tipJarIconContainer}>
               <Ionicons name="heart" size={24} color="#ef4444" />
@@ -380,7 +380,7 @@ const AccountSettingsModal: React.FC<Props> = ({ visible, onClose }) => {
           <PremiumModal
             visible={premiumModalVisible}
             onClose={() => setPremiumModalVisible(false)}
-            token={token}
+            token={token ?? ''}
             onRefresh={() => setReloadKey(prev => prev + 1)}
           />
           {isAdmin && (
@@ -393,7 +393,7 @@ const AccountSettingsModal: React.FC<Props> = ({ visible, onClose }) => {
           <TipJarModal
             visible={tipJarModalVisible}
             onClose={() => setTipJarModalVisible(false)}
-            token={token}
+            token={token ?? ''}
             onRefresh={() => setReloadKey(prev => prev + 1)}
           />
         </>

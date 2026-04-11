@@ -9,33 +9,39 @@ function startOfDay(d: Date) {
 
 export function daysUntil(iso: string, tipo?: string, valor?: string): number {
   try {
-    const now = startOfDay(new Date());
-    // Prefer an explicit ISO `proximaEjecucion` provided by the backend when available
-    // Fallback to deriving a target date from the frequency rule only when `iso` is missing/invalid.
-    let target = new Date(String(iso ?? ''));
-    const isoValid = !Number.isNaN(target.getTime());
+    // When the backend provides an ISO timestamp for next run, compare using UTC
+    // date components to avoid local timezone shifts turning a future UTC-midnight
+    // date into "yesterday" in local time (which produced 0 days left).
+    const nowLocal = new Date();
+    const targetCandidate = new Date(String(iso ?? ""));
+    const isoValid = !Number.isNaN(targetCandidate.getTime());
 
-    if (!isoValid) {
-      // For monthly rules derive the next matching day-of-month when ISO is not present
-      if (tipo === 'dia_mes' && valor) {
-        const day = parseInt(valor, 10);
-        if (!isNaN(day) && day >= 1 && day <= 31) {
-          const t = new Date();
-          t.setHours(0, 0, 0, 0);
-          t.setDate(day);
-          if (t < now) t.setMonth(t.getMonth() + 1);
-          target = t;
-        }
-      } else {
-        // If no special rule, and no ISO, default to now (0 days)
-        target = new Date();
-        target.setHours(0, 0, 0, 0);
+    if (isoValid) {
+      // Compare by UTC date (year/month/day) to get whole-day difference independent of local TZ
+      const nowUTC = Date.UTC(nowLocal.getUTCFullYear(), nowLocal.getUTCMonth(), nowLocal.getUTCDate());
+      const tgtUTC = Date.UTC(
+        targetCandidate.getUTCFullYear(),
+        targetCandidate.getUTCMonth(),
+        targetCandidate.getUTCDate()
+      );
+      const diffDays = Math.round((tgtUTC - nowUTC) / 86400000);
+      return Math.max(0, diffDays);
+    }
+
+    // Fallback: if no valid ISO, derive from frequency rules (local dates are fine here)
+    let target = startOfDay(new Date());
+    if (tipo === "dia_mes" && valor) {
+      const day = parseInt(String(valor), 10);
+      if (!isNaN(day) && day >= 1 && day <= 31) {
+        const t = new Date();
+        t.setHours(0, 0, 0, 0);
+        t.setDate(day);
+        if (t < startOfDay(new Date())) t.setMonth(t.getMonth() + 1);
+        target = t;
       }
     }
 
-    // Normalize to start of day to get whole-day differences
-    const targetDay = startOfDay(target);
-    const diff = targetDay.getTime() - now.getTime();
+    const diff = startOfDay(target).getTime() - startOfDay(new Date()).getTime();
     return Math.max(0, Math.round(diff / 86400000));
   } catch {
     return 0;
@@ -78,13 +84,24 @@ export function describeFrequencyShort(tipo?: string, valor?: string): string {
       return 'Cada mes';
     }
     if (tipo === 'fecha_fija' || tipo === 'fecha_anual') {
-      // valor could be ISO date
-      try {
-        const d = new Date(valor || '');
-        if (!isNaN(d.getTime())) {
-          return `Cada ${d.getDate()} de ${MESES[d.getMonth()]}`;
+      if (valor) {
+        // valor format "M-D" e.g. "7-20" means July 20
+        const parts = String(valor).split('-');
+        if (parts.length === 2) {
+          const m = parseInt(parts[0], 10);
+          const d = parseInt(parts[1], 10);
+          if (m >= 1 && m <= 12 && d >= 1 && d <= 31) {
+            return `Cada ${d} de ${MESES[m - 1]}`;
+          }
         }
-      } catch {}
+        // Fallback: try as ISO date
+        try {
+          const dt = new Date(valor);
+          if (!isNaN(dt.getTime())) {
+            return `Cada ${dt.getUTCDate()} de ${MESES[dt.getUTCMonth()]}`;
+          }
+        } catch {}
+      }
       return 'Anual';
     }
   } catch {}
@@ -112,10 +129,22 @@ export function describeFrequencyLong(tipo?: string, valor?: string): string {
     return 'Cada mes';
   }
   if (tipo === 'fecha_fija' || tipo === 'fecha_anual') {
-    try {
-      const d = new Date(valor || '');
-      if (!isNaN(d.getTime())) return `El ${d.getDate()} de ${MESES[d.getMonth()]}`;
-    } catch {}
+    if (valor) {
+      // valor format "M-D" e.g. "7-20" means July 20
+      const parts = String(valor).split('-');
+      if (parts.length === 2) {
+        const m = parseInt(parts[0], 10);
+        const d = parseInt(parts[1], 10);
+        if (m >= 1 && m <= 12 && d >= 1 && d <= 31) {
+          return `El ${d} de ${MESES[m - 1]}`;
+        }
+      }
+      // Fallback: try as ISO date
+      try {
+        const dt = new Date(valor);
+        if (!isNaN(dt.getTime())) return `El ${dt.getUTCDate()} de ${MESES[dt.getUTCMonth()]}`;
+      } catch {}
+    }
     return 'Anual';
   }
   return 'Frecuencia desconocida';

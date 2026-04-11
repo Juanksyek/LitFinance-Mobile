@@ -195,8 +195,8 @@ export default function ReportesExportScreen() {
           // If it still fails, show clear diagnostic guidance
           Toast.show({
             type: 'error',
-            text1: 'El servidor no reconoce tu Premium',
-            text2: 'Tu cuenta aparece como Premium en la app, pero el servidor de reportes lo rechaza. Contacta a Soporte.',
+            text1: 'Falta Premium',
+            text2: 'Parece que no tienes premium :(',
             visibilityTime: 8000,
             onPress: () => {
               // @ts-ignore

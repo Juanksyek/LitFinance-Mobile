@@ -33,6 +33,7 @@ import {
   describeFrequencyLong,
   progressFractionFromDays,
 } from "../utils/recurrentUtils";
+import { jwtDecode } from "../utils/jwtDecode";
 
 const { width } = Dimensions.get("window");
 
@@ -55,10 +56,11 @@ type RecurrenteDetailRouteProp = RouteProp<
         pausado?: boolean;
         monedas?: string;
         moneda?: string;
-        estado?: "completado" | "activo" | "pausado" | string;
-        tipoRecurrente?: "plazo_fijo" | "continuo" | string;
+        estado?: "completado" | "activo" | "pausado" | "error" | string;
+        tipoRecurrente?: "plazo_fijo" | "continuo" | "indefinido" | string;
         pagosRealizados?: number;
         totalPagos?: number;
+        fechaFin?: string;
         pausadoPorPlan?: boolean;
       };
     };
@@ -143,15 +145,28 @@ const PressableScale: React.FC<{
 const formatearFechaLocal = (iso: string): string => {
   try {
     const d = new Date(iso);
-    const local = new Date(d.getTime() + d.getTimezoneOffset() * 60000);
-    return local.toLocaleDateString("es-MX", {
+    if (isNaN(d.getTime())) return "Fecha no válida";
+    // Use UTC components to avoid timezone-shift for midnight UTC dates
+    const utc = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 12));
+    return utc.toLocaleDateString("es-MX", {
       weekday: "long",
       year: "numeric",
       month: "long",
       day: "numeric",
+      timeZone: "UTC",
     });
   } catch {
     return "Fecha no válida";
+  }
+};
+
+const isValidIsoDate = (iso?: string | null) => {
+  if (!iso) return false;
+  try {
+    const d = new Date(String(iso));
+    return !Number.isNaN(d.getTime());
+  } catch {
+    return false;
   }
 };
 
@@ -216,10 +231,10 @@ const RecurrenteDetail = () => {
     [recurrente.frecuenciaTipo, recurrente.frecuenciaValor]
   );
 
-  const proximaEjecucionFormateada = useMemo(
-    () => formatearFechaLocal(recurrente.proximaEjecucion),
-    [recurrente.proximaEjecucion]
-  );
+  const proximaEjecucionFormateada = useMemo(() => {
+    if (!isValidIsoDate(recurrente.proximaEjecucion)) return "Sin fecha";
+    return formatearFechaLocal(recurrente.proximaEjecucion);
+  }, [recurrente.proximaEjecucion]);
 
   const tipoAfectacion = useMemo(() => {
     if (recurrente.afectaCuentaPrincipal) return "Sí afecta (principal)";
@@ -227,17 +242,20 @@ const RecurrenteDetail = () => {
     return "No afecta";
   }, [recurrente.afectaCuentaPrincipal, recurrente.afectaSubcuenta]);
 
-  const diasRestantes = useMemo(
-    () => daysUntil(recurrente.proximaEjecucion, recurrente.frecuenciaTipo, recurrente.frecuenciaValor),
-    [recurrente.proximaEjecucion, recurrente.frecuenciaTipo, recurrente.frecuenciaValor]
-  );
+  const diasRestantes = useMemo(() => {
+    if (!isValidIsoDate(recurrente.proximaEjecucion)) return null;
+    return daysUntil(recurrente.proximaEjecucion, recurrente.frecuenciaTipo, recurrente.frecuenciaValor);
+  }, [recurrente.proximaEjecucion, recurrente.frecuenciaTipo, recurrente.frecuenciaValor]);
 
   const ciclo = useMemo(
     () => estimatedCycleDays(recurrente.frecuenciaTipo, recurrente.frecuenciaValor),
     [recurrente.frecuenciaTipo, recurrente.frecuenciaValor]
   );
 
-  const progreso = useMemo(() => progressFractionFromDays(diasRestantes, ciclo), [diasRestantes, ciclo]);
+  const progreso = useMemo(() => {
+    if (diasRestantes === null) return 0;
+    return progressFractionFromDays(diasRestantes, ciclo);
+  }, [diasRestantes, ciclo]);
 
   useEffect(() => {
     Animated.timing(progressAnim, {
@@ -294,20 +312,34 @@ const RecurrenteDetail = () => {
   const theme = useMemo(() => ({ platform: getPlatformColor() }), [getPlatformColor]);
 
   const esCompletado = useMemo(() => {
-    return (
-      recurrente.estado === "completado" ||
-      (recurrente.tipoRecurrente === "plazo_fijo" &&
-        recurrente.totalPagos !== undefined &&
-        (recurrente.pagosRealizados || 0) >= (recurrente.totalPagos || 0) &&
-        (recurrente.totalPagos || 0) > 0)
-    );
+    // Estado explícito desde la API tiene prioridad
+    if (recurrente.estado === "completado") return true;
+    // Si es plazo fijo y se alcanzaron los pagos, considerarlo completado
+    if (
+      recurrente.tipoRecurrente === "plazo_fijo" &&
+      recurrente.totalPagos !== undefined &&
+      (recurrente.pagosRealizados || 0) >= (recurrente.totalPagos || 0) &&
+      (recurrente.totalPagos || 0) > 0
+    )
+      return true;
+
+    return false;
   }, [recurrente.estado, recurrente.tipoRecurrente, recurrente.pagosRealizados, recurrente.totalPagos]);
 
   const status = useMemo(() => {
     if (esCompletado) return { label: "Completado", icon: "checkmark-circle" as const, color: success, bg: withAlpha(success, 0.10) };
-    if (recurrente.pausado) return { label: "En pausa", icon: "pause-circle" as const, color: warning, bg: withAlpha(warning, 0.10) };
-    return { label: "Activo", icon: "checkmark-circle-outline" as const, color: primaryBlue, bg: withAlpha(primaryBlue, 0.10) };
-  }, [esCompletado, recurrente.pausado]);
+    // Mapear estado provisto por la API
+    switch (recurrente.estado) {
+      case "pausado":
+        return { label: "En pausa", icon: "pause-circle" as const, color: warning, bg: withAlpha(warning, 0.10) };
+      case "error":
+        return { label: "Error", icon: "alert-circle" as const, color: danger, bg: withAlpha(danger, 0.10) };
+      case "activo":
+      default:
+        if (recurrente.pausado) return { label: "En pausa", icon: "pause-circle" as const, color: warning, bg: withAlpha(warning, 0.10) };
+        return { label: "Activo", icon: "checkmark-circle-outline" as const, color: primaryBlue, bg: withAlpha(primaryBlue, 0.10) };
+    }
+  }, [esCompletado, recurrente.estado, recurrente.pausado]);
 
   const headerShadowOpacity = useMemo(() => {
     return scrollY.interpolate({
@@ -358,31 +390,82 @@ const RecurrenteDetail = () => {
 
       const endpoint = `${API_BASE_URL}/recurrentes/${recurrente.recurrenteId}/${recurrente.pausado ? "reanudar" : "pausar"}`;
 
-      const res = await apiRateLimiter.fetch(endpoint, {
-        method: "PUT",
-        headers: { Authorization: `Bearer ${token}` },
-        signal: controller.signal,
-      });
+      // Try with a couple of silent retries on rate-limit to avoid showing a noisy toast
+      const maxRetries = 2;
+      let attempt = 0;
+      let lastErr: any = null;
+      while (attempt <= maxRetries) {
+        const attemptController = startRequest(`toggle`);
+        try {
+          const tkn = await authService.getAccessToken();
+          const res = await apiRateLimiter.fetch(endpoint, {
+            method: "PUT",
+            headers: { Authorization: `Bearer ${tkn || token}` },
+            signal: attemptController.signal,
+          });
 
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.message || "Error al actualizar estado");
-      if (controller.signal.aborted) return;
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data?.message || "Error al actualizar estado");
+          if (attemptController.signal.aborted) return;
 
-      if (isMountedRef.current) {
-        setRecurrente((prev) => ({ ...prev, pausado: !prev.pausado }));
-        emitRecurrentesChanged();
-        showToast("success", !recurrente.pausado ? "Recurrente pausado" : "Recurrente reanudado");
+          if (isMountedRef.current) {
+            // Apply any returned fields from the API to keep UI in sync (nextRun, recordatorios, estado, pagos)
+            const updates: any = {};
+            if (data?.nextRun) updates.proximaEjecucion = data.nextRun;
+            if (data?.proximaEjecucion) updates.proximaEjecucion = data.proximaEjecucion;
+            if (Array.isArray(data?.recordatorios)) updates.recordatorios = data.recordatorios;
+            if (data?.recordatorios && !Array.isArray(data.recordatorios) && typeof data.recordatorios === 'string') {
+              try {
+                updates.recordatorios = data.recordatorios.split(',').map((s: string) => Number(s.trim())).filter((n: number) => Number.isFinite(n));
+              } catch {
+                // ignore
+              }
+            }
+            if (typeof data?.pausado === 'boolean') updates.pausado = data.pausado;
+            else updates.pausado = !recurrente.pausado;
+            if (data?.estado) updates.estado = data.estado;
+            if (typeof data?.pagosRealizados === 'number') updates.pagosRealizados = data.pagosRealizados;
+            if (typeof data?.totalPagos === 'number') updates.totalPagos = data.totalPagos;
+
+            setRecurrente((prev) => ({ ...prev, ...updates }));
+            // Invalidate dashboard caches and request a fresh snapshot
+            try {
+              // Best-effort: clear cached snapshot for current user so dashboard will refetch fresh
+              const tok = await authService.getAccessToken();
+              if (tok) {
+                try {
+                  const decoded: any = jwtDecode(tok as any);
+                  const uid = decoded?.userId;
+                  if (uid) {
+                    // Defaults: range 'month' and recentLimit 15 match Dashboard defaults
+                    // ignore errors
+                    // eslint-disable-next-line @typescript-eslint/no-var-requires
+                    const ds = await import('../services/dashboardSnapshotService');
+                    try {
+                      await ds.clearCachedDashboardSnapshot({ userId: uid, range: 'month', recentLimit: 15 });
+                    } catch {}
+                  }
+                } catch {}
+              }
+            } catch {}
+
+            emitRecurrentesChanged();
+            showToast("success", !updates.pausado ? "Recurrente pausado" : "Recurrente reanudado");
+          }
+
+          // success -> break retry loop
+          lastErr = null;
+          break;
+        } catch (err: any) {
+          lastErr = err;
+          if (err?.name === 'AbortError') return;
+
+          // Silent backoff before retrying
+          const backoffMs = 2000 * attempt; // 2s, 4s
+          await new Promise((res) => setTimeout(res, backoffMs));
+          // continue loop to retry
+        }
       }
-    } catch (e: any) {
-      if (e?.name === "AbortError") return;
-
-      const msg =
-        String(e?.message || "")
-          .toLowerCase()
-          .includes("429") || String(e?.message || "").toLowerCase().includes("rate")
-          ? "⚠️ Demasiadas operaciones. Espera un momento e intenta de nuevo"
-          : "No se pudo actualizar el recurrente";
-      showToast("error", msg);
     } finally {
       if (isMountedRef.current) setIsUpdating(false);
     }
@@ -654,9 +737,11 @@ const RecurrenteDetail = () => {
                 <View style={styles.progressRow}>
                   <Ionicons name="time-outline" size={16} color={theme.platform} />
                   <Text style={[styles.progressText, { color: theme.platform }]} numberOfLines={1}>
-                    {diasRestantes === 0
-                      ? fixEncoding("Se ejecuta hoy")
-                      : fixEncoding(`En ${diasRestantes} ${diasRestantes === 1 ? "día" : "días"}`)}
+                    {diasRestantes === null
+                      ? fixEncoding('Próxima ejecución no disponible')
+                      : diasRestantes === 0
+                      ? fixEncoding('Se ejecuta hoy')
+                      : fixEncoding(`En ${diasRestantes} ${diasRestantes === 1 ? 'día' : 'días'}`)}
                   </Text>
                 </View>
 
@@ -701,21 +786,29 @@ const RecurrenteDetail = () => {
                 <Ionicons name="notifications-outline" size={18} color={colors.textSecondary} />
               </View>
 
-              {!recurrente.recordatorios || recurrente.recordatorios.length === 0 ? (
-                <View style={styles.emptyRow}>
-                  <Ionicons name="alarm-outline" size={22} color={colors.border} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.emptyTitle, { color: colors.text }]}>{fixEncoding("Sin recordatorios")}</Text>
-                    <Text style={[styles.emptySub, { color: colors.placeholder }]}>{fixEncoding("No hay recordatorios configurados para este recurrente.")}</Text>
+              {(() => {
+                const recs = Array.isArray(recurrente.recordatorios)
+                  ? recurrente.recordatorios.map((x: any) => Number(x)).filter((n: number) => Number.isFinite(n) && n > 0)
+                  : [];
+                if (!recs || recs.length === 0) {
+                  return (
+                    <View style={styles.emptyRow}>
+                      <Ionicons name="alarm-outline" size={22} color={colors.border} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.emptyTitle, { color: colors.text }]}>{fixEncoding('Sin recordatorios')}</Text>
+                        <Text style={[styles.emptySub, { color: colors.placeholder }]}>{fixEncoding('No hay recordatorios configurados para este recurrente.')}</Text>
+                      </View>
+                    </View>
+                  );
+                }
+                return (
+                  <View style={styles.chipsWrap}>
+                    {recs.map((d: number, i: number) => (
+                      <Chip key={`${d}-${i}`} icon="alarm-outline" label={d === 1 ? '1 día antes' : `${d} días antes`} />
+                    ))}
                   </View>
-                </View>
-              ) : (
-                <View style={styles.chipsWrap}>
-                  {recurrente.recordatorios.map((d, i) => (
-                    <Chip key={`${d}-${i}`} icon="alarm-outline" label={d === 1 ? "1 día antes" : `${d} días antes`} />
-                  ))}
-                </View>
-              )}
+                );
+              })()}
             </View>
 
             {/* Info grid */}
@@ -745,6 +838,17 @@ const RecurrenteDetail = () => {
               <InfoTile icon="repeat-outline" label="Frecuencia" value={descripcionFrecuencia} accent={theme.platform} hint="Regla de ejecución" />
 
               <InfoTile icon="calendar-outline" label="Próxima ejecución" value={proximaEjecucionFormateada} accent={theme.platform} hint="Fecha estimada" />
+
+              {/* Mostrar fecha de término si viene desde la API */}
+              {recurrente.fechaFin ? (
+                <InfoTile
+                  icon="calendar-clear-outline"
+                  label="Finaliza"
+                  value={formatearFechaLocal(recurrente.fechaFin)}
+                  accent={theme.platform}
+                  hint="Fecha de finalización"
+                />
+              ) : null}
             </View>
 
             {/* Plazo fijo progress */}
