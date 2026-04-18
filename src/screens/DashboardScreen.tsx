@@ -84,7 +84,7 @@ export default function DashboardScreen() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastRefreshTime, setLastRefreshTime] = useState(0);
   const isMountedRef = useRef(true);
-  const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const refreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const previousPremiumStatusRef = useRef<boolean | null>(null);
   // Track last successful snapshot fetch time for smart focus-refresh.
@@ -611,6 +611,10 @@ export default function DashboardScreen() {
         active="home"
         onPressHome={() => {
           scrollRef.current?.scrollTo({ y: 0, animated: true });
+        }}
+        onPressTdc={() => {
+          // @ts-ignore
+          navigation.navigate('CreditCards' as never);
         }}
         onPressBloc={() => {
           // @ts-ignore
