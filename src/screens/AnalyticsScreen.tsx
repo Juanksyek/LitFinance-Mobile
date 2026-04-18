@@ -48,7 +48,7 @@ const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ navigation, route }) 
   const isMountedRef = useRef(true);
   const abortControllerRef = useRef<AbortController | null>(null);
   const lastFetchRef = useRef<number>(0);
-  const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const refreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Cleanup al desmontar
   useEffect(() => {
