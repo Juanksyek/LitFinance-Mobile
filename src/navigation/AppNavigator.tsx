@@ -36,6 +36,8 @@ import TicketScanHistoryScreen from '../screens/TicketScanHistoryScreen';
 import TicketScanDetailScreen from '../screens/TicketScanDetailScreen';
 import TicketEvaluationScreen from '../screens/TicketEvaluationScreen';
 import DeleteAccountScreen from '../screens/DeleteAccountScreen';
+import CreditCardsScreen from '../screens/CreditCardsScreen';
+import CreditCardDetailScreen from '../screens/CreditCardDetailScreen';
 
 export type Subcuenta = {
   _id: string;
@@ -115,6 +117,8 @@ export type RootStackParamList = {
   TicketScanDetail: { ticketId: string };
   TicketEvaluation: { desde?: string; hasta?: string } | undefined;
   DeleteAccount: undefined;
+  CreditCards: { refreshKey?: number; editCardId?: string; removedCardId?: string } | undefined;
+  CreditCardDetail: { cardId: string };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -158,6 +162,8 @@ export default function AppNavigator() {
       <Stack.Screen name="TicketScanDetail" component={TicketScanDetailScreen} />
       <Stack.Screen name="TicketEvaluation" component={TicketEvaluationScreen} />
       <Stack.Screen name="DeleteAccount" component={DeleteAccountScreen} />
+      <Stack.Screen name="CreditCards" component={CreditCardsScreen} />
+      <Stack.Screen name="CreditCardDetail" component={CreditCardDetailScreen} />
     </Stack.Navigator>
   );
 }
