@@ -46,7 +46,7 @@ const TicketDetailScreen: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [showStatusModal, setShowStatusModal] = useState(false);
   const flatListRef = useRef<FlatList>(null);
-  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // ✅ altura real del composer para padding del listado
   const [composerHeight, setComposerHeight] = useState(0);

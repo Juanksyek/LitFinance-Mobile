@@ -14,6 +14,7 @@ import {
   LayoutAnimation,
   UIManager,
   PanResponder,
+  Alert,
 } from 'react-native';
 import Modal from 'react-native-modal';
 import { Ionicons } from "@expo/vector-icons";
@@ -33,6 +34,7 @@ import { normalizeEmojiStrict, emojiFontFix } from '../utils/fixMojibake';
 import { fixEncoding } from '../utils/fixEncoding';
 import { offlineSyncService } from '../services/offlineSyncService';
 import EventBus from '../utils/eventBus';
+import { formatCurrency } from '../utils/numberFormatter';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 
@@ -454,19 +456,70 @@ const MovementModal: React.FC<Props> = ({
       });
     }
 
-    try {
+      try {
       setLoading(true);
+      // Enviar fecha explícita aunque el usuario no la seleccione.
+      // Si no hay fecha efectiva, usar la fecha actual en formato YYYY-MM-DD.
+      const fechaToSend = fechaEfectiva.trim() ? fechaEfectiva.trim() : formatYYYYMMDD(new Date());
       const payload: any = {
         tipo,
         monto: montoNumerico,
         concepto: conceptoFinal,
         motivo,
-        ...(fechaEfectiva.trim() ? { fecha: fechaEfectiva.trim() } : {}),
+        fecha: fechaToSend,
         moneda,
         cuentaId,
         afectaCuenta,
         ...(isSubcuenta && subcuentaId ? { subCuentaId: subcuentaId } : {}),
       };
+
+      // Antes de enviar, comprobar saldo actual para detectar posible sobregiro
+      let currentBalance: number | null = null;
+      try {
+        if (afectaCuenta) {
+          if (isSubcuenta && subcuentaId) {
+            const resBal = await apiRateLimiter.fetch(`${API_BASE_URL}/subcuenta/buscar/${subcuentaId}`, { method: 'GET' });
+            if (resBal.ok) {
+              const dataBal = await resBal.json().catch(() => ({}));
+              currentBalance = Number(dataBal?.cantidad ?? dataBal?.saldo ?? dataBal?.balance ?? null);
+            }
+          } else {
+            const resBal = await apiRateLimiter.fetch(`${API_BASE_URL}/cuenta/principal`, { method: 'GET' });
+            if (resBal.ok) {
+              const dataBal = await resBal.json().catch(() => ({}));
+              const payloadBal = dataBal?.data ?? dataBal ?? {};
+              currentBalance = Number(payloadBal.cantidad ?? payloadBal.saldo ?? payloadBal.balance ?? null);
+            }
+          }
+        }
+      } catch (e) {
+        currentBalance = null;
+      }
+
+      if (afectaCuenta && currentBalance != null) {
+        const newBalance = tipo === 'egreso' ? (currentBalance - montoNumerico) : (currentBalance + montoNumerico);
+        if (newBalance < 0) {
+          const formattedShort = formatCurrency(Math.abs(newBalance), { context: 'modal', symbol: selectedMoneda?.simbolo || getSymbolForCurrency(moneda), currency: moneda }).formatted;
+          const confirmed: boolean = await new Promise((resolve) => {
+            Alert.alert(
+              'Confirmar sobregiro',
+              `Esto dejará tu cuenta en saldo negativo (${selectedMoneda?.simbolo || getSymbolForCurrency(moneda)}${formattedShort}). ¿Deseas continuar?`,
+              [
+                { text: 'Cancelar', style: 'cancel', onPress: () => resolve(false) },
+                { text: 'Continuar', onPress: () => resolve(true) },
+              ],
+              { cancelable: true }
+            );
+          });
+
+          if (!confirmed) {
+            setLoading(false);
+            return;
+          }
+
+          payload.allowOverdraft = true;
+        }
+      }
 
       const netState = await NetInfo.fetch().catch(() => null);
       const isConnected = !!netState?.isConnected;

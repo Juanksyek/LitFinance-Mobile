@@ -42,7 +42,7 @@ export function useSafeApi<T>(
 
   const isMountedRef = useRef(true);
   const abortControllerRef = useRef<AbortController | null>(null);
-  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastFetchTimeRef = useRef<number>(0);
   const retryCountRef = useRef<number>(0);
 

@@ -10,6 +10,7 @@ import { useThemeColors } from "../theme/useThemeColors";
 import { describeFrequencyShort } from '../utils/recurrentUtils';
 import SmartNumber from './SmartNumber';
 import apiRateLimiter from "../services/apiRateLimiter";
+import { analyticsService } from '../services/analyticsService';
 import Toast from "react-native-toast-message";
 import RecurrentModal from './RecurrentModal';
 import { emitRecurrentesChanged } from '../utils/dashboardRefreshBus';
@@ -70,6 +71,154 @@ const RecurrentesList = ({
     const [recurrentesWithPauseStatus, setRecurrentesWithPauseStatus] = useState<Recurrente[]>([]);
 
     const snapshotMode = dashboardSnapshot !== undefined && !esSubcuenta;
+
+    const [convertedTotal, setConvertedTotal] = useState<number | null>(null);
+    const [convertedLoading, setConvertedLoading] = useState(false);
+
+    const getCurrencySymbol = (currency?: string | null) => {
+        const normalized = String(currency ?? '').trim().toUpperCase();
+        const symbols: Record<string, string> = {
+            MXN: '$',
+            USD: '$',
+            EUR: '€',
+            GBP: '£',
+            JPY: '¥',
+            CNY: '¥',
+            CAD: '$',
+            AUD: '$',
+            CHF: 'CHF',
+        };
+        return symbols[normalized] ?? normalized;
+    };
+
+    // Cache for external rates fetched from the provided endpoint
+    const externalRatesCacheRef = useRef<{ rates: Record<string, number>; baseCurrency?: string } | null>(null);
+
+    const findCurrencyArray = (obj: any): any[] | null => {
+        if (!obj || typeof obj !== 'object') return null;
+        if (Array.isArray(obj)) {
+            const arr = obj as any[];
+            if (arr.length > 0 && arr.some((it) => it && (it.codigo || it.code || it.currency || it.tasaBase || it.tasa))) return arr;
+        }
+        for (const k of Object.keys(obj)) {
+            try {
+                const v = (obj as any)[k];
+                const found = findCurrencyArray(v);
+                if (found) return found;
+            } catch (e) {
+                continue;
+            }
+        }
+        return null;
+    };
+
+    const fetchExternalRates = async (targetCurrency: string): Promise<{ rates: Record<string, number>; baseCurrency?: string }> => {
+        // Return cached if present
+        if (externalRatesCacheRef.current) return externalRatesCacheRef.current;
+
+        const candidates = [
+            `${API_BASE_URL.replace(/\/$/, '')}/monedas`
+        ];
+
+        for (const url of candidates) {
+            try {
+                // Use apiRateLimiter.fetch so Authorization and caching are handled consistently
+                const res = await apiRateLimiter.fetch(url, { method: 'GET' });
+                if (!res.ok) {
+                    const txt = await res.text().catch(() => null);
+                    console.warn('⚠️ [RecurrentesList] external rates fetch failed', url, res.status, txt);
+                    continue;
+                }
+
+                const body = await res.json().catch(() => null);
+                const parsed: Record<string, number> = {};
+                let detectedBase: string | undefined;
+
+                if (!body) {
+                    externalRatesCacheRef.current = { rates: parsed };
+                    return { rates: parsed };
+                }
+
+                // Heurísticas para distintos formatos de respuesta
+                if (Array.isArray(body)) {
+                    for (const item of body) {
+                        if (!item) continue;
+                        const code = item.codigo || item.currency || item.code || item.moneda || item.from || item.to;
+                        const rate = item.tasaBase || item.tasa || item.rate || item.value || item.ratio || item.price;
+                        if (item.esPrincipal || item.isPrincipal) detectedBase = String(code).toUpperCase();
+                        if (code && typeof rate === 'number') parsed[String(code).toUpperCase()] = rate;
+                    }
+                } else if (typeof body === 'object') {
+                    if (body.rates && typeof body.rates === 'object') {
+                        for (const [k, v] of Object.entries(body.rates)) {
+                            if (typeof v === 'number') parsed[String(k).toUpperCase()] = v;
+                            else if (v && typeof v === 'object' && typeof (v as any).value === 'number') parsed[String(k).toUpperCase()] = (v as any).value;
+                        }
+                    } else if (body.data && body.data.rates && typeof body.data.rates === 'object') {
+                        for (const [k, v] of Object.entries(body.data.rates)) {
+                            if (typeof v === 'number') parsed[String(k).toUpperCase()] = v;
+                        }
+                    } else {
+                        // Try to interpret body as direct mapping
+                        for (const [k, v] of Object.entries(body)) {
+                            // If the payload contains known grouped arrays, parse them explicitly
+                            if (Array.isArray(v) && (k === 'favoritas' || k === 'otras' || k === 'monedas' || k === 'items' || k === 'data' || k === 'lista')) {
+                                for (const item of v) {
+                                    if (!item || typeof item !== 'object') continue;
+                                    const code = item.codigo || item.currency || item.code || item.moneda || item.from || item.to;
+                                    const rate = item.tasaBase || item.tasa || item.rate || item.value || item.ratio || item.price;
+                                    if (item.esPrincipal || item.isPrincipal) detectedBase = String(code).toUpperCase();
+                                    if (code && typeof rate === 'number') parsed[String(code).toUpperCase()] = rate;
+                                }
+                                continue;
+                            }
+
+                            // If objects with tasaBase per currency
+                            if (v && typeof v === 'object') {
+                                const code = (v as any).codigo ?? k;
+                                const rate = (v as any).tasaBase ?? (v as any).tasa ?? (v as any).rate ?? (v as any).value;
+                                if ((v as any).esPrincipal || (v as any).isPrincipal) detectedBase = String(code).toUpperCase();
+                                if (code && typeof rate === 'number') parsed[String(code).toUpperCase()] = rate;
+                            } else if (typeof v === 'number') {
+                                // Only accept top-level numeric entries if the key looks like a 3-letter currency code (avoid TOTAL-like keys)
+                                const upk = String(k).toUpperCase();
+                                if (/^[A-Z]{3}$/.test(upk)) {
+                                    parsed[upk] = v;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // If parsing above didn't find currency-like keys, try to locate nested arrays containing currency objects
+                const looksLikeCurrencyKey = (key: string) => /^[A-Z]{3}$/.test(key);
+                if (Object.keys(parsed).length === 0 || !Object.keys(parsed).some(looksLikeCurrencyKey)) {
+                    const candidate = findCurrencyArray(body);
+                    if (Array.isArray(candidate)) {
+                        for (const item of candidate) {
+                            if (!item || typeof item !== 'object') continue;
+                            const code = item.codigo || item.currency || item.code || item.moneda || item.from || item.to;
+                            const rate = item.tasaBase || item.tasa || item.rate || item.value || item.ratio || item.price;
+                            if (item.esPrincipal || item.isPrincipal) detectedBase = String(code).toUpperCase();
+                            if (code && typeof rate === 'number') parsed[String(code).toUpperCase()] = rate;
+                        }
+                    }
+                }
+
+                externalRatesCacheRef.current = { rates: parsed, baseCurrency: detectedBase };
+                console.log('🔁 [RecurrentesList] external rates fetched from', url, parsed, 'detectedBase=', detectedBase);
+                return { rates: parsed, baseCurrency: detectedBase };
+            } catch (err) {
+                console.error('❌ [RecurrentesList] fetchExternalRates error', err, url);
+                // try next candidate
+                continue;
+            }
+        }
+
+        // All candidates failed
+        externalRatesCacheRef.current = { rates: {} };
+        return { rates: {} };
+    };
 
     const recurrentesTotals = dashboardSnapshot?.recurrentesTotals;
     const showRecurrentesTotals =
@@ -372,6 +521,132 @@ const RecurrentesList = ({
         }
     };
 
+    // Compute converted total (sum of all currencies -> viewer preferred/original currency)
+    useEffect(() => {
+        let mounted = true;
+        if (!showRecurrentesTotals || !dashboardSnapshot) {
+            setConvertedTotal(null);
+            return;
+        }
+
+        // Prefer the user's original account currency (`monedaPrincipal`) as the target for conversion.
+        const targetCurrency = String(dashboardSnapshot.viewer?.monedaPrincipal ?? dashboardSnapshot.viewer?.monedaPreferencia ?? '').toUpperCase();
+        if (!targetCurrency) {
+            setConvertedTotal(null);
+            return;
+        }
+
+        const compute = async () => {
+            setConvertedLoading(true);
+            try {
+                const totalsMap: Record<string, number> = {};
+                const addList = (list: any[] | undefined) => {
+                    (list || []).forEach((x: any) => {
+                        const cur = String(x.moneda ?? '').toUpperCase() || targetCurrency;
+                        totalsMap[cur] = (totalsMap[cur] || 0) + Number(x.total || 0);
+                    });
+                };
+
+                addList(dashboardSnapshot.recurrentesTotals?.active?.byCurrency);
+                addList(dashboardSnapshot.recurrentesTotals?.paused?.byCurrency);
+
+                if (Object.keys(totalsMap).length === 0) {
+                    if (mounted) setConvertedTotal(0);
+                    return;
+                }
+
+                // If already in target currency only
+                if (Object.keys(totalsMap).length === 1 && Object.keys(totalsMap)[0] === targetCurrency) {
+                    if (mounted) setConvertedTotal(totalsMap[targetCurrency] || 0);
+                    return;
+                }
+
+                const preview = await analyticsService.getPreview(targetCurrency);
+
+                // Normalize tasas keys to uppercase to avoid missing lookups (backend may return lowercase keys)
+                const rawTasas: Record<string, number> = preview?.tasasUtilizadas ?? {};
+                const tasas: Record<string, number> = Object.fromEntries(
+                    Object.entries(rawTasas || {}).map(([k, v]) => [String(k).toUpperCase(), v])
+                );
+
+                console.log('🔁 [RecurrentesList] totalsMap', totalsMap);
+                console.log('🔁 [RecurrentesList] preview.tasasUtilizadas (normalized)', tasas);
+
+                // If some currencies are missing rates, try external endpoint to get base rates
+                const missing = Object.keys(totalsMap).filter((c) => c !== targetCurrency && !(tasas && typeof tasas[c.toUpperCase()] === 'number'));
+                let externalRates: Record<string, number> = {};
+                let externalBaseCurrency: string | undefined;
+                if (missing.length > 0) {
+                    const externalRes = await fetchExternalRates(targetCurrency);
+                    externalRates = externalRes.rates || {};
+                    externalBaseCurrency = externalRes.baseCurrency;
+                    console.log('🔁 [RecurrentesList] external rates result', externalRates, 'base=', externalBaseCurrency);
+                }
+
+                let sum = 0;
+                for (const [cur, amt] of Object.entries(totalsMap)) {
+                    const code = String(cur).toUpperCase();
+                    if (code === targetCurrency) {
+                        sum += amt;
+                        console.log('→ same currency', code, amt);
+                        continue;
+                    }
+
+                    // Prefer server-provided tasa (conversion to targetCurrency)
+                    if (tasas && typeof tasas[code] === 'number') {
+                        const rate = Number(tasas[code]);
+                        const converted = Number(amt) * rate;
+                        sum += converted;
+                        console.log('→ converted (server)', amt, code, '->', targetCurrency, 'rate=', rate, 'converted=', converted);
+                        continue;
+                    }
+
+                    // Try external base rates (tasaBase) to compute rate: rate = tasaBase(code) / tasaBase(target)
+                    if (externalRates && typeof externalRates[code] === 'number') {
+                        // If external provides a base currency and it's the same as targetCurrency, use tasaBase directly
+                        if (externalBaseCurrency && externalBaseCurrency === targetCurrency) {
+                            const rate = Number(externalRates[code]);
+                            const converted = Number(amt) * rate;
+                            sum += converted;
+                            console.log('→ converted (external base==target)', amt, code, '->', targetCurrency, 'rate=', rate, 'converted=', converted);
+                            continue;
+                        }
+
+                        // If external has tasaBase for targetCurrency too, compute ratio
+                        if (externalRates && typeof externalRates[targetCurrency] === 'number') {
+                            const rate = Number(externalRates[code]) / Number(externalRates[targetCurrency]);
+                            const converted = Number(amt) * rate;
+                            sum += converted;
+                            console.log('→ converted (external ratio)', amt, code, '->', targetCurrency, 'rate=', rate, 'converted=', converted);
+                            continue;
+                        }
+
+                        // If no way to compute, fallback to adding raw amount (best-effort)
+                        sum += amt;
+                        console.warn('⚠️ [RecurrentesList] No rate for', code, 'after external lookup - falling back to raw amount');
+                        continue;
+                    }
+
+                    // Fallback: add original amount (best-effort) if no rate available anywhere
+                    sum += amt;
+                    console.warn('⚠️ [RecurrentesList] No rate for', code, 'falling back to raw amount');
+                }
+
+                if (mounted) setConvertedTotal(sum);
+            } catch (err) {
+                console.error('Error computing converted recurrentes totals', err);
+                if (mounted) setConvertedTotal(null);
+            } finally {
+                if (mounted) setConvertedLoading(false);
+            }
+        };
+
+        compute();
+        return () => {
+            mounted = false;
+        };
+    }, [dashboardSnapshot?.recurrentesTotals, showRecurrentesTotals]);
+
     useEffect(() => {
         if (snapshotMode) return;
         const force = !!userId;
@@ -496,12 +771,28 @@ const RecurrentesList = ({
             <View style={styles.headerBlock}>
                 <View style={styles.titleRow}>
                     <Text style={[styles.title, { color: colors.text, marginBottom: 0 }]}>Recurrentes</Text>
-                    {showRecurrentesTotals && (
-                        <View style={[styles.totalsBadge, { backgroundColor: colors.button + '15', borderColor: colors.button + '35' }]}>
-                            <Ionicons name="stats-chart" size={10} color={colors.button} />
-                            <Text style={[styles.totalsBadgeText, { color: colors.button }]}>Totales</Text>
-                        </View>
-                    )}
+                        {showRecurrentesTotals && (
+                            <View style={[styles.totalsBadge, { backgroundColor: colors.button + '15', borderColor: colors.button + '35' }]}>
+                                <Ionicons name="stats-chart" size={10} color={colors.button} />
+                                <Text style={[styles.totalsBadgeText, { color: colors.button }]}>Totales</Text>
+                                {convertedLoading ? (
+                                    <ActivityIndicator size="small" color={colors.button} style={{ marginLeft: 8 }} />
+                                ) : (
+                                    !convertedLoading && convertedTotal != null && dashboardSnapshot?.viewer && (
+                                        <View style={{ marginLeft: 8 }}>
+                                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                                <SmartNumber
+                                                    value={convertedTotal}
+                                                    textStyle={[styles.totalsBadgeValue, { color: colors.button }]}
+                                                    options={{ context: 'list', currency: String(dashboardSnapshot.viewer?.monedaPrincipal ?? dashboardSnapshot.viewer?.monedaPreferencia ?? '').toUpperCase(), symbol: getCurrencySymbol(String(dashboardSnapshot.viewer?.monedaPrincipal ?? dashboardSnapshot.viewer?.monedaPreferencia ?? '')) }}
+                                                />
+                                                <Text style={[styles.currencyCode, { color: colors.button }]}>{String(dashboardSnapshot.viewer?.monedaPrincipal ?? dashboardSnapshot.viewer?.monedaPreferencia ?? '').toUpperCase()}</Text>
+                                            </View>
+                                        </View>
+                                    )
+                                )}
+                            </View>
+                        )}
                 </View>
 
                 {showRecurrentesTotals && (
@@ -522,8 +813,9 @@ const RecurrentesList = ({
                                             <SmartNumber
                                                 value={Number(x.total || 0)}
                                                 textStyle={[styles.totalsValue, { color: colors.text }]}
-                                                options={{ context: 'list', currency: x.moneda, maxLength: 14 }}
+                                                options={{ context: 'list', currency: x.moneda, symbol: getCurrencySymbol(x.moneda), maxLength: 14 }}
                                             />
+                                            <Text style={[styles.currencyCode, { color: colors.textSecondary }]}>{String(x.moneda).toUpperCase()}</Text>
                                             <Text style={[styles.totalsCount, { color: '#10B981' }]}>{Number(x.count || 0)}</Text>
                                         </View>
                                     ))}
@@ -549,8 +841,9 @@ const RecurrentesList = ({
                                             <SmartNumber
                                                 value={Number(x.total || 0)}
                                                 textStyle={[styles.totalsValue, { color: colors.text }]}
-                                                options={{ context: 'list', currency: x.moneda, maxLength: 14 }}
+                                                options={{ context: 'list', currency: x.moneda, symbol: getCurrencySymbol(x.moneda), maxLength: 14 }}
                                             />
+                                            <Text style={[styles.currencyCode, { color: colors.textSecondary }]}>{String(x.moneda).toUpperCase()}</Text>
                                             <Text style={[styles.totalsCount, { color: '#F59E0B' }]}>{Number(x.count || 0)}</Text>
                                         </View>
                                     ))}
@@ -724,6 +1017,17 @@ const styles = StyleSheet.create({
     totalsCount: {
         fontSize: 10,
         fontWeight: '600',
+    },
+    totalsBadgeValue: {
+        fontSize: 12,
+        fontWeight: '700',
+        marginLeft: 6,
+    },
+    currencyCode: {
+        fontSize: 10,
+        fontWeight: '600',
+        marginLeft: 6,
+        alignSelf: 'center'
     },
     searchInput: {
         borderRadius: 10,

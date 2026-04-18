@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { View, StyleSheet, TouchableOpacity, Platform, useWindowDimensions } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, Platform, useWindowDimensions, Text } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useStableSafeInsets } from '../hooks/useStableSafeInsets';
 import { useKeyboardVisible } from '../hooks/useKeyboardVisible';
@@ -10,6 +10,7 @@ type DockKey = 'home' | 'bloc' | 'reports' | 'shared';
 type Props = {
   active?: DockKey;
   onPressHome: () => void;
+  onPressTdc: () => void;
   onPressBloc: () => void;
   onPressCenter: () => void;
   onPressReports: () => void;
@@ -18,11 +19,12 @@ type Props = {
 };
 
 const DOCK_MAX_WIDTH = 760;
-export const DASHBOARD_DOCK_APPROX_HEIGHT = 85; // spacer in Dashboard content (dock 64px + fab overlap 21px)
+export const DASHBOARD_DOCK_APPROX_HEIGHT = 97;
 
 export default function DashboardBottomDock({
   active = 'home',
   onPressHome,
+  onPressTdc,
   onPressBloc,
   onPressCenter,
   onPressReports,
@@ -68,17 +70,21 @@ export default function DashboardBottomDock({
           ]}
         >
           <DockIconButton
-            icon={active === 'home' ? 'home' : 'home-outline'}
-            color={active === 'home' ? activeColor : inactive}
-            onPress={onPressHome}
+            icon="card-outline"
+            color={inactive}
+            onPress={onPressTdc}
+            label="TDC"
           />
           <DockIconButton
             icon={active === 'bloc' ? 'document-text' : 'document-text-outline'}
             color={active === 'bloc' ? activeColor : inactive}
             onPress={onPressBloc}
+            label="Cuentas"
           />
 
-          <View style={styles.centerSlot} />
+          <View style={styles.centerSlot}>
+            <Text style={[styles.iconLabel, { color: inactive }]}>Ticket Scan</Text>
+          </View>
 
           <DockIconButton
             icon={active === 'reports' ? 'download' : 'download-outline'}
@@ -86,11 +92,13 @@ export default function DashboardBottomDock({
             onPress={onPressReports}
             locked={reportsLocked}
             lockedTint={colors.textSecondary}
+            label="Reportes"
           />
           <DockIconButton
             icon={active === 'shared' ? 'people' : 'people-outline'}
             color={active === 'shared' ? activeColor : inactive}
             onPress={onPressShared}
+            label="Espacios"
           />
         </View>
 
@@ -119,12 +127,14 @@ function DockIconButton({
   onPress,
   locked,
   lockedTint,
+  label,
 }: {
   icon: keyof typeof Ionicons.glyphMap;
   color: string;
   onPress: () => void;
   locked?: boolean;
   lockedTint?: string;
+  label?: string;
 }) {
   return (
     <TouchableOpacity
@@ -132,7 +142,10 @@ function DockIconButton({
       activeOpacity={locked ? 1 : 0.85}
       style={[styles.iconBtn, locked ? styles.iconBtnLocked : null]}
     >
-      <Ionicons name={icon} size={22} color={locked ? lockedTint || color : color} />
+      <View style={{ alignItems: 'center' }}>
+        <Ionicons name={icon} size={22} color={locked ? lockedTint || color : color} />
+        {label ? <Text style={[styles.iconLabel, { color: locked ? lockedTint || color : color }]}>{label}</Text> : null}
+      </View>
       {locked ? (
         <View style={styles.lockBadge} pointerEvents="none">
           <Ionicons name="lock-closed" size={11} color={lockedTint || color} />
@@ -159,7 +172,7 @@ const styles = StyleSheet.create({
   },
 
   dock: {
-    height: 64,
+    height: 76,
     width: '100%',
     borderRadius: 22,
     borderWidth: 1,
@@ -198,6 +211,15 @@ const styles = StyleSheet.create({
 
   centerSlot: {
     width: 64,
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+  },
+
+  iconLabel: {
+    marginTop: 4,
+    fontSize: 11,
+    fontWeight: '700',
+    textAlign: 'center',
   },
 
   fab: {

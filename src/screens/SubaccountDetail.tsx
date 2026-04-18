@@ -292,6 +292,7 @@ const SubaccountDetail = () => {
     try {
       const res = await apiRateLimiter.fetch(`${API_BASE_URL}/subcuenta/buscar/${subcuenta?.subCuentaId}`, {
         signal: controller.signal,
+        headers: { 'X-Skip-Cache': '1' },
       });
 
       if (controller.signal.aborted) return;
@@ -329,6 +330,7 @@ const SubaccountDetail = () => {
     try {
       const res = await apiRateLimiter.fetch(`${API_BASE_URL}/subcuenta/participacion/${subcuenta.cuentaId}`, {
         signal: controller.signal,
+        headers: { 'X-Skip-Cache': '1' },
       });
 
       if (controller.signal.aborted) return;
@@ -358,21 +360,43 @@ const SubaccountDetail = () => {
     const controller = startRequest('historial');
 
     try {
-      const queryParams = new URLSearchParams({
-        desde,
-        hasta,
-        limite: String(limite),
-        pagina: String(pagina),
-      });
+      // Construir query string sin incluir parámetros vacíos (evita 'desde=&hasta=' que algunos endpoints tratan como filtro inválido)
+      const qp = new URLSearchParams();
+      qp.append('limite', String(limite));
+      qp.append('pagina', String(pagina));
+      if (desde && desde.trim()) qp.append('desde', desde.trim());
+      if (hasta && hasta.trim()) qp.append('hasta', hasta.trim());
+      if (busqueda.trim()) qp.append('descripcion', busqueda.trim());
 
-      if (busqueda.trim()) queryParams.append('descripcion', busqueda.trim());
-
-      const url = `${API_BASE_URL}/subcuenta/${subcuenta.subCuentaId}/movimientos?${queryParams.toString()}`;
-      const res = await apiRateLimiter.fetch(url, { signal: controller.signal });
+      const url = `${API_BASE_URL}/subcuenta/${subcuenta.subCuentaId}/movimientos${qp.toString() ? `?${qp.toString()}` : ''}`;
+      let res = await apiRateLimiter.fetch(url, { signal: controller.signal, headers: { 'X-Skip-Cache': '1' } });
 
       if (controller.signal.aborted) return;
 
-      const data = await res.json();
+      let data = await res.json();
+
+      // Fallback: si la respuesta fue exitosa pero el servidor devolvió vacío inesperadamente,
+      // reintentar sin parámetros de fecha (algunos backends esperan ausencia total de esos params).
+      const looksEmpty =
+        (Array.isArray(data?.data) && data.data.length === 0) ||
+        (Array.isArray(data) && data.length === 0) ||
+        (Array.isArray(data?.resultados) && data.resultados.length === 0) ||
+        (Array.isArray(data?.movimientos) && data.movimientos.length === 0);
+
+      if (res.ok && looksEmpty && (desde || hasta)) {
+        try {
+          const qp2 = new URLSearchParams();
+          qp2.append('limite', String(limite));
+          qp2.append('pagina', String(pagina));
+          if (busqueda.trim()) qp2.append('descripcion', busqueda.trim());
+          const url2 = `${API_BASE_URL}/subcuenta/${subcuenta.subCuentaId}/movimientos${qp2.toString() ? `?${qp2.toString()}` : ''}`;
+          const res2 = await apiRateLimiter.fetch(url2, { signal: controller.signal, headers: { 'X-Skip-Cache': '1' } });
+          if (res2.ok) {
+            data = await res2.json();
+            res = res2 as any;
+          }
+        } catch {}
+      }
 
       // Caso 1: data.data (array)
       if (Array.isArray(data?.data)) {
