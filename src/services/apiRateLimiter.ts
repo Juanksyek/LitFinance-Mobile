@@ -232,6 +232,8 @@ class ApiRateLimiter {
         if (userId) {
           this.invalidateCacheByPrefix(`GET:${baseUrl}/cuenta/principal/${userId}`);
         }
+        // Los movimientos afectan el saldo e historial de subcuentas → también invalidar
+        this.invalidateCacheByPrefix(`GET:${baseUrl}/subcuenta`);
       }
 
       // Support tickets: after create/addMessage/update/delete/status changes,
