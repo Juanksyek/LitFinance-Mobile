@@ -571,22 +571,32 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
 
       {/* Contenedor del saldo principal */}
       <View style={styles.balanceWrapper}>
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <SmartNumber
-            value={saldo}
-            textStyle={[styles.balanceAmount, { color: colors.text }]}
-            options={{
-              context: 'card',
-              currency: monedaActual,
-              maxLength: 20
-            }}
-          />
-          {isLoadingFresh && (
-            <ActivityIndicator
-              style={{ marginLeft: 8 }}
-              size="small"
-              color={colors.textSecondary}
+        <View style={{ flexDirection: 'column', alignItems: 'flex-start' }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <SmartNumber
+              value={saldo}
+              textStyle={[styles.balanceAmount, { color: saldo < 0 ? '#EF4444' : colors.text }]}
+              options={{
+                context: 'card',
+                currency: monedaActual,
+                maxLength: 20
+              }}
+              color={saldo < 0 ? '#EF4444' : undefined}
             />
+            {isLoadingFresh && (
+              <ActivityIndicator
+                style={{ marginLeft: 8 }}
+                size="small"
+                color={colors.textSecondary}
+              />
+            )}
+          </View>
+
+          {saldo < 0 && (
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6 }}>
+              <Ionicons name="alert-circle" size={14} color="#EF4444" />
+              <Text style={{ color: '#EF4444', marginLeft: 8, fontSize: 12, fontWeight: '700' }}>Saldo negativo = sobregiro</Text>
+            </View>
           )}
         </View>
       </View>
