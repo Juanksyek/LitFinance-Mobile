@@ -1,4 +1,5 @@
 import type { SharedSpacesSummary } from './sharedSpaces';
+import type { CreditCardsSummary } from './creditCards';
 
 export type DashboardRange = 'day' | 'week' | 'month' | '3months' | '6months' | 'year' | 'all';
 
@@ -192,6 +193,9 @@ export type DashboardSnapshot = {
   };
 
   sharedSpacesSummary?: SharedSpacesSummary;
+
+  /** Credit cards module summary (populated when backend includes TDC data) */
+  creditCardsSummary?: CreditCardsSummary;
 };
 
 export type SnapshotFetchResult =
