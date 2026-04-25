@@ -607,7 +607,7 @@ export default function DashboardScreen() {
         }}
       />
 
-      <DashboardBottomDock
+      {/* <DashboardBottomDock
         active="home"
         onPressHome={() => {
           scrollRef.current?.scrollTo({ y: 0, animated: true });
@@ -653,7 +653,7 @@ export default function DashboardScreen() {
           // @ts-ignore
           navigation.navigate('TicketScanHistory');
         }}
-      />
+      /> */}
     </View>
   );
 }
