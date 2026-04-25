@@ -217,7 +217,7 @@ const styles = StyleSheet.create({
 
   iconLabel: {
     marginTop: 4,
-    fontSize: 11,
+    fontSize: 9,
     fontWeight: '700',
     textAlign: 'center',
   },
