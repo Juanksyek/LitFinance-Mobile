@@ -322,8 +322,8 @@ const ActionButtons = ({
         cuentaId={isSubcuenta && subcuenta ? subcuenta.cuentaPrincipalId : (cuentaId ?? '')}
         isSubcuenta={isSubcuenta}
         subcuentaId={isSubcuenta && subcuenta ? subcuenta.subCuentaId : ''}
-        onSuccess={isSubcuenta ? fetchSubcuenta ?? (() => {}) : onRefresh}
-        onRefresh={() => setRefreshKey(Date.now())}
+        onSuccess={isSubcuenta ? (fetchSubcuenta ?? (() => {})) : onRefresh}
+        onRefresh={onRefresh ?? (() => setRefreshKey(Date.now()))}
       />
 
       <TransferModal
