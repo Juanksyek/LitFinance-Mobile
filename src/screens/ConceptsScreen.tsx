@@ -535,8 +535,12 @@ const ConceptsScreen: React.FC = () => {
           };
 
       animateLayout();
-      setConceptos((prev) => [created, ...prev]);
-      lastConceptosRef.current = [created, ...lastConceptosRef.current];
+      setConceptos((prev) => {
+        const deduped = [created, ...prev.filter((c) => c.conceptoId !== created.conceptoId)];
+        return deduped;
+      });
+      // keep lastConceptosRef in sync and deduped
+      lastConceptosRef.current = [created, ...lastConceptosRef.current.filter((c) => c.conceptoId !== created.conceptoId)];
       setVisibleCount((v) => Math.max(14, Math.min(v + 1, lastConceptosRef.current.length)));
       fetchVersionRef.current++;
 
