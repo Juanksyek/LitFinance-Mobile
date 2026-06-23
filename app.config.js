@@ -1,5 +1,9 @@
 import 'dotenv/config';
 
+const appEnvironment =
+  process.env.APP_ENV ??
+  (process.env.NODE_ENV === 'production' ? 'production' : 'development');
+
 export default ({ config }) => ({
   ...config,
   name: 'LitFinance',
@@ -48,6 +52,10 @@ export default ({ config }) => ({
   ],
   extra: {
     API_BASE_URL: process.env.API_BASE_URL ?? config.extra?.API_BASE_URL,
+    APP_ENV: appEnvironment,
+    ENABLE_LOGGER: process.env.ENABLE_LOGGER
+      ? process.env.ENABLE_LOGGER === 'true'
+      : appEnvironment !== 'production',
     // Google Cloud Vision API key (paid). Optional — OCR.space is the free alternative.
     GOOGLE_VISION_API_KEY: process.env.GOOGLE_VISION_API_KEY ?? '',
     // OCR.space free API key (25 000 req/month, no credit card).
