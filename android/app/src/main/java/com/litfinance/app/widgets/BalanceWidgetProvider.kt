@@ -11,6 +11,7 @@ import com.litfinance.app.R
 import com.litfinance.app.MainActivity
 import java.text.SimpleDateFormat
 import java.util.*
+import kotlin.math.roundToInt
 
 class BalanceWidgetProvider : AppWidgetProvider() {
 
@@ -35,13 +36,22 @@ class BalanceWidgetProvider : AppWidgetProvider() {
 
         fun updateWidget(context: Context, appWidgetManager: AppWidgetManager, widgetId: Int) {
             val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            val balance = prefs.getString("balance", "$0.00") ?: "$0.00"
+            val income = prefs.getFloat("monthlyIncome", 0f)
+            val expenses = prefs.getFloat("monthlyExpenses", 0f)
+            val incomeDisplay = prefs.getString("monthlyIncomeDisplay", "$0.00") ?: "$0.00"
+            val expensesDisplay = prefs.getString("monthlyExpensesDisplay", "$0.00") ?: "$0.00"
             val currency = prefs.getString("currency", "MXN") ?: "MXN"
-            val updatedAt = prefs.getString("balanceUpdatedAt", null)
+            val updatedAt = prefs.getString("monthlyUpdatedAt", null)
+            val maxAmount = maxOf(income, expenses, 1f)
+            val incomeProgress = ((income / maxAmount) * 100).roundToInt()
+            val expensesProgress = ((expenses / maxAmount) * 100).roundToInt()
 
             val views = RemoteViews(context.packageName, R.layout.widget_balance)
-            views.setTextViewText(R.id.txt_balance, balance)
+            views.setTextViewText(R.id.txt_income, incomeDisplay)
+            views.setTextViewText(R.id.txt_expenses, expensesDisplay)
             views.setTextViewText(R.id.txt_currency, currency)
+            views.setProgressBar(R.id.progress_income, 100, incomeProgress, false)
+            views.setProgressBar(R.id.progress_expenses, 100, expensesProgress, false)
 
             val timeStr = if (updatedAt != null) {
                 "Actualizado: $updatedAt"
@@ -51,14 +61,12 @@ class BalanceWidgetProvider : AppWidgetProvider() {
             }
             views.setTextViewText(R.id.txt_updated, timeStr)
 
-            // Tap on widget opens the app
             val openIntent = Intent(context, MainActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             }
             val openPi = PendingIntent.getActivity(context, 0, openIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
             views.setOnClickPendingIntent(R.id.widget_balance_root, openPi)
 
-            // Refresh button
             val refreshIntent = Intent(context, BalanceWidgetProvider::class.java).apply {
                 action = ACTION_REFRESH
             }
