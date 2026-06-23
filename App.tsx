@@ -20,15 +20,23 @@ import * as SystemUI from 'expo-system-ui';
 import { userProfileService } from './src/services/userProfileService';
 import { apiRateLimiter } from './src/services/apiRateLimiter';
 import UpgradeModal from './src/components/UpgradeModal';
+import ForceUpdateModal from './src/components/ForceUpdateModal';
 import { toastConfig } from './src/components/ThemedToast';
 import AppLockGate from './src/components/AppLockGate';
 import { offlineSyncService } from './src/services/offlineSyncService';
+import { assertValidEnvironment } from './src/core/config/env';
+import { mobileBootstrapService, type MobileAppVersionState } from './src/services/mobileBootstrapService';
+import { mobileSyncService } from './src/services/mobileSyncService';
+
+assertValidEnvironment();
 
 export default function App() {
   const navigationRef = useRef<NavigationContainerRef<RootStackParamList>>(null);
+  const [forceUpdateState, setForceUpdateState] = useState<MobileAppVersionState | null>(null);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [upgradeMessage, setUpgradeMessage] = useState<string | undefined>();
   const appState = useRef(AppState.currentState);
+  const shownUpdateBannerRef = useRef(false);
 
   useEffect(() => {
     // Apply conservative default props to all TextInputs to reduce keyboard suggestion/autofill UI
@@ -83,8 +91,9 @@ export default function App() {
     // Bootstrap tokens (load from storage + refresh if near-expiry), then refresh profile.
     bootstrapSession();
 
-    // Start offline sync listener (replay queued ops on reconnect)
+    // Start offline sync listener (legacy queue) and mobile sync orchestration.
     offlineSyncService.init();
+    mobileSyncService.init();
 
     // Listen to app state changes (foreground/background)
     const subscription = AppState.addEventListener('change', handleAppStateChange);
@@ -140,8 +149,44 @@ export default function App() {
 
       // Stop NetInfo listener when app root unmounts
       offlineSyncService.stop();
+      mobileSyncService.stop();
     };
   }, []);
+
+  const applyVersionState = (versionState: MobileAppVersionState | null) => {
+    setForceUpdateState(versionState?.forceUpdate ? versionState : null);
+
+    if (versionState?.updateAvailable && !versionState.forceUpdate && !shownUpdateBannerRef.current) {
+      shownUpdateBannerRef.current = true;
+      Toast.show({
+        type: 'info',
+        text1: 'Nueva versión disponible',
+        text2: versionState.latestVersion
+          ? `Actualiza a la versión ${versionState.latestVersion} cuando te sea posible.`
+          : 'Hay una actualización disponible.',
+      });
+    }
+  };
+
+  const runMobileBootstrap = async () => {
+    try {
+      const token = await authService.getAccessToken({ allowRefresh: true });
+      if (!token) return;
+
+      const { version } = await mobileBootstrapService.fetchAndPersist();
+      applyVersionState(version);
+    } catch (error: any) {
+      if (error?.code === 'APP_VERSION_UNSUPPORTED') {
+        applyVersionState({
+          build: error?.details?.build ?? null,
+          forceUpdate: true,
+          latestVersion: error?.details?.latestVersion ?? null,
+          minVersion: error?.details?.minRequiredVersion ?? null,
+          storeUrl: error?.details?.storeUrl ?? null,
+        });
+      }
+    }
+  };
 
   const refreshUserProfile = async () => {
     try {
@@ -163,7 +208,9 @@ export default function App() {
       // authService handles logout triggering internally if refresh fails.
       console.warn('⚠️ [App] Error bootstrapping session:', e);
     } finally {
-      refreshUserProfile();
+      await refreshUserProfile();
+      await runMobileBootstrap();
+      await mobileSyncService.syncNow('session_bootstrap').catch(() => {});
     }
   };
 
@@ -173,6 +220,7 @@ export default function App() {
       // Try to refresh tokens on resume to prevent surprise 401s.
       bootstrapSession();
     }
+    mobileSyncService.onAppStateChange(nextAppState);
     appState.current = nextAppState;
   };
 
@@ -264,6 +312,18 @@ export default function App() {
               visible={showUpgradeModal}
               onClose={() => setShowUpgradeModal(false)}
               message={upgradeMessage}
+            />
+            <ForceUpdateModal
+              visible={Boolean(forceUpdateState?.forceUpdate)}
+              build={forceUpdateState?.build ?? null}
+              latestVersion={forceUpdateState?.latestVersion ?? null}
+              message={
+                forceUpdateState?.minVersion
+                  ? `Necesitas actualizar la app para continuar. Se requiere al menos la versión ${forceUpdateState.minVersion}.`
+                  : undefined
+              }
+              minVersion={forceUpdateState?.minVersion ?? null}
+              storeUrl={forceUpdateState?.storeUrl ?? null}
             />
           </NavigationContainer>
         </SafeAreaProvider>
