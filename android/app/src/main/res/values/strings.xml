@@ -3,10 +3,6 @@
   <string name="expo_splash_screen_resize_mode" translatable="false">contain</string>
   <string name="expo_splash_screen_status_bar_translucent" translatable="false">false</string>
   <!-- Widget descriptions -->
-  <string name="widget_balance_desc">Muestra tu saldo disponible en tiempo real</string>
-  <string name="widget_actions_desc">Accesos rápidos a escanear, movimientos, análisis y ajustes</string>
-  <string name="widget_transactions_desc">Muestra tus últimos 3 movimientos</string>
-  <string name="widget_balance_label">Saldo LitFinance</string>
-  <string name="widget_actions_label">Acciones rápidas</string>
-  <string name="widget_transactions_label">Movimientos recientes</string>
+  <string name="widget_balance_desc">Compara visualmente tus ingresos y egresos del mes</string>
+  <string name="widget_balance_label">Gastos del mes</string>
 </resources>

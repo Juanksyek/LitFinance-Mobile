@@ -3,85 +3,130 @@
     android:id="@+id/widget_balance_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="@drawable/widget_bg_dark"
     android:orientation="vertical"
-    android:padding="16dp"
-    android:background="@drawable/widget_bg_dark">
+    android:padding="16dp">
 
-    <!-- Header row -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical">
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
 
         <ImageView
-            android:layout_width="28dp"
-            android:layout_height="28dp"
-            android:src="@mipmap/ic_launcher"
-            android:contentDescription="LitFinance" />
+            android:layout_width="26dp"
+            android:layout_height="26dp"
+            android:contentDescription="LitFinance"
+            android:src="@mipmap/ic_launcher" />
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_weight="1"
+            android:text="Gastos del mes"
+            android:textColor="#FFFFFF"
+            android:textSize="15sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/txt_currency"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="10dp"
+            android:text="MXN"
+            android:textColor="#B0B0B0"
+            android:textSize="10sp"
+            android:textStyle="bold" />
+
+        <ImageView
+            android:id="@+id/btn_refresh"
+            android:layout_width="22dp"
+            android:layout_height="22dp"
+            android:contentDescription="Actualizar"
+            android:src="@android:drawable/stat_notify_sync"
+            android:tint="#80FFFFFF" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="14dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
 
         <TextView
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:layout_marginStart="8dp"
-            android:text="LitFinance"
-            android:textColor="#FFFFFF"
-            android:textSize="14sp"
+            android:text="Ingresos"
+            android:textColor="#22C55E"
+            android:textSize="12sp"
             android:textStyle="bold" />
 
-        <ImageView
-            android:id="@+id/btn_refresh"
-            android:layout_width="24dp"
-            android:layout_height="24dp"
-            android:src="@android:drawable/stat_notify_sync"
-            android:contentDescription="Refresh"
-            android:tint="#80FFFFFF" />
+        <TextView
+            android:id="@+id/txt_income"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="$0.00"
+            android:textColor="#22C55E"
+            android:textSize="13sp"
+            android:textStyle="bold" />
     </LinearLayout>
 
-    <!-- Balance label -->
-    <TextView
-        android:layout_width="wrap_content"
+    <ProgressBar
+        android:id="@+id/progress_income"
+        style="?android:attr/progressBarStyleHorizontal"
+        android:layout_width="match_parent"
+        android:layout_height="8dp"
+        android:layout_marginTop="5dp"
+        android:max="100"
+        android:progress="0"
+        android:progressDrawable="@drawable/widget_income_progress" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="12dp"
-        android:text="Saldo disponible"
-        android:textColor="#B0B0B0"
-        android:textSize="12sp" />
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
 
-    <!-- Balance amount -->
-    <TextView
-        android:id="@+id/txt_balance"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="2dp"
-        android:text="$0.00"
-        android:textColor="#FFFFFF"
-        android:textSize="28sp"
-        android:textStyle="bold" />
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Egresos"
+            android:textColor="#EF4444"
+            android:textSize="12sp"
+            android:textStyle="bold" />
 
-    <!-- Currency -->
-    <TextView
-        android:id="@+id/txt_currency"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="2dp"
-        android:text="MXN"
-        android:textColor="#EF7725"
-        android:textSize="12sp"
-        android:textStyle="bold" />
+        <TextView
+            android:id="@+id/txt_expenses"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="$0.00"
+            android:textColor="#EF4444"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+    </LinearLayout>
 
-    <View
+    <ProgressBar
+        android:id="@+id/progress_expenses"
+        style="?android:attr/progressBarStyleHorizontal"
         android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1" />
+        android:layout_height="8dp"
+        android:layout_marginTop="5dp"
+        android:max="100"
+        android:progress="0"
+        android:progressDrawable="@drawable/widget_expense_progress" />
 
-    <!-- Updated at -->
     <TextView
         android:id="@+id/txt_updated"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
         android:text="Actualizado: --"
         android:textColor="#666666"
-        android:textSize="10sp" />
+        android:textSize="9sp" />
 
 </LinearLayout>
