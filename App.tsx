@@ -4,6 +4,7 @@ import { NavigationContainerRef } from '@react-navigation/native';
 import AppNavigator from './src/navigation/AppNavigator';
 import Toast from 'react-native-toast-message';
 import { ThemeProvider } from './src/theme/ThemeContext';
+import { ConnectivityProvider } from './src/connectivity/ConnectivityContext';
 import { setupNotificationListeners } from './src/services/notificationService';
 import { authService } from './src/services/authService';
 import type { RootStackParamList } from './src/navigation/AppNavigator';
@@ -21,20 +22,26 @@ import { userProfileService } from './src/services/userProfileService';
 import { apiRateLimiter } from './src/services/apiRateLimiter';
 import UpgradeModal from './src/components/UpgradeModal';
 import ForceUpdateModal from './src/components/ForceUpdateModal';
+import OfflineBanner from './src/components/OfflineBanner';
 import { toastConfig } from './src/components/ThemedToast';
 import AppLockGate from './src/components/AppLockGate';
 import { offlineSyncService } from './src/services/offlineSyncService';
 import { assertValidEnvironment } from './src/core/config/env';
 import { mobileBootstrapService, type MobileAppVersionState } from './src/services/mobileBootstrapService';
 import { mobileSyncService } from './src/services/mobileSyncService';
+import { syncStatusService } from './src/services/syncStatusService';
+import { logger } from './src/shared/monitoring/logger';
 
 assertValidEnvironment();
+
+const APP_START_TIMESTAMP = Date.now();
 
 export default function App() {
   const navigationRef = useRef<NavigationContainerRef<RootStackParamList>>(null);
   const [forceUpdateState, setForceUpdateState] = useState<MobileAppVersionState | null>(null);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [upgradeMessage, setUpgradeMessage] = useState<string | undefined>();
+  const [hasUsableBootstrapCache, setHasUsableBootstrapCache] = useState(false);
   const appState = useRef(AppState.currentState);
   const shownUpdateBannerRef = useRef(false);
 
@@ -100,7 +107,7 @@ export default function App() {
 
     // Register logout handler: navigate to Login when session expires
     const unregisterLogout = authService.onLogout(() => {
-      console.log('🔐 Sesión expirada, redirigiendo a Login...');
+      logger.warn('[App] Sesion expirada; redirigiendo a Login');
       Toast.show({
         type: 'error',
         text1: 'Sesión expirada',
@@ -116,8 +123,12 @@ export default function App() {
     const cleanup = setupNotificationListeners(
       // Cuando llega notificación (app abierta)
       (notification) => {
-        console.log('📩 Nueva notificación:', notification.request.content);
         const data = notification.request.content.data as any;
+        logger.info('[App] Notificacion recibida', {
+          hasBody: Boolean(notification.request.content.body),
+          hasTitle: Boolean(notification.request.content.title),
+          tipo: data?.tipo,
+        });
         
         // Mostrar toast con la notificación
         Toast.show({
@@ -134,7 +145,10 @@ export default function App() {
       // Cuando usuario tapea notificación
       (response) => {
         const data = response.notification.request.content.data as any;
-        console.log('👆 Usuario tapeó notificación con data:', data);
+        logger.info('[App] Notificacion abierta', {
+          ticketId: data?.ticketId,
+          tipo: data?.tipo,
+        });
         handleNotificationNavigation(data);
       }
     );
@@ -168,15 +182,38 @@ export default function App() {
     }
   };
 
+  const primeCachedBootstrapState = async () => {
+    try {
+      const cached = await mobileBootstrapService.getCached();
+      const hasCachedData = Boolean(cached?.data);
+      setHasUsableBootstrapCache(hasCachedData);
+      if (cached?.data?.app) {
+        applyVersionState(cached.data.app);
+      }
+      return hasCachedData;
+    } catch {
+      setHasUsableBootstrapCache(false);
+      return false;
+    }
+  };
+
   const runMobileBootstrap = async () => {
+    const bootstrapStartedAt = Date.now();
+    syncStatusService.markBootstrapStart();
     try {
       const token = await authService.getAccessToken({ allowRefresh: true });
-      if (!token) return;
+      if (!token) {
+        syncStatusService.markBootstrapError('No hay sesión activa.', Date.now() - bootstrapStartedAt);
+        return;
+      }
 
       const { version } = await mobileBootstrapService.fetchAndPersist();
+      setHasUsableBootstrapCache(true);
       applyVersionState(version);
+      syncStatusService.markBootstrapSuccess(Date.now() - bootstrapStartedAt);
     } catch (error: any) {
       if (error?.code === 'APP_VERSION_UNSUPPORTED') {
+        setHasUsableBootstrapCache(true);
         applyVersionState({
           build: error?.details?.build ?? null,
           forceUpdate: true,
@@ -184,7 +221,19 @@ export default function App() {
           minVersion: error?.details?.minRequiredVersion ?? null,
           storeUrl: error?.details?.storeUrl ?? null,
         });
+        syncStatusService.markBootstrapSuccess(Date.now() - bootstrapStartedAt);
+        return;
       }
+
+      const hasCache = await primeCachedBootstrapState();
+      if (!hasCache) {
+        Toast.show({
+          type: 'error',
+          text1: 'No se pudo inicializar la app',
+          text2: 'Intenta nuevamente cuando tengas conexión.',
+        });
+      }
+      syncStatusService.markBootstrapError(error?.message || 'No se pudo ejecutar bootstrap.', Date.now() - bootstrapStartedAt);
     }
   };
 
@@ -192,31 +241,37 @@ export default function App() {
     try {
       const token = await authService.getAccessToken();
       if (token) {
-        console.log('🔄 [App] Refrescando perfil de usuario...');
+        logger.info('[App] Refrescando perfil de usuario');
         await userProfileService.fetchAndUpdateProfile();
       }
     } catch (error) {
-      console.warn('⚠️ [App] Error refrescando perfil:', error);
+      logger.warn('[App] Error refrescando perfil', {
+        message: (error as any)?.message,
+      });
     }
   };
 
   const bootstrapSession = async () => {
     try {
+      await primeCachedBootstrapState();
       // This will load stored token, re-arm proactive refresh timers, and refresh if expiring.
       await authService.getAccessToken({ allowRefresh: true });
     } catch (e) {
       // authService handles logout triggering internally if refresh fails.
-      console.warn('⚠️ [App] Error bootstrapping session:', e);
+      logger.warn('[App] Error bootstrapping session', {
+        message: (e as any)?.message,
+      });
     } finally {
       await refreshUserProfile();
       await runMobileBootstrap();
       await mobileSyncService.syncNow('session_bootstrap').catch(() => {});
+      syncStatusService.markAppStartupComplete(Date.now() - APP_START_TIMESTAMP);
     }
   };
 
   const handleAppStateChange = (nextAppState: AppStateStatus) => {
     if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
-      console.log('📱 [App] App volvió a foreground, refrescando perfil...');
+      logger.info('[App] App volvio a foreground; refrescando perfil');
       // Try to refresh tokens on resume to prevent surprise 401s.
       bootstrapSession();
     }
@@ -296,37 +351,42 @@ export default function App() {
           navigationRef.current.navigate('Dashboard');
       }
     } catch (error) {
-      console.error('Error navegando desde notificación:', error);
+      logger.error('[App] Error navegando desde notificacion', {
+        message: (error as any)?.message,
+        tipo: data?.tipo,
+      });
     }
   };
 
   return (
     <StripeProvider publishableKey={STRIPE_PUBLISHABLE_KEY} urlScheme="litfinance">
       <ThemeProvider>
-        <SafeAreaProvider initialMetrics={initialWindowMetrics}>
-          <NavigationContainer ref={navigationRef}>
-            <AppRootLayout routeName={navigationRef.current?.getCurrentRoute?.()?.name}>
-              <AppNavigator />
-            </AppRootLayout>
-            <UpgradeModal
-              visible={showUpgradeModal}
-              onClose={() => setShowUpgradeModal(false)}
-              message={upgradeMessage}
-            />
-            <ForceUpdateModal
-              visible={Boolean(forceUpdateState?.forceUpdate)}
-              build={forceUpdateState?.build ?? null}
-              latestVersion={forceUpdateState?.latestVersion ?? null}
-              message={
-                forceUpdateState?.minVersion
-                  ? `Necesitas actualizar la app para continuar. Se requiere al menos la versión ${forceUpdateState.minVersion}.`
-                  : undefined
-              }
-              minVersion={forceUpdateState?.minVersion ?? null}
-              storeUrl={forceUpdateState?.storeUrl ?? null}
-            />
-          </NavigationContainer>
-        </SafeAreaProvider>
+        <ConnectivityProvider>
+          <SafeAreaProvider initialMetrics={initialWindowMetrics}>
+            <NavigationContainer ref={navigationRef}>
+              <AppRootLayout routeName={navigationRef.current?.getCurrentRoute?.()?.name}>
+                <AppNavigator />
+              </AppRootLayout>
+              <UpgradeModal
+                visible={showUpgradeModal}
+                onClose={() => setShowUpgradeModal(false)}
+                message={upgradeMessage}
+              />
+              <ForceUpdateModal
+                visible={Boolean(forceUpdateState?.forceUpdate)}
+                build={forceUpdateState?.build ?? null}
+                latestVersion={forceUpdateState?.latestVersion ?? null}
+                message={
+                  forceUpdateState?.minVersion
+                    ? `Necesitas actualizar la app para continuar. Se requiere al menos la versión ${forceUpdateState.minVersion}.`
+                    : undefined
+                }
+                minVersion={forceUpdateState?.minVersion ?? null}
+                storeUrl={forceUpdateState?.storeUrl ?? null}
+              />
+            </NavigationContainer>
+          </SafeAreaProvider>
+        </ConnectivityProvider>
         <Toast
           config={toastConfig}
         />
@@ -335,7 +395,13 @@ export default function App() {
   );
 }
 
-function AppRootLayout({ children, routeName }: { children: React.ReactNode; routeName?: string }) {
+function AppRootLayout({
+  children,
+  routeName,
+}: {
+  children: React.ReactNode;
+  routeName?: string;
+}) {
   const insets = useSafeAreaInsets();
   const colors = useThemeColors();
   const { isDark } = useTheme();
@@ -359,6 +425,7 @@ function AppRootLayout({ children, routeName }: { children: React.ReactNode; rou
 
   return (
     <Container {...containerProps} style={[styles.flex, { backgroundColor: colors.background }]}> 
+      <OfflineBanner />
       <View
         style={[
           styles.flex,
