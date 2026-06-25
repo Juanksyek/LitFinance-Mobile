@@ -1,0 +1,397 @@
+import React, { useEffect, useState } from "react";
+import { View, Text, TextInput, StyleSheet, TouchableOpacity, Switch, Dimensions, KeyboardAvoidingView, Platform } from "react-native";
+import Modal from "react-native-modal";
+import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import Toast from "react-native-toast-message";
+import SmartInput from "./SmartInput";
+import SmartNumber from "./SmartNumber";
+import { CurrencyField, Moneda } from "../components/CurrencyPicker";
+import { useThemeColors } from "../theme/useThemeColors";
+import { subaccountsRecurrentesService } from "../../services/subaccountsRecurrentesService";
+
+const SCREEN_HEIGHT = Dimensions.get("window").height;
+
+const presetColors = [
+  "#4CAF50", "#EF6C00", "#1976D2", "#9C27B0",
+  "#FFEB3B", "#E91E63", "#795548", "#00BCD4",
+  "#F44336", "#3F51B5", "#607D8B", "#8BC34A",
+];
+
+interface Props {
+  visible: boolean;
+  onClose: () => void;
+  subcuenta: Subcuenta;
+  onSuccess: () => void;
+}
+
+interface Subcuenta {
+  subCuentaId: string;
+  nombre: string;
+  cantidad: number;
+  moneda: string;
+  simbolo: string;
+  color: string;
+  afectaCuenta: boolean;
+}
+
+const EditSubaccountModal: React.FC<Props> = ({
+  visible,
+  onClose,
+  subcuenta,
+  onSuccess,
+}) => {
+  const colors = useThemeColors();
+  const [nombre, setNombre] = useState(subcuenta.nombre);
+  const [moneda, setMoneda] = useState(subcuenta.moneda);
+  const [simbolo, setSimbolo] = useState(subcuenta.simbolo);
+  const [cantidadNumerica, setCantidadNumerica] = useState<number | null>(
+    subcuenta.cantidad || null
+  );
+  const [cantidadValida, setCantidadValida] = useState(true);
+  const [erroresCantidad, setErroresCantidad] = useState<string[]>([]);
+  const [color, setColor] = useState(subcuenta.color);
+  const [afectaCuenta, setAfectaCuenta] = useState(subcuenta.afectaCuenta);
+  const [loading, setLoading] = useState(false);
+
+  // Moneda seleccionada para el CurrencyField (min seeding con datos de la subcuenta)
+  const [selectedMoneda, setSelectedMoneda] = useState<Moneda | null>({
+    id: "seed",
+    codigo: subcuenta.moneda,
+    nombre: subcuenta.moneda, // el picker mostrará el nombre real al abrirse
+    simbolo: subcuenta.simbolo || "$",
+  });
+
+  // Si cambian props (p. ej. abres otra subcuenta), sincroniza el estado
+  useEffect(() => {
+    if (!visible) return;
+    setNombre(subcuenta.nombre);
+    setMoneda(subcuenta.moneda);
+    setSimbolo(subcuenta.simbolo);
+    setCantidadNumerica(subcuenta.cantidad || null);
+    setColor(subcuenta.color);
+    setAfectaCuenta(subcuenta.afectaCuenta);
+    setSelectedMoneda({
+      id: "seed",
+      codigo: subcuenta.moneda,
+      nombre: subcuenta.moneda,
+      simbolo: subcuenta.simbolo || "$",
+    });
+  }, [visible, subcuenta]);
+
+  const getLimitesSubcuenta = () => ({
+    min: 0,
+    max: 999999999999,
+    warning: 100000000,
+  });
+
+  const handleCantidadChange = (value: number | null) => {
+    setCantidadNumerica(value);
+  };
+
+  const handleCantidadValidation = (isValid: boolean, errors: string[]) => {
+    setCantidadValida(isValid);
+    setErroresCantidad(errors);
+  };
+
+  const handleUpdate = async () => {
+    if (!cantidadValida || cantidadNumerica === null) {
+      Toast.show({
+        type: "error",
+        text1: "Cantidad inválida",
+        text2: "Verifica la cantidad antes de continuar.",
+      });
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const payload = {
+        nombre: nombre.trim(),
+        moneda,
+        simbolo,
+        color,
+        afectaCuenta,
+        cantidad: cantidadNumerica,
+      };
+
+      await subaccountsRecurrentesService.updateSubcuenta(
+        subcuenta.subCuentaId,
+        payload,
+      );
+
+      Toast.show({ type: "success", text1: "Subcuenta actualizada" });
+      onSuccess();
+      onClose();
+    } catch (err: any) {
+      Toast.show({
+        type: "error",
+        text1: "Error",
+        text2: err.message || "Algo salió mal.",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Modal
+      isVisible={visible}
+      onBackdropPress={onClose}
+      onSwipeComplete={onClose}
+      swipeDirection="down"
+      backdropOpacity={0.2}
+      style={{ justifyContent: "flex-end", margin: 0 }}
+    >
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        style={[styles.modal, { backgroundColor: colors.card }]}
+      >
+        <View style={[styles.handle, { backgroundColor: colors.border }]} />
+        <View style={styles.header}>
+          <Ionicons name="create-outline" size={22} color="#EF7725" />
+          <Text style={[styles.title, { color: colors.text }]}>Editar Subcuenta</Text>
+          <TouchableOpacity onPress={onClose}>
+            <Ionicons name="close" size={22} color={colors.textSecondary} />
+          </TouchableOpacity>
+        </View>
+
+        <TextInput
+          value={nombre}
+          onChangeText={setNombre}
+          placeholder="Nombre"
+          placeholderTextColor={colors.placeholder}
+          style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.border, color: colors.inputText }]}
+        />
+
+        {/* Selector reutilizable con favoritas + toggle */}
+        <CurrencyField
+          label="Moneda"
+          value={selectedMoneda}
+          onChange={(m) => {
+            setSelectedMoneda(m);
+            setMoneda(m.codigo);
+            setSimbolo(m.simbolo || "$");
+          }}
+          // Si quieres inyectar tu getter de token:
+          // getAuthToken={async () => await AsyncStorage.getItem('authToken')}
+          showSearch
+        />
+
+        <View style={styles.row}>
+          <View style={[styles.symbolBox, { backgroundColor: colors.cardSecondary }]}>
+            <Text style={[styles.switchLabel, { color: colors.text }]}>Símbolo:</Text>
+            <Text style={[styles.symbolValue, { color: colors.text }]}>{simbolo}</Text>
+          </View>
+        </View>
+
+        <View style={styles.smartInputContainer}>
+          <SmartInput
+            type="currency"
+            placeholder="Cantidad"
+            prefix={simbolo}
+            initialValue={cantidadNumerica || undefined}
+            {...getLimitesSubcuenta()}
+            onValueChange={handleCantidadChange}
+            onValidationChange={handleCantidadValidation}
+            showValidIcon={false}
+            style={StyleSheet.flatten([
+              { marginBottom: 10, backgroundColor: colors.inputBackground, borderRadius: 10 },
+            ])}
+            inputContainerStyle={StyleSheet.flatten([
+              {
+                borderRadius: 10,
+                borderWidth: 1,
+                borderColor: colors.border,
+                height: 44,
+                paddingHorizontal: 12,
+              },
+            ])}
+            inputStyle={StyleSheet.flatten([
+              { fontSize: 14, fontWeight: '500', color: colors.inputText },
+            ])}
+            autoFix
+          />
+        </View>
+
+        {erroresCantidad.length > 0 && (
+          <View style={styles.warningContainer}>
+            <Ionicons name="warning-outline" size={20} color="#F59E0B" />
+            <View style={styles.warningContent}>
+              <Text style={styles.warningTitle}>Cantidad alta</Text>
+              <Text style={styles.warningText}>
+                Cantidad: {" "}
+                <SmartNumber
+                  value={cantidadNumerica || 0}
+                  options={{ context: "modal", symbol: simbolo }}
+                />
+              </Text>
+              <Text style={styles.warningSubtext}>Revisa el monto antes de continuar.</Text>
+            </View>
+          </View>
+        )}
+
+        <Text style={[styles.switchLabel, { color: colors.text }]}>Color</Text>
+        <View style={styles.colorGrid}>
+          {presetColors.map((c) => (
+            <TouchableOpacity
+              key={c}
+              onPress={() => setColor(c)}
+              style={[
+                styles.colorCircle,
+                { backgroundColor: c, borderColor: c === color ? colors.text : colors.border },
+                c === color && styles.colorSelected,
+              ]}
+            />
+          ))}
+        </View>
+
+        <View style={styles.switchRow}>
+          <Text style={[styles.switchLabel, { color: colors.text }]}>¿Afecta cuenta principal?</Text>
+          <Switch 
+            value={afectaCuenta} 
+            onValueChange={setAfectaCuenta}
+            trackColor={{ false: colors.border, true: '#EF6C00' }}
+            thumbColor={afectaCuenta ? '#FF8F00' : '#F5F5F5'}
+          />
+        </View>
+
+        <TouchableOpacity
+          onPress={handleUpdate}
+          disabled={loading}
+          style={[styles.button, { backgroundColor: "#EF7725" }]}
+        >
+          <Text style={styles.buttonText}>
+            {loading ? "Guardando..." : "Guardar Cambios"}
+          </Text>
+        </TouchableOpacity>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+};
+
+const styles = StyleSheet.create({
+  modal: {
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 24,
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
+    maxHeight: SCREEN_HEIGHT * 0.95,
+  },
+  handle: {
+    width: 40,
+    height: 5,
+    borderRadius: 5,
+    alignSelf: "center",
+    marginBottom: 8,
+  },
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  title: {
+    fontSize: 18,
+    fontWeight: "600",
+  },
+  input: {
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    height: 44,
+    fontSize: 14,
+    borderWidth: 1,
+    marginBottom: 10,
+  },
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 6,
+  },
+  symbolBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 10,
+  },
+  symbolValue: {
+    fontSize: 16,
+    fontWeight: "600",
+    marginLeft: 4,
+  },
+  switchRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginVertical: 10,
+  },
+  switchLabel: { fontSize: 14 },
+  button: {
+    padding: 14,
+    borderRadius: 12,
+    alignItems: "center",
+    marginTop: 10,
+    marginBottom: 40,
+  },
+  buttonText: {
+    color: "#fff",
+    fontWeight: "600",
+  },
+  colorGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    marginTop: 10,
+  },
+  colorCircle: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    marginRight: 10,
+    marginBottom: 10,
+    borderWidth: 1,
+  },
+  colorSelected: {
+    borderWidth: 2,
+  },
+
+  // SmartInput & warnings
+  smartInputContainer: {
+    marginBottom: 0,
+  },
+  warningContainer: {
+    flexDirection: "row",
+    backgroundColor: "#FEF3C7",
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+    marginTop: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: "#F59E0B",
+  },
+  warningContent: {
+    flex: 1,
+    marginLeft: 8,
+  },
+  warningTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#92400E",
+    marginBottom: 4,
+  },
+  warningText: {
+    fontSize: 12,
+    color: "#92400E",
+    marginBottom: 2,
+  },
+  warningSubtext: {
+    fontSize: 11,
+    color: "#A16207",
+    fontStyle: "italic",
+  },
+});
+
+export default EditSubaccountModal;
