@@ -68,7 +68,8 @@ const RecurrentesList = ({
     const [allowedLimit, setAllowedLimit] = useState<number | null>(null);
     const [recurrentesWithPauseStatus, setRecurrentesWithPauseStatus] = useState<Recurrente[]>([]);
 
-    const snapshotMode = dashboardSnapshot != null && !esSubcuenta;
+    const isDashboardContext = dashboardSnapshot !== undefined && !esSubcuenta;
+    const snapshotMode = isDashboardContext && dashboardSnapshot != null;
 
     const [convertedTotal, setConvertedTotal] = useState<number | null>(null);
     const [convertedLoading, setConvertedLoading] = useState(false);
@@ -264,6 +265,10 @@ const RecurrentesList = ({
     }, [snapshotMode, dashboardSnapshot, debouncedSearch, page]);
 
     const fetchRecurrentes = async (forceFresh = false) => {
+        if (isDashboardContext) {
+            setLoading(false);
+            return;
+        }
         if (!userId) {
             console.log('📋 [RecurrentesList] Esperando userId antes de hacer fetch');
             return;
@@ -513,19 +518,19 @@ const RecurrentesList = ({
     }, [dashboardSnapshot?.recurrentesTotals, showRecurrentesTotals]);
 
     useEffect(() => {
-        if (snapshotMode) return;
+        if (isDashboardContext) return;
         const force = !!userId;
         fetchRecurrentes(force);
-    }, [page, debouncedSearch, userId, snapshotMode]);
+    }, [page, debouncedSearch, userId, isDashboardContext]);
 
     useEffect(() => {
-        if (snapshotMode) return;
+        if (isDashboardContext) return;
         if (refreshKey) {
             setPage(1);
             setDebouncedSearch("");
             fetchRecurrentes(true);
         }
-    }, [refreshKey, snapshotMode]);
+    }, [refreshKey, isDashboardContext]);
 
     const handleCreateSubmit = async (data: any) => {
         try {
