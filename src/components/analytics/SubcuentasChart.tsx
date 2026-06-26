@@ -2,9 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { analyticsService, EstadisticaSubcuenta, AnalyticsFilters } from '../../services/analyticsService';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { authService } from '../../services/authService';
 import { useThemeColors } from '../../theme/useThemeColors';
+import { getCachedAnalyticsSubcuentas, setCachedAnalyticsSubcuentas } from '../../services/analyticsCacheService';
 
 interface SubcuentasChartProps {
   filters: AnalyticsFilters;
@@ -36,6 +36,13 @@ const SubcuentasChart: React.FC<SubcuentasChartProps> = ({ filters, refreshKey =
   const loadData = async () => {
     try {
       setLoading(true);
+      const cached = await getCachedAnalyticsSubcuentas<EstadisticaSubcuenta[]>(
+        filters as unknown as Record<string, unknown>,
+      ).catch(() => null);
+      if (cached?.data?.length) {
+        setData(cached.data);
+        setLoading(false);
+      }
       
       const token = await authService.getAccessToken();
       if (!token) {
@@ -45,6 +52,7 @@ const SubcuentasChart: React.FC<SubcuentasChartProps> = ({ filters, refreshKey =
       
       const response = await analyticsService.getEstadisticasPorSubcuenta(filters);
       setData(response);
+      await setCachedAnalyticsSubcuentas(filters as unknown as Record<string, unknown>, response).catch(() => {});
     } catch (error: any) {
       // Do not force logout here. apiRateLimiter will refresh tokens on 401.
       // A 401 after refresh can also mean endpoint authorization, not session expiry.

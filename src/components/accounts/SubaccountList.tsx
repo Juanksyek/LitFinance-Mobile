@@ -53,7 +53,8 @@ const SubaccountsList: React.FC<Props> = ({ userId, refreshKey = 0, dashboardSna
   const [allowedLimit, setAllowedLimit] = useState<number | null>(null);
   const [subcuentasWithPauseStatus, setSubcuentasWithPauseStatus] = useState<Subcuenta[]>([]);
 
-  const snapshotMode = dashboardSnapshot != null;
+  const isDashboardContext = dashboardSnapshot !== undefined;
+  const snapshotMode = isDashboardContext && dashboardSnapshot != null;
 
   const subaccountsTotals = dashboardSnapshot?.subaccountsTotals;
   const showSubaccountsTotals =
@@ -320,7 +321,10 @@ const SubaccountsList: React.FC<Props> = ({ userId, refreshKey = 0, dashboardSna
   }, [snapshotMode, dashboardSnapshot, debouncedSearch, mostrarSoloActivas, page]);
 
   const fetchSubcuentas = async (forceFresh = false) => {
-    if (snapshotMode) return;
+    if (isDashboardContext) {
+      setLoading(false);
+      return;
+    }
     if (!userId) {
       console.log('💳 [SubaccountsList] Esperando userId antes de hacer fetch');
       return;
@@ -351,6 +355,8 @@ const SubaccountsList: React.FC<Props> = ({ userId, refreshKey = 0, dashboardSna
         soloActivas: mostrarSoloActivas,
         page,
         limit: LIMIT,
+      }, {
+        forceFresh,
       });
 
       // Verificar si fue abortado
@@ -359,12 +365,23 @@ const SubaccountsList: React.FC<Props> = ({ userId, refreshKey = 0, dashboardSna
         return;
       }
 
+      const payload = (data as any)?.data ?? data;
+      const items = Array.isArray(payload)
+        ? payload
+        : Array.isArray((payload as any)?.items)
+        ? (payload as any).items
+        : Array.isArray((payload as any)?.resultados)
+        ? (payload as any).resultados
+        : Array.isArray((payload as any)?.results)
+        ? (payload as any).results
+        : [];
+
       console.log('📥 [SubaccountsList] Respuesta recibida:', {
-        dataLength: Array.isArray(data) ? data.length : 'No es array',
+        dataLength: items.length,
         type: typeof data
       });
 
-      if (!Array.isArray(data)) {
+      if (!Array.isArray(items)) {
         console.error("❌ [SubaccountsList] Respuesta inválida:", data);
         if (isMountedRef.current && !signal.aborted) {
           setSubcuentas([]);
@@ -374,7 +391,7 @@ const SubaccountsList: React.FC<Props> = ({ userId, refreshKey = 0, dashboardSna
       }
 
       // rawData = respuesta sin filtrar
-      const rawData: Subcuenta[] = (Array.isArray(data) ? data : []).map((item: any) => ({
+      const rawData: Subcuenta[] = items.map((item: any) => ({
         _id: String(item?._id ?? item?.id ?? item?.subCuentaId ?? ''),
         subCuentaId: String(item?.subCuentaId ?? item?.id ?? item?._id ?? ''),
         nombre: String(item?.nombre ?? ''),
@@ -517,7 +534,7 @@ const SubaccountsList: React.FC<Props> = ({ userId, refreshKey = 0, dashboardSna
     }, 400);
 
     return () => clearTimeout(delay);
-  }, [page, debouncedSearch, refreshKey, mostrarSoloActivas, snapshotMode]);
+  }, [page, debouncedSearch, refreshKey, mostrarSoloActivas, isDashboardContext]);
 
 
 

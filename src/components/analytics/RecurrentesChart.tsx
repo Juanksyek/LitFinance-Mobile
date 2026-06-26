@@ -2,9 +2,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { analyticsService, EstadisticaRecurrente, AnalyticsFilters } from '../../services/analyticsService';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { authService } from '../../services/authService';
 import { useThemeColors } from '../../theme/useThemeColors';
+import { getCachedAnalyticsRecurrentes, setCachedAnalyticsRecurrentes } from '../../services/analyticsCacheService';
+import { userPreferencesService } from '../../services/userPreferencesService';
 
 interface RecurrentesChartProps {
   filters: AnalyticsFilters;
@@ -40,16 +41,8 @@ const RecurrentesChart: React.FC<RecurrentesChartProps> = ({ filters, refreshKey
 
   const loadUserCurrency = async () => {
     try {
-      const stored = await AsyncStorage.getItem('monedaPreferencia');
-      if (stored) {
-        let code = stored;
-        try {
-          const parsed = JSON.parse(stored);
-          if (typeof parsed === 'string') code = parsed;
-          else if (parsed?.codigo) code = parsed.codigo;
-        } catch {}
-        setUserCurrency(code || 'MXN');
-      }
+      const code = await userPreferencesService.getPreferredCurrency();
+      setUserCurrency(code || 'MXN');
     } catch {
       setUserCurrency('MXN');
     }
@@ -58,6 +51,13 @@ const RecurrentesChart: React.FC<RecurrentesChartProps> = ({ filters, refreshKey
   const loadData = async () => {
     try {
       setLoading(true);
+      const cached = await getCachedAnalyticsRecurrentes<EstadisticaRecurrente[]>(
+        filters as unknown as Record<string, unknown>,
+      ).catch(() => null);
+      if (cached?.data?.length) {
+        setData(cached.data);
+        setLoading(false);
+      }
       
       const token = await authService.getAccessToken();
       if (!token) {
@@ -67,6 +67,7 @@ const RecurrentesChart: React.FC<RecurrentesChartProps> = ({ filters, refreshKey
       
       const response = await analyticsService.getEstadisticasPorRecurrente(filters);
       setData(response);
+      await setCachedAnalyticsRecurrentes(filters as unknown as Record<string, unknown>, response).catch(() => {});
     } catch (error: any) {
       // Do not force logout here. apiRateLimiter will refresh tokens on 401.
       // A 401 after refresh can also mean endpoint authorization, not session expiry.

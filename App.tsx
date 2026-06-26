@@ -5,45 +5,34 @@ import AppNavigator from './src/navigation/AppNavigator';
 import Toast from 'react-native-toast-message';
 import { ThemeProvider } from './src/theme/ThemeContext';
 import { ConnectivityProvider } from './src/connectivity/ConnectivityContext';
-import { setupNotificationListeners } from './src/services/notificationService';
-import { authService } from './src/services/authService';
 import type { RootStackParamList } from './src/navigation/AppNavigator';
 import { StripeProvider } from '@stripe/stripe-react-native';
 import { STRIPE_PUBLISHABLE_KEY } from './src/constants/stripe';
-import { applyStoredAppIconVariant } from './src/services/appIconService';
 import { SafeAreaProvider, useSafeAreaInsets, initialWindowMetrics } from 'react-native-safe-area-context';
-import { KeyboardAvoidingView, Platform, View, StyleSheet, AppState, AppStateStatus, Keyboard, Linking } from 'react-native';
+import { KeyboardAvoidingView, Platform, View, StyleSheet, Keyboard, Linking } from 'react-native';
 import { TextInput } from 'react-native';
 import { useThemeColors } from './src/theme/useThemeColors';
 import { useTheme } from './src/theme/ThemeContext';
 import * as NavigationBar from 'expo-navigation-bar';
 import * as SystemUI from 'expo-system-ui';
 import { userProfileService } from './src/services/userProfileService';
-import { apiRateLimiter } from './src/services/apiRateLimiter';
 import UpgradeModal from './src/components/UpgradeModal';
 import ForceUpdateModal from './src/components/ForceUpdateModal';
 import OfflineBanner from './src/components/OfflineBanner';
 import { toastConfig } from './src/components/ThemedToast';
 import AppLockGate from './src/components/AppLockGate';
-import { offlineSyncService } from './src/services/offlineSyncService';
 import { assertValidEnvironment } from './src/core/config/env';
-import { mobileBootstrapService, type MobileAppVersionState } from './src/services/mobileBootstrapService';
-import { mobileSyncService } from './src/services/mobileSyncService';
-import { syncStatusService } from './src/services/syncStatusService';
+import type { MobileAppVersionState } from './src/services/mobileBootstrapService';
 import { logger } from './src/shared/monitoring/logger';
+import { AppLifecycleProvider } from './src/core/app/AppLifecycleProvider';
 
 assertValidEnvironment();
-
-const APP_START_TIMESTAMP = Date.now();
 
 export default function App() {
   const navigationRef = useRef<NavigationContainerRef<RootStackParamList>>(null);
   const [forceUpdateState, setForceUpdateState] = useState<MobileAppVersionState | null>(null);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [upgradeMessage, setUpgradeMessage] = useState<string | undefined>();
-  const [hasUsableBootstrapCache, setHasUsableBootstrapCache] = useState(false);
-  const appState = useRef(AppState.currentState);
-  const shownUpdateBannerRef = useRef(false);
 
   useEffect(() => {
     // Apply conservative default props to all TextInputs to reduce keyboard suggestion/autofill UI
@@ -86,198 +75,12 @@ export default function App() {
       // expo-clipboard not installed or require blocked: silently ignore
     }
 
-    // Apply stored launcher icon (Android)
-    applyStoredAppIconVariant().catch(() => {});
-
-    // Register upgrade modal controller with apiRateLimiter
-    apiRateLimiter.setUpgradeModalController((show: boolean, message?: string) => {
-      setShowUpgradeModal(show);
-      setUpgradeMessage(message);
-    });
-
-    // Bootstrap tokens (load from storage + refresh if near-expiry), then refresh profile.
-    bootstrapSession();
-
-    // Start offline sync listener (legacy queue) and mobile sync orchestration.
-    offlineSyncService.init();
-    mobileSyncService.init();
-
-    // Listen to app state changes (foreground/background)
-    const subscription = AppState.addEventListener('change', handleAppStateChange);
-
-    // Register logout handler: navigate to Login when session expires
-    const unregisterLogout = authService.onLogout(() => {
-      logger.warn('[App] Sesion expirada; redirigiendo a Login');
-      Toast.show({
-        type: 'error',
-        text1: 'Sesión expirada',
-        text2: 'Por favor inicia sesión nuevamente.',
-        visibilityTime: 3000,
-      });
-      if (navigationRef.current?.isReady()) {
-        navigationRef.current.navigate('Login');
-      }
-    });
-
-    // Setup listeners para notificaciones
-    const cleanup = setupNotificationListeners(
-      // Cuando llega notificación (app abierta)
-      (notification) => {
-        const data = notification.request.content.data as any;
-        logger.info('[App] Notificacion recibida', {
-          hasBody: Boolean(notification.request.content.body),
-          hasTitle: Boolean(notification.request.content.title),
-          tipo: data?.tipo,
-        });
-        
-        // Mostrar toast con la notificación
-        Toast.show({
-          type: data?.tipo === 'error' ? 'error' : 'info',
-          text1: notification.request.content.title as string,
-          text2: notification.request.content.body as string,
-          visibilityTime: 4000,
-          onPress: () => {
-            // Si el usuario tapea el toast, navegar
-            handleNotificationNavigation(data);
-          },
-        });
-      },
-      // Cuando usuario tapea notificación
-      (response) => {
-        const data = response.notification.request.content.data as any;
-        logger.info('[App] Notificacion abierta', {
-          ticketId: data?.ticketId,
-          tipo: data?.tipo,
-        });
-        handleNotificationNavigation(data);
-      }
-    );
-
     return () => {
-      cleanup();
-      unregisterLogout();
-      subscription?.remove();
       try {
         showSub.remove();
       } catch {}
-
-      // Stop NetInfo listener when app root unmounts
-      offlineSyncService.stop();
-      mobileSyncService.stop();
     };
   }, []);
-
-  const applyVersionState = (versionState: MobileAppVersionState | null) => {
-    setForceUpdateState(versionState?.forceUpdate ? versionState : null);
-
-    if (versionState?.updateAvailable && !versionState.forceUpdate && !shownUpdateBannerRef.current) {
-      shownUpdateBannerRef.current = true;
-      Toast.show({
-        type: 'info',
-        text1: 'Nueva versión disponible',
-        text2: versionState.latestVersion
-          ? `Actualiza a la versión ${versionState.latestVersion} cuando te sea posible.`
-          : 'Hay una actualización disponible.',
-      });
-    }
-  };
-
-  const primeCachedBootstrapState = async () => {
-    try {
-      const cached = await mobileBootstrapService.getCached();
-      const hasCachedData = Boolean(cached?.data);
-      setHasUsableBootstrapCache(hasCachedData);
-      if (cached?.data?.app) {
-        applyVersionState(cached.data.app);
-      }
-      return hasCachedData;
-    } catch {
-      setHasUsableBootstrapCache(false);
-      return false;
-    }
-  };
-
-  const runMobileBootstrap = async () => {
-    const bootstrapStartedAt = Date.now();
-    syncStatusService.markBootstrapStart();
-    try {
-      const token = await authService.getAccessToken({ allowRefresh: true });
-      if (!token) {
-        syncStatusService.markBootstrapError('No hay sesión activa.', Date.now() - bootstrapStartedAt);
-        return;
-      }
-
-      const { version } = await mobileBootstrapService.fetchAndPersist();
-      setHasUsableBootstrapCache(true);
-      applyVersionState(version);
-      syncStatusService.markBootstrapSuccess(Date.now() - bootstrapStartedAt);
-    } catch (error: any) {
-      if (error?.code === 'APP_VERSION_UNSUPPORTED') {
-        setHasUsableBootstrapCache(true);
-        applyVersionState({
-          build: error?.details?.build ?? null,
-          forceUpdate: true,
-          latestVersion: error?.details?.latestVersion ?? null,
-          minVersion: error?.details?.minRequiredVersion ?? null,
-          storeUrl: error?.details?.storeUrl ?? null,
-        });
-        syncStatusService.markBootstrapSuccess(Date.now() - bootstrapStartedAt);
-        return;
-      }
-
-      const hasCache = await primeCachedBootstrapState();
-      if (!hasCache) {
-        Toast.show({
-          type: 'error',
-          text1: 'No se pudo inicializar la app',
-          text2: 'Intenta nuevamente cuando tengas conexión.',
-        });
-      }
-      syncStatusService.markBootstrapError(error?.message || 'No se pudo ejecutar bootstrap.', Date.now() - bootstrapStartedAt);
-    }
-  };
-
-  const refreshUserProfile = async () => {
-    try {
-      const token = await authService.getAccessToken();
-      if (token) {
-        logger.info('[App] Refrescando perfil de usuario');
-        await userProfileService.fetchAndUpdateProfile();
-      }
-    } catch (error) {
-      logger.warn('[App] Error refrescando perfil', {
-        message: (error as any)?.message,
-      });
-    }
-  };
-
-  const bootstrapSession = async () => {
-    try {
-      await primeCachedBootstrapState();
-      // This will load stored token, re-arm proactive refresh timers, and refresh if expiring.
-      await authService.getAccessToken({ allowRefresh: true });
-    } catch (e) {
-      // authService handles logout triggering internally if refresh fails.
-      logger.warn('[App] Error bootstrapping session', {
-        message: (e as any)?.message,
-      });
-    } finally {
-      await refreshUserProfile();
-      await runMobileBootstrap();
-      await mobileSyncService.syncNow('session_bootstrap').catch(() => {});
-      syncStatusService.markAppStartupComplete(Date.now() - APP_START_TIMESTAMP);
-    }
-  };
-
-  const handleAppStateChange = (nextAppState: AppStateStatus) => {
-    if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
-      logger.info('[App] App volvio a foreground; refrescando perfil');
-      // Try to refresh tokens on resume to prevent surprise 401s.
-      bootstrapSession();
-    }
-    mobileSyncService.onAppStateChange(nextAppState);
-    appState.current = nextAppState;
-  };
 
   // Manejar navegación según tipo de notificación
   const handleNotificationNavigation = (data: any) => {
@@ -362,30 +165,40 @@ export default function App() {
     <StripeProvider publishableKey={STRIPE_PUBLISHABLE_KEY} urlScheme="litfinance">
       <ThemeProvider>
         <ConnectivityProvider>
-          <SafeAreaProvider initialMetrics={initialWindowMetrics}>
-            <NavigationContainer ref={navigationRef}>
-              <AppRootLayout routeName={navigationRef.current?.getCurrentRoute?.()?.name}>
-                <AppNavigator />
-              </AppRootLayout>
-              <UpgradeModal
-                visible={showUpgradeModal}
-                onClose={() => setShowUpgradeModal(false)}
-                message={upgradeMessage}
-              />
-              <ForceUpdateModal
-                visible={Boolean(forceUpdateState?.forceUpdate)}
-                build={forceUpdateState?.build ?? null}
-                latestVersion={forceUpdateState?.latestVersion ?? null}
-                message={
-                  forceUpdateState?.minVersion
-                    ? `Necesitas actualizar la app para continuar. Se requiere al menos la versión ${forceUpdateState.minVersion}.`
-                    : undefined
-                }
-                minVersion={forceUpdateState?.minVersion ?? null}
-                storeUrl={forceUpdateState?.storeUrl ?? null}
-              />
-            </NavigationContainer>
-          </SafeAreaProvider>
+          <AppLifecycleProvider
+            navigationRef={navigationRef}
+            onNotificationNavigate={handleNotificationNavigation}
+            onUpgradeModalChange={(show, message) => {
+              setShowUpgradeModal(show);
+              setUpgradeMessage(message);
+            }}
+            onVersionStateChange={setForceUpdateState}
+          >
+            <SafeAreaProvider initialMetrics={initialWindowMetrics}>
+              <NavigationContainer ref={navigationRef}>
+                <AppRootLayout routeName={navigationRef.current?.getCurrentRoute?.()?.name}>
+                  <AppNavigator />
+                </AppRootLayout>
+                <UpgradeModal
+                  visible={showUpgradeModal}
+                  onClose={() => setShowUpgradeModal(false)}
+                  message={upgradeMessage}
+                />
+                <ForceUpdateModal
+                  visible={Boolean(forceUpdateState?.forceUpdate)}
+                  build={forceUpdateState?.build ?? null}
+                  latestVersion={forceUpdateState?.latestVersion ?? null}
+                  message={
+                    forceUpdateState?.minVersion
+                      ? `Necesitas actualizar la app para continuar. Se requiere al menos la versión ${forceUpdateState.minVersion}.`
+                      : undefined
+                  }
+                  minVersion={forceUpdateState?.minVersion ?? null}
+                  storeUrl={forceUpdateState?.storeUrl ?? null}
+                />
+              </NavigationContainer>
+            </SafeAreaProvider>
+          </AppLifecycleProvider>
         </ConnectivityProvider>
         <Toast
           config={toastConfig}

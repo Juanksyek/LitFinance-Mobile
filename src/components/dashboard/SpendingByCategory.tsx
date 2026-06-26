@@ -31,6 +31,14 @@ function fmtAmount(amount: number, moneda: string | undefined | null): string {
   return `${sym}${amount.toFixed(2)}`;
 }
 
+function getSnapshotRange(snapshot: DashboardSnapshot | null): DashboardRange | null {
+  const selected = snapshot?.meta?.ranges?.selected;
+  if (selected) return selected as DashboardRange;
+
+  const chartRange = snapshot?.chartAggregates?.range;
+  return chartRange ? (chartRange as DashboardRange) : null;
+}
+
 interface Props {
   /** Initial snapshot from the parent. Component manages its own range independently. */
   initialSnapshot: DashboardSnapshot | null;
@@ -53,10 +61,15 @@ export default function SpendingByCategory({ initialSnapshot, onViewAll }: Props
     return () => { mountedRef.current = false; };
   }, []);
 
-  // Sync initial snapshot on first mount
+  // Keep dashboard-provided snapshots fresh without overwriting a user-selected range.
   useEffect(() => {
-    if (initialSnapshot && !snapshot) setSnapshot(initialSnapshot);
-  }, [initialSnapshot]);
+    if (!initialSnapshot) return;
+
+    const incomingRange = getSnapshotRange(initialSnapshot) ?? 'month';
+    if (incomingRange !== range) return;
+
+    setSnapshot(initialSnapshot);
+  }, [initialSnapshot, range]);
 
   const fetchForRange = useCallback(async (r: DashboardRange) => {
     if (abortRef.current) abortRef.current.abort();
@@ -76,6 +89,11 @@ export default function SpendingByCategory({ initialSnapshot, onViewAll }: Props
 
   const handleRangePress = (r: DashboardRange) => {
     setRange(r);
+    const incomingRange = getSnapshotRange(initialSnapshot) ?? 'month';
+    if (initialSnapshot && incomingRange === r) {
+      setSnapshot(initialSnapshot);
+      return;
+    }
     void fetchForRange(r);
   };
 

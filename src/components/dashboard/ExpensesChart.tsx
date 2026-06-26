@@ -142,8 +142,9 @@ const ExpensesChart: React.FC<ExpensesChartProps> = ({ refreshKey = 0, dashboard
   useEffect(() => {
     // Snapshot mode: only skip fetch when snapshot matches current selection
     if (canUseSnapshotData) return;
+    if (isDashboardContext && !dashboardSnapshot) return;
     fetchAnalyticsData();
-  }, [periodoSeleccionado, tipoSeleccionado, refreshKey, canUseSnapshotData]);
+  }, [periodoSeleccionado, tipoSeleccionado, refreshKey, canUseSnapshotData, isDashboardContext, dashboardSnapshot]);
 
   useEffect(() => {
     if (!dashboardSnapshot) return;
