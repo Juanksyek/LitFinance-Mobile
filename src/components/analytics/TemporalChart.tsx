@@ -5,6 +5,7 @@ import { analyticsService, AnalisisTemporal, AnalyticsFilters } from '../../serv
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { authService } from '../../services/authService';
 import { useThemeColors } from '../../theme/useThemeColors';
+import { getCachedAnalyticsTemporal, setCachedAnalyticsTemporal } from '../../services/analyticsCacheService';
 
 interface TemporalChartProps {
   filters: AnalyticsFilters;
@@ -68,6 +69,11 @@ const TemporalChart: React.FC<TemporalChartProps> = ({ filters, refreshKey = 0 }
   const loadData = async () => {
     try {
       setLoading(true);
+      const cached = await getCachedAnalyticsTemporal<AnalisisTemporal>(filters as unknown as Record<string, unknown>).catch(() => null);
+      if (cached?.data) {
+        setData(cached.data);
+        setLoading(false);
+      }
       // Cancel previous request if any
       if (abortControllerRef.current) abortControllerRef.current.abort();
       abortControllerRef.current = new AbortController();
@@ -80,7 +86,10 @@ const TemporalChart: React.FC<TemporalChartProps> = ({ filters, refreshKey = 0 }
       }
 
       const response = await analyticsService.getAnalisisTemporal(filters, signal);
-      if (!signal.aborted) setData(response);
+      if (!signal.aborted) {
+        setData(response);
+        await setCachedAnalyticsTemporal(filters as unknown as Record<string, unknown>, response).catch(() => {});
+      }
     } catch (error: any) {
       // Do not force logout here. apiRateLimiter will refresh tokens on 401.
       // A 401 after refresh can also mean endpoint authorization, not session expiry.
