@@ -10,6 +10,7 @@ import type { DashboardSnapshot } from '../types/dashboardSnapshot';
 import { unregisterPushNotifications } from "../services/notificationService";
 import { authService } from '../services/authService';
 import { userProfileService } from '../services/userProfileService';
+import { userPreferencesService } from "../../services/userPreferencesService";
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 const isTablet = screenWidth >= 700;
@@ -64,7 +65,7 @@ const Header = ({ dashboardSnapshot }: { dashboardSnapshot?: DashboardSnapshot |
       const next = (raw?.nombre || raw?.name || '').toString().trim();
       if (!next) return;
       try {
-        await AsyncStorage.setItem('userDisplayName', next);
+        await userPreferencesService.setUserDisplayName(next);
       } catch (e) {
         // ignore storage errors
       }
@@ -78,7 +79,7 @@ const Header = ({ dashboardSnapshot }: { dashboardSnapshot?: DashboardSnapshot |
         if (viewerName && mounted) {
           setNombre(viewerName);
           try {
-            await AsyncStorage.setItem('userDisplayName', viewerName.toString());
+            await userPreferencesService.setUserDisplayName(viewerName.toString());
           } catch {}
         }
       } catch {}
@@ -87,7 +88,7 @@ const Header = ({ dashboardSnapshot }: { dashboardSnapshot?: DashboardSnapshot |
     const refreshNombre = async () => {
       // First try local storage for instant display
       try {
-        const stored = await AsyncStorage.getItem('userDisplayName');
+        const stored = await userPreferencesService.getUserDisplayName();
         if (stored && mounted) setNombre(stored);
       } catch {}
 
@@ -104,10 +105,14 @@ const Header = ({ dashboardSnapshot }: { dashboardSnapshot?: DashboardSnapshot |
 
     refreshNombre();
     const unsubscribe = (navigation as any)?.addListener?.('focus', refreshNombre);
+    const unsubscribePreference = userPreferencesService.subscribe('userDisplayName', () => {
+      void refreshNombre();
+    });
 
     return () => {
       mounted = false;
       if (typeof unsubscribe === 'function') unsubscribe();
+      unsubscribePreference();
     };
   }, [navigation]);
 
