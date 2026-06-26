@@ -2,10 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, Modal, StyleSheet, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { formatCurrency, FormatOptions } from '../utils/numberFormatter';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import Toast from 'react-native-toast-message';
 // Eliminado: CurrencyChangeModal y CurrencyField
 import { useThemeColors } from '../theme/useThemeColors';
+import { userPreferencesService } from '../../services/userPreferencesService';
 
 interface SmartNumberProps {
   value: number | undefined | null;
@@ -35,20 +35,16 @@ const SmartNumber: React.FC<SmartNumberProps> = ({
   const effectiveColor = color || colors.text;
 
   useEffect(() => {
-    loadNumberPreference();
-    
-    // Listener para cambios en la preferencia
-    const checkInterval = setInterval(() => {
-      loadNumberPreference();
-    }, 500);
-    
-    return () => clearInterval(checkInterval);
+    void loadNumberPreference();
+    return userPreferencesService.subscribe('showFullNumbers', () => {
+      void loadNumberPreference();
+    });
   }, []);
 
   const loadNumberPreference = async () => {
     try {
-      const preference = await AsyncStorage.getItem('showFullNumbers');
-      setShowFullNumbers(preference === 'true');
+      const preference = await userPreferencesService.getShowFullNumbers();
+      setShowFullNumbers(preference);
     } catch (error) {
       console.error('Error cargando preferencia de números en SmartNumber:', error);
     }
