@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, Animated, LayoutAnimation, Platform, UIManager, ActivityIndicator } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import AccountSettingsModal from "./AccountSettingsModal";
 import SmartNumber from "./SmartNumber";
 import Toast from "react-native-toast-message";
@@ -110,6 +111,8 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
     if (isMountedRef.current) {
       setSaldo(Number(summary.saldo ?? 0));
       setMonedaActual(String(summary.moneda ?? 'MXN'));
+      setIngresos(Number(summary.ingresosPeriodo ?? 0));
+      setEgresos(Math.abs(Number(summary.egresosPeriodo ?? 0)));
       setIsLoadingFresh(false);
     }
   }, [dashboardSnapshot]);
@@ -397,7 +400,9 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
     // removed verbose debug log
     try {
       if (isDashboardContext) {
-        await fetchBalanceCardDashboard();
+        if (periodo !== 'mes') {
+          await fetchBalanceCardDashboard();
+        }
       } else {
         await Promise.all([
           fetchDatosCuenta(),
@@ -427,7 +432,7 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
       
       while (retries < maxRetries) {
         try {
-          const responseData = await accountOperationsService.getCuentaPrincipal();
+          const responseData = await accountOperationsService.getCuentaPrincipal({ forceFresh: true });
           const currentBackendCurrency = responseData.moneda;
           if (currentBackendCurrency === nuevaMoneda) {
             setMonedaActual(currentBackendCurrency); // Asegurar sincronización
@@ -481,6 +486,7 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
 
   useEffect(() => {
     if (isDashboardContext) {
+      if (periodo === 'mes') return;
       fetchBalanceCardDashboard();
       return;
     }
