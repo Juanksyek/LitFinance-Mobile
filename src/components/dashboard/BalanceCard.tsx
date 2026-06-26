@@ -1,12 +1,12 @@
 import React, { useEffect, useRef, useState } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, Animated, LayoutAnimation, Platform, UIManager, ActivityIndicator } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import AccountSettingsModal from "./AccountSettingsModal";
 import SmartNumber from "./SmartNumber";
 import Toast from "react-native-toast-message";
 import { useThemeColors } from "../theme/useThemeColors";
 import { dashboardService } from "../services/dashboardService";
+import { getCachedMainAccountBalance, mergeCachedMainAccountBalance } from "../../shared/state";
 import type { DashboardSnapshot } from "../types/dashboardSnapshot";
 import { accountOperationsService } from "../../services/accountOperationsService";
 
@@ -68,15 +68,12 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
     // 🚀 Cargar datos cacheados inmediatamente para mostrar algo al usuario
     const loadCachedData = async () => {
       try {
-        const cached = await AsyncStorage.getItem('balance_cache');
-        if (cached) {
-          const data = JSON.parse(cached);
-          if (isMountedRef.current && data.saldo !== undefined) {
-            setSaldo(data.saldo || 0);
-            setMonedaActual(data.moneda || 'MXN');
-            setIngresos(data.ingresos || 0);
-            setEgresos(data.egresos || 0);
-          }
+        const cached = await getCachedMainAccountBalance();
+        if (isMountedRef.current && cached.saldo !== null) {
+          setSaldo(cached.saldo || 0);
+          setMonedaActual(cached.moneda || 'MXN');
+          setIngresos(cached.ingresos || 0);
+          setEgresos(cached.egresos || 0);
         }
       } catch (err) {
         // cache miss — ignore
@@ -217,11 +214,10 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
         
         // 💾 Guardar en cache para próxima carga instantánea
         try {
-          await AsyncStorage.setItem('balance_cache', JSON.stringify({
+          await mergeCachedMainAccountBalance({
             saldo: nuevoSaldo,
             moneda: nuevaMoneda,
-            timestamp: Date.now()
-          }));
+          });
         } catch {}
       }
     } catch (err: any) {
@@ -324,14 +320,10 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
         
         // 💾 Actualizar cache con totales de transacciones
         try {
-          const current = await AsyncStorage.getItem('balance_cache');
-          const data = current ? JSON.parse(current) : {};
-          await AsyncStorage.setItem('balance_cache', JSON.stringify({
-            ...data,
+          await mergeCachedMainAccountBalance({
             ingresos: ingresoTotal,
             egresos: egresoTotal,
-            timestamp: Date.now()
-          }));
+          });
         } catch {}
       }
     } catch (err: any) {
