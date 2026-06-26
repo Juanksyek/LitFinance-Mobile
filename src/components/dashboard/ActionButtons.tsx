@@ -13,6 +13,7 @@ import { emitRecurrentesChanged, emitSubcuentasChanged, dashboardRefreshBus } fr
 import { logger } from '../../shared/monitoring/logger';
 import { accountDashboardService } from '../../services/accountDashboardService';
 import type { DashboardSnapshot } from '../../types/dashboardSnapshot';
+import { getCachedSessionSnapshot } from '../../shared/state';
 
 const actions: { icon: "arrow-up-outline" | "arrow-down-outline" | "add-outline" | "refresh-outline" | "stats-chart-outline" | "swap-horizontal-outline", label: string }[] = [
   { icon: "arrow-up-outline", label: "Ingreso" },
@@ -49,6 +50,7 @@ const ActionButtons = ({
   dashboardSnapshot,
 }: ActionButtonsProps) => {
   const colors = useThemeColors();
+  const ACTION_BUTTONS_DEBUG_PREFIX = '[ActionButtons]';
 
   const [modalVisible, setModalVisible] = useState(false);
   const [subcuentaModalVisible, setSubcuentaModalVisible] = useState(false);
@@ -68,19 +70,45 @@ const ActionButtons = ({
   const [canCreateSubcuenta, setCanCreateSubcuenta] = useState(true);
   const [canCreateRecurrente, setCanCreateRecurrente] = useState(true);
   const [canAccessAnalytics, setCanAccessAnalytics] = useState(true);
+  const isDashboardContext = dashboardSnapshot !== undefined && !isSubcuenta;
   
   // Fetch counts and premium status
   const fetchCounts = useCallback(async () => {
-    if (!userId) return;
+    let effectiveUserId = String(userId ?? '').trim();
+    console.log(`${ACTION_BUTTONS_DEBUG_PREFIX} fetchCounts:start`, {
+      propUserId: userId,
+      cuentaId,
+      isSubcuenta,
+      subcuenta,
+      isDashboardContext,
+    });
+    if (!effectiveUserId) {
+      try {
+        const snapshot = await getCachedSessionSnapshot();
+        effectiveUserId = String(snapshot.userId ?? '').trim();
+        console.log(`${ACTION_BUTTONS_DEBUG_PREFIX} fetchCounts:sessionFallback`, {
+          snapshotUserId: snapshot.userId,
+          effectiveUserId,
+        });
+      } catch {
+        effectiveUserId = '';
+      }
+    }
 
-    // Snapshot mode (Dashboard): derive limits from snapshot meta to avoid extra calls
-    if (dashboardSnapshot != null) {
-      // While snapshot is still loading (null), keep actions enabled by default.
+    if (!effectiveUserId) return;
+
+    // Dashboard mode: DashboardScreen owns the snapshot. Do not fan out to counts endpoints
+    // while the snapshot is still loading.
+    if (isDashboardContext) {
+      console.log(`${ACTION_BUTTONS_DEBUG_PREFIX} fetchCounts:dashboardSnapshotMode`, {
+        hasMeta: Boolean(dashboardSnapshot?.meta),
+        subaccountsSummaryLength: Array.isArray(dashboardSnapshot?.subaccountsSummary) ? dashboardSnapshot?.subaccountsSummary.length : null,
+        recurrentesSummaryLength: Array.isArray(dashboardSnapshot?.recurrentesSummary) ? dashboardSnapshot?.recurrentesSummary.length : null,
+      });
       if (!dashboardSnapshot?.meta) {
-        setLimitsChecked(true);
+        setLimitsChecked(false);
         setCanCreateSubcuenta(true);
         setCanCreateRecurrente(true);
-        // Analytics is premium-only; keep it locked until we know the plan.
         setCanAccessAnalytics(false);
         return;
       }
@@ -119,35 +147,46 @@ const ActionButtons = ({
       setIsPremium(planType === 'premium_plan');
       
       const subcuentasCountValue = await accountDashboardService.getSubcuentasCount();
+      console.log(`${ACTION_BUTTONS_DEBUG_PREFIX} fetchCounts:subcuentasCount`, {
+        subcuentasCountValue,
+      });
       setSubcuentasCount(subcuentasCountValue);
       
-      const recurrentesCountValue = await accountDashboardService.getRecurrentesCount(userId);
+      const recurrentesCountValue = await accountDashboardService.getRecurrentesCount(effectiveUserId);
+      console.log(`${ACTION_BUTTONS_DEBUG_PREFIX} fetchCounts:recurrentesCount`, {
+        recurrentesCountValue,
+        effectiveUserId,
+      });
       setRecurrentesCount(recurrentesCountValue);
       
       // Check backend limits dynamically
-      const subcuentaGate = await canPerform('subcuenta', { userId, currentCount: subcuentasCountValue });
+      const subcuentaGate = await canPerform('subcuenta', { userId: effectiveUserId, currentCount: subcuentasCountValue });
+      console.log(`${ACTION_BUTTONS_DEBUG_PREFIX} fetchCounts:subcuentaGate`, subcuentaGate);
       setCanCreateSubcuenta(subcuentaGate.allowed);
       
-      const recurrenteGate = await canPerform('recurrente', { userId, currentCount: recurrentesCountValue });
+      const recurrenteGate = await canPerform('recurrente', { userId: effectiveUserId, currentCount: recurrentesCountValue });
+      console.log(`${ACTION_BUTTONS_DEBUG_PREFIX} fetchCounts:recurrenteGate`, recurrenteGate);
       setCanCreateRecurrente(recurrenteGate.allowed);
       
       const analyticsGate = await canPerform('grafica');
+      console.log(`${ACTION_BUTTONS_DEBUG_PREFIX} fetchCounts:analyticsGate`, analyticsGate);
       setCanAccessAnalytics(analyticsGate.allowed);
       
       setLimitsChecked(true);
     } catch (error) {
       logger.error('[ActionButtons] Error fetching counts', {
         message: error instanceof Error ? error.message : String(error),
+        userId: effectiveUserId,
       });
     }
-  }, [userId, dashboardSnapshot]);
+  }, [userId, dashboardSnapshot, isDashboardContext]);
   
   // Initial fetch and listeners
   useEffect(() => {
     fetchCounts();
 
-    // In snapshot mode, DashboardScreen will refresh snapshot and re-render.
-    if (dashboardSnapshot != null) return;
+    // In dashboard mode, DashboardScreen refreshes the snapshot and re-renders this component.
+    if (isDashboardContext) return;
 
     // Listen to subcuentas/recurrentes changes only when we rely on network counts
     const offSub = dashboardRefreshBus.on('subcuentas:changed', fetchCounts);
@@ -157,7 +196,7 @@ const ActionButtons = ({
       offSub();
       offRec();
     };
-  }, [fetchCounts, dashboardSnapshot]);
+  }, [fetchCounts, isDashboardContext]);
 
   const visibleActions = actions.filter(action => {
     if (isSubcuenta && action.label === 'Subcuenta') return false;
