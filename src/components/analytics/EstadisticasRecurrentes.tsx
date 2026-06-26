@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, FlatList } from 'react-native';
 import type { EstadisticaRecurrente } from '../../types/analytics';
 import { useThemeColors } from '../../theme/useThemeColors';
+import { userPreferencesService } from '../../services/userPreferencesService';
 
 interface EstadisticasRecurrentesProps {
   data: EstadisticaRecurrente[];
@@ -18,20 +19,10 @@ const EstadisticasRecurrentes: React.FC<EstadisticasRecurrentesProps> = ({
   const [userCurrency, setUserCurrency] = useState<string>('MXN');
 
   useEffect(() => {
-    // Obtener la moneda preferida del usuario desde AsyncStorage
     (async () => {
       try {
-        const stored = await (await import('@react-native-async-storage/async-storage')).default.getItem('monedaPreferencia');
-        if (stored) {
-          let code = stored;
-          // Si está guardado como objeto JSON
-          try {
-            const parsed = JSON.parse(stored);
-            if (typeof parsed === 'string') code = parsed;
-            else if (parsed?.codigo) code = parsed.codigo;
-          } catch {}
-          setUserCurrency(code || 'MXN');
-        }
+        const code = await userPreferencesService.getPreferredCurrency();
+        setUserCurrency(code || 'MXN');
       } catch {
         setUserCurrency('MXN');
       }
