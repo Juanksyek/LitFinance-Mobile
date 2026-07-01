@@ -1,3 +1,3 @@
-import Constants from 'expo-constants';
+import { env } from '../core/config/env';
 
-export const API_BASE_URL = Constants.expoConfig?.extra?.API_BASE_URL || 'https://litfinance-api-production.up.railway.app';
+export const API_BASE_URL = env.API_BASE_URL;
