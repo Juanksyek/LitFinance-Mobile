@@ -41,6 +41,7 @@ export default ({ config }) => ({
     ...(config.plugins ?? []),
     'expo-asset',
     'expo-secure-store',
+    'expo-sqlite',
     [
       'expo-notifications',
       {
