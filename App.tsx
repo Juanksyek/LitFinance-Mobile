@@ -25,6 +25,7 @@ import { assertValidEnvironment } from './src/core/config/env';
 import type { MobileAppVersionState } from './src/services/mobileBootstrapService';
 import { logger } from './src/shared/monitoring/logger';
 import { AppLifecycleProvider } from './src/core/app/AppLifecycleProvider';
+import { DEFAULT_FULL_CONFIG, versionConfigService, type VersionConfig } from './src/services/versionConfigService';
 
 assertValidEnvironment();
 
@@ -33,6 +34,12 @@ export default function App() {
   const [forceUpdateState, setForceUpdateState] = useState<MobileAppVersionState | null>(null);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [upgradeMessage, setUpgradeMessage] = useState<string | undefined>();
+  const [versionConfig, setVersionConfig] = useState<VersionConfig>(DEFAULT_FULL_CONFIG);
+
+  const isLiteMode = versionConfig.mode === 'lite';
+  const stripeEnabled = Boolean(versionConfig.features.stripe);
+  const premiumEnabled = Boolean(versionConfig.features.premium);
+  const pushNotificationsEnabled = Boolean(versionConfig.features.pushNotifications);
 
   useEffect(() => {
     // Apply conservative default props to all TextInputs to reduce keyboard suggestion/autofill UI
@@ -82,6 +89,23 @@ export default function App() {
     };
   }, []);
 
+  useEffect(() => {
+    let mounted = true;
+    versionConfigService
+      .fetchAndPersist()
+      .then((config) => {
+        if (mounted) setVersionConfig(config);
+      })
+      .catch(() => versionConfigService.getConfig())
+      .then((config) => {
+        if (mounted && config) setVersionConfig(config);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   // Manejar navegación según tipo de notificación
   const handleNotificationNavigation = (data: any) => {
     if (!navigationRef.current || !data?.tipo) return;
@@ -114,6 +138,10 @@ export default function App() {
           break;
 
         case 'analytics':
+          if (isLiteMode || !versionConfig.features.advancedAnalytics) {
+            navigationRef.current.navigate('Dashboard');
+            break;
+          }
           // Check premium before navigating to Analytics
           (async () => {
             try {
@@ -134,6 +162,10 @@ export default function App() {
           break;
 
         case 'soporte':
+          if (isLiteMode) {
+            navigationRef.current.navigate('Dashboard');
+            break;
+          }
           // Navegar a Soporte
           if (navigationRef.current.isReady()) {
             navigationRef.current.navigate('Support');
@@ -141,6 +173,10 @@ export default function App() {
           break;
 
         case 'ticket':
+          if (isLiteMode || !versionConfig.features.ocr) {
+            navigationRef.current.navigate('Dashboard');
+            break;
+          }
           // Si incluye ticketId, navegar al detalle
           if (data.ticketId) {
             navigationRef.current.navigate('TicketDetail', { ticketId: data.ticketId });
@@ -161,16 +197,20 @@ export default function App() {
     }
   };
 
-  return (
-    <StripeProvider publishableKey={STRIPE_PUBLISHABLE_KEY} urlScheme="litfinance">
+  const appTree = (
       <ThemeProvider>
         <ConnectivityProvider>
           <AppLifecycleProvider
+            enableLegacyMobileRuntime={!isLiteMode}
+            enablePushNotifications={pushNotificationsEnabled}
+            enableUpgradePrompts={premiumEnabled}
             navigationRef={navigationRef}
             onNotificationNavigate={handleNotificationNavigation}
             onUpgradeModalChange={(show, message) => {
-              setShowUpgradeModal(show);
-              setUpgradeMessage(message);
+              if (premiumEnabled) {
+                setShowUpgradeModal(show);
+                setUpgradeMessage(message);
+              }
             }}
             onVersionStateChange={setForceUpdateState}
           >
@@ -179,11 +219,13 @@ export default function App() {
                 <AppRootLayout routeName={navigationRef.current?.getCurrentRoute?.()?.name}>
                   <AppNavigator />
                 </AppRootLayout>
-                <UpgradeModal
-                  visible={showUpgradeModal}
-                  onClose={() => setShowUpgradeModal(false)}
-                  message={upgradeMessage}
-                />
+                {premiumEnabled ? (
+                  <UpgradeModal
+                    visible={showUpgradeModal}
+                    onClose={() => setShowUpgradeModal(false)}
+                    message={upgradeMessage}
+                  />
+                ) : null}
                 <ForceUpdateModal
                   visible={Boolean(forceUpdateState?.forceUpdate)}
                   build={forceUpdateState?.build ?? null}
@@ -204,8 +246,17 @@ export default function App() {
           config={toastConfig}
         />
       </ThemeProvider>
-    </StripeProvider>
   );
+
+  if (stripeEnabled) {
+    return (
+      <StripeProvider publishableKey={STRIPE_PUBLISHABLE_KEY} urlScheme="litfinance">
+        {appTree}
+      </StripeProvider>
+    );
+  }
+
+  return appTree;
 }
 
 function AppRootLayout({
