@@ -12,6 +12,7 @@ import { userProfileService } from '../../services/userProfileService';
 import { applyStoredAppIconVariant } from '../../services/appIconService';
 import { apiRateLimiter } from '../../services/apiRateLimiter';
 import { logger } from '../../shared/monitoring/logger';
+import { LITE_SYNC_POLICY } from '../../config/liteSyncPolicy';
 import type { RootStackParamList } from '../../navigation/AppNavigator';
 import { liteMobileBootstrapService } from '../../services/lite/liteMobileBootstrap.service';
 import { liteSyncPullService } from '../../services/lite/liteSyncPull.service';
@@ -163,7 +164,7 @@ export function AppLifecycleProvider({
       if (enableLegacyMobileRuntime) {
         await refreshUserProfile({ force: opts?.forceProfile });
         await runMobileBootstrap({ force: opts?.forceBootstrap });
-      } else {
+      } else if (LITE_SYNC_POLICY.autoBootstrapOnAppStart) {
         await liteMobileBootstrapService.run().catch((error) => {
           logger.warn('[App] Error ejecutando bootstrap Lite', {
             message: (error as any)?.message,
@@ -173,7 +174,7 @@ export function AppLifecycleProvider({
 
       if (opts?.syncReason && enableLegacyMobileRuntime) {
         await mobileSyncService.syncNow(opts.syncReason).catch(() => {});
-      } else if (opts?.syncReason) {
+      } else if (opts?.syncReason && !LITE_SYNC_POLICY.manualSyncOnly) {
         await liteSyncPushService.tryPushIfOnline().catch(() => {});
         await liteSyncPullService.pull().catch(() => {});
       }
@@ -198,8 +199,10 @@ export function AppLifecycleProvider({
       return;
     }
 
-    await liteSyncPushService.tryPushIfOnline().catch(() => {});
-    await liteSyncPullService.pull().catch(() => {});
+    if (!LITE_SYNC_POLICY.manualSyncOnly && LITE_SYNC_POLICY.autoPullOnResume) {
+      await liteSyncPushService.tryPushIfOnline().catch(() => {});
+      await liteSyncPullService.pull().catch(() => {});
+    }
   };
 
   const handleAppStateChange = (nextAppState: AppStateStatus) => {
