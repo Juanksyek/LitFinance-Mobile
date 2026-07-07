@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
-import { API_BASE_URL } from '../constants/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { accountDashboardService } from '../services/accountDashboardService';
+import { logger } from '../shared/monitoring/logger';
 
 type CuentaPrincipal = {
   _id: string;
@@ -20,21 +21,11 @@ export function useCuentaPrincipal(token: string | null, reloadKey: number = 0) 
   const [error, setError] = useState<string | null>(null);
 
   const fetchCuenta = useCallback(async () => {
-    console.log('[useCuentaPrincipal] token:', token);
     if (!token) return;
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${API_BASE_URL}/cuenta/principal`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const text = await res.text();
-      console.log('[useCuentaPrincipal] /cuenta/principal response:', text);
-      if (!res.ok) {
-        throw new Error('Error al cargar cuenta principal');
-      }
-      const json = text ? JSON.parse(text) : null;
-      const normalized = json?.data ?? json;
+      const normalized = await accountDashboardService.getCuentaPrincipal() as CuentaPrincipal;
       setCuenta(normalized);
 
       // Keep premium gating in sync even if login response didn't include it
@@ -55,7 +46,9 @@ export function useCuentaPrincipal(token: string | null, reloadKey: number = 0) 
       }
     } catch (err: any) {
       setError(err?.message || 'Error desconocido');
-      console.error('Error fetching cuenta principal:', err);
+      logger.error('Error fetching cuenta principal', {
+        message: err?.message,
+      });
     } finally {
       setLoading(false);
     }
@@ -70,6 +63,5 @@ export function useCuentaPrincipal(token: string | null, reloadKey: number = 0) 
     cuenta?.premiumSubscriptionStatus === 'trialing' ||
     (cuenta?.premiumUntil && new Date(cuenta.premiumUntil) > new Date());
 
-  console.log('[useCuentaPrincipal] cuenta:', cuenta, 'isPremium:', isPremium);
   return { cuenta, loading, error, refetch: fetchCuenta, isPremium };
 }
