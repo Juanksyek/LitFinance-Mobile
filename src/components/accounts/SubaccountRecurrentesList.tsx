@@ -9,7 +9,6 @@ import { RootStackParamList } from '../navigation/AppNavigator';
 import SmartNumber from './SmartNumber';
 import { useThemeColors } from '../theme/useThemeColors';
 import { subaccountsRecurrentesService } from '../../services/subaccountsRecurrentesService';
-import { accountDashboardService } from '../../services/accountDashboardService';
 import { dashboardRefreshBus, emitRecurrentesChanged } from '../../utils/dashboardRefreshBus';
 import { getCachedSessionSnapshot } from '../../shared/state';
 import { getCachedSubcuentaRecurrentes } from '../../services/subaccountDetailCacheService';
@@ -146,24 +145,6 @@ const SubaccountRecurrentesList = ({ subcuentaId, subcuentaAltId, userId, onRefr
             : null,
         });
         if (items.length > 0) break;
-      }
-
-      if (items.length === 0) {
-        console.log(`${SUBACCOUNT_RECURRENTES_DEBUG_PREFIX} fetch:fallbackToGeneralList`, {
-          effectiveUserId,
-        });
-        const fallback = await accountDashboardService.listRecurrentes({
-          userId: effectiveUserId,
-          page: 1,
-          limit: 200,
-          search: '',
-        });
-        items = Array.isArray(fallback.items) ? fallback.items : [];
-        console.log(`${SUBACCOUNT_RECURRENTES_DEBUG_PREFIX} fetch:fallbackResponse`, {
-          itemsLength: items.length,
-          totalCount: fallback.totalCount,
-          hasNextPage: fallback.hasNextPage,
-        });
       }
 
       const filtered = items
