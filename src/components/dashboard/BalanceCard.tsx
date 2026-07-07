@@ -311,7 +311,7 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ reloadTrigger, onCurrencyChan
       } catch {}
 
       if (__DEV__) {
-        console.log('🔁 [BalanceCard] /transacciones response preview', { periodo, moneda: monedaActual, raw: data, ingresoTotal, egresoTotal });
+        console.log('🔁 [BalanceCard] local transactions preview', { periodo, moneda: monedaActual, raw: data, ingresoTotal, egresoTotal });
       }
 
       // totals calculated
