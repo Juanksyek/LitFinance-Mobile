@@ -25,12 +25,10 @@ import { accountHistoryService, type HistoryTarget } from "../../services/accoun
 // use shared fixEncoding helper
 
 type HistorialItem = {
-  // En /cuenta-historial, `id` es el identificador del movimiento (movimientoId)
-  // y NO necesariamente el id de la transacción.
+  // En local-first, `id` suele ser el id local de la transaccion/movimiento.
   id: string;
   movimientoId?: string;
-  // Para movimientos que provienen de una transacción, el backend ahora entrega `transaccionId`.
-  // Este es el id preferido para PATCH/DELETE /transacciones/:id.
+  // Puede ser local o serverId; ambos se resuelven en SQLite.
   transaccionId?: string;
   _id?: string;
   descripcion: string;
@@ -178,16 +176,13 @@ const TransactionHistory = ({ refreshKey, dashboardSnapshot }: { refreshKey?: nu
   const canEditMovimiento = (item: HistorialItem) => {
     const tipo = String(item.tipo || '').toLowerCase();
     const isIngresoEgreso = tipo === 'ingreso' || tipo === 'egreso';
-    // Regla recomendada: solo si viene `transaccionId` desde /cuenta-historial
-    return isIngresoEgreso && Boolean(getTransaccionId(item));
+    return isIngresoEgreso && Boolean(getTransaccionId(item) || getMovimientoId(item) || item.id);
   };
 
   const normalizeHistorialItem = (raw: any, cuentaIdFallback?: string): HistorialItem => {
-    // En /cuenta-historial, `id` es movimientoId del historial
     const rawMovimientoId = raw?.id != null ? String(raw.id) : '';
     const rawMongoId = raw?._id != null ? String(raw._id) : undefined;
     const rawTransaccionId = raw?.transaccionId != null ? String(raw.transaccionId) : undefined;
-    // Mantener el id como movimientoId si existe; si no, usar fallback
     const id = rawMovimientoId || rawTransaccionId || rawMongoId || '';
 
     const descripcion = raw?.descripcion ?? raw?.concepto ?? raw?.nombre ?? '';
@@ -834,7 +829,7 @@ const TransactionHistory = ({ refreshKey, dashboardSnapshot }: { refreshKey?: nu
       Toast.show({
         type: 'info',
         text1: 'No editable',
-        text2: 'Solo puedes editar transacciones (ingreso/egreso) con transaccionId.',
+        text2: 'Solo puedes editar transacciones locales de ingreso/egreso.',
       });
       return;
     }
@@ -873,7 +868,7 @@ const TransactionHistory = ({ refreshKey, dashboardSnapshot }: { refreshKey?: nu
       Toast.show({
         type: 'info',
         text1: 'No eliminable',
-        text2: 'Solo puedes eliminar transacciones (ingreso/egreso) con transaccionId.',
+        text2: 'Solo puedes eliminar transacciones locales de ingreso/egreso.',
       });
       return;
     }
